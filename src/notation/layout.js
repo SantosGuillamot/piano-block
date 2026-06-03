@@ -23,12 +23,15 @@ import { normalizeStep } from "../song/normalizeStep.js";
 import {
 	ACCIDENTAL_COL_STEP,
 	ACCIDENTAL_GAP,
+	ADV_K,
 	BASE_DUR,
 	BEAM_COUNT,
 	DOT_GAP,
 	DOT_MUL,
 	DOT_OFFSET,
+	EMPTY_MEASURE_WIDTH,
 	LEDGER_WIDTH,
+	MIN_ADV,
 	NOTEHEAD_RX,
 	STEM_LENGTH,
 } from "./constants.js";
@@ -644,4 +647,173 @@ export function stackAccidentals(accidentals, bottomLineY = 0) {
 		});
 	}
 	return placed;
+}
+
+// ── Union-grid alignment + compressive spacing + intrinsic widths (§6.2) ─────────
+//
+// This is the most adversarially-tested requirement (AC5, robust under AC8/AC9).
+// Onsets, the shared grid, the per-column advances, and the intrinsic measure
+// width all come PURELY from event durations — `timeSignature` is NEVER consulted
+// for any X or width. That single rule makes AC8 (events don't sum to the time
+// signature) and AC9 (one-hand / empty-hand measures still draw both staves) fall
+// out structurally: the layout simply does not know or care what the bar "should"
+// total, and the staff geometry is driven by measure dimensions, not by events.
+// Everything is kept NaN-safe (`sqrt(max(Δ, 0))`, an empty-grid short-circuit, and
+// `measureEnd = max(handEnds, 0)`).
+
+/**
+ * One hand's event onsets within a measure (design §6.2): the running sum from 0
+ * of each event's `eventDuration`. Each event contributes one onset (its start),
+ * so the i-th onset is the total duration of events 0..i−1. Rests are full grid
+ * citizens — a rest advances the running onset just like a note. An absent or
+ * empty hand yields `[]`.
+ *
+ * @param {{ duration?: string, dots?: number }[]} [events] One hand's events for
+ *   one measure.
+ * @return {number[]} The onset of each event, in quarter-beats, in event order.
+ */
+export function handOnsets(events) {
+	const onsets = [];
+	let pos = 0;
+	for (let i = 0; i < (events?.length ?? 0); i++) {
+		onsets.push(pos);
+		pos += eventDuration(events[i]);
+	}
+	return onsets;
+}
+
+/**
+ * The end (total duration) of one hand's events in a measure (design §6.2): the
+ * running sum of every event's `eventDuration`. An absent or empty hand yields 0.
+ *
+ * @param {{ duration?: string, dots?: number }[]} [events] One hand's events.
+ * @return {number} The hand's end onset, in quarter-beats (≥ 0).
+ */
+export function handEnd(events) {
+	let pos = 0;
+	for (let i = 0; i < (events?.length ?? 0); i++) {
+		pos += eventDuration(events[i]);
+	}
+	return pos;
+}
+
+/**
+ * The union grid for a measure (design §6.2): the sorted, de-duplicated union of
+ * both hands' onsets. Each unique onset `t` maps to one X (computed by
+ * `measureLayout`), so an event at `t` in EITHER hand draws at the same X →
+ * automatic vertical alignment. Equal onsets collapse to one column; an off-beat
+ * onset present in only one hand gets its own column between the shared ones; an
+ * empty measure yields `[]`.
+ *
+ * @param {number[]} rightOnsets The right hand's onsets (`handOnsets`).
+ * @param {number[]} leftOnsets The left hand's onsets (`handOnsets`).
+ * @return {number[]} The sorted unique onset grid.
+ */
+export function unionGrid(rightOnsets, leftOnsets) {
+	const set = new Set();
+	for (const t of rightOnsets ?? []) {
+		set.add(t);
+	}
+	for (const t of leftOnsets ?? []) {
+		set.add(t);
+	}
+	return [...set].sort((a, b) => a - b);
+}
+
+/**
+ * The compressive horizontal advance for a gap between adjacent onsets (design
+ * §6.2): `advance(Δ) = MIN_ADV + ADV_K · sqrt(max(Δ, 0))`. Real engraving spacing
+ * is logarithmic (~1.5:1 per duration-doubling), not strictly proportional, so a
+ * whole note advances ~2.5× a 32nd rather than 32×. `sqrt(max(Δ, 0))` keeps it
+ * NaN-safe for a negative or zero gap (clamping to the `MIN_ADV` floor).
+ *
+ * `extra` raises the minimum for THIS column when accidentals / dots / flags are
+ * present so their glyphs clear (it is added on top of the compressive term).
+ *
+ * @param {number} delta The gap to the next onset, in quarter-beats.
+ * @param {{ extra?: number }} [options] `extra` additional clearance (sp) for
+ *   glyphs at this column.
+ * @return {number} The advance, in sp (always finite, always ≥ `MIN_ADV`).
+ */
+export function advanceFor(delta, { extra = 0 } = {}) {
+	return MIN_ADV + ADV_K * Math.sqrt(Math.max(delta, 0)) + Math.max(extra, 0);
+}
+
+/**
+ * Lay out one measure's two hands onto the shared union grid with content-driven
+ * compressive spacing, yielding the per-column X positions and the measure's
+ * intrinsic width — all purely from event durations (design §6.2). NEVER consults
+ * `timeSignature`: a `timeSignature` passed in `options` is ignored for every X
+ * and width (it is accepted only so callers may pass a uniform options object).
+ *
+ * Per column `i` (grid onset `t_i`), the advance to the next column is
+ * `advanceFor(Δ_i, { extra })` where `Δ_i = grid[i+1] − t_i` and the LAST column
+ * uses `Δ = measureEnd − t_last` with `measureEnd = max(handEnds, 0)`. The first
+ * column starts at `leadingPad`; `contentWidth = Σ advances` (or
+ * `EMPTY_MEASURE_WIDTH` for an empty grid); `width = leadingPad + contentWidth +
+ * trailingPad`. Both hands' onsets are always reported (`hands.right`/`hands.left`)
+ * so the emit layer can draw BOTH staves even for a one-hand or empty measure (AC9).
+ *
+ * @param {{ duration?: string, dots?: number }[]} [rightEvents] The RH events.
+ * @param {{ duration?: string, dots?: number }[]} [leftEvents] The LH events.
+ * @param {{ leadingPad?: number, trailingPad?: number,
+ *   columnExtra?: Record<number, number> }} [options] `leadingPad` (clef/keysig/
+ *   timesig reserve, only on measures that print them), `trailingPad` (barline
+ *   width + repeat dots / final thick bar), and `columnExtra` (per-column-index
+ *   extra clearance for accidentals/dots/flags). A `timeSignature` here is ignored.
+ * @return {{ grid: number[], columns: { onset: number, x: number,
+ *   advance: number }[], measureEnd: number, contentWidth: number, width: number,
+ *   hands: { right: { onsets: number[] }, left: { onsets: number[] } } }} The
+ *   measure layout as plain data, in sp.
+ */
+export function measureLayout(rightEvents, leftEvents, options = {}) {
+	const { leadingPad = 0, trailingPad = 0, columnExtra = {} } = options;
+
+	const rightOnsets = handOnsets(rightEvents);
+	const leftOnsets = handOnsets(leftEvents);
+	const grid = unionGrid(rightOnsets, leftOnsets);
+
+	// The measure's end is the longer hand's total duration — never the time
+	// signature. `max(handEnds, 0)` keeps it ≥ 0 for an empty measure.
+	const measureEnd = Math.max(handEnd(rightEvents), handEnd(leftEvents), 0);
+
+	const hands = {
+		right: { onsets: rightOnsets },
+		left: { onsets: leftOnsets },
+	};
+
+	// Empty grid → the floor width, no columns, no NaN (the empty-grid short-circuit).
+	if (grid.length === 0) {
+		return {
+			grid,
+			columns: [],
+			measureEnd,
+			contentWidth: EMPTY_MEASURE_WIDTH,
+			width: leadingPad + EMPTY_MEASURE_WIDTH + trailingPad,
+			hands,
+		};
+	}
+
+	// Walk the grid left→right, placing each column at the running X and computing
+	// the advance to the next onset (the last column gaps to `measureEnd`).
+	const columns = [];
+	let x = leadingPad;
+	let contentWidth = 0;
+	for (let i = 0; i < grid.length; i++) {
+		const onset = grid[i];
+		const next = i + 1 < grid.length ? grid[i + 1] : measureEnd;
+		const advance = advanceFor(next - onset, { extra: columnExtra[i] ?? 0 });
+		columns.push({ onset, x, advance });
+		x += advance;
+		contentWidth += advance;
+	}
+
+	return {
+		grid,
+		columns,
+		measureEnd,
+		contentWidth,
+		width: leadingPad + contentWidth + trailingPad,
+		hands,
+	};
 }

@@ -9,7 +9,9 @@
  * DOM-free plain data in staff-space (sp) units; later parts (T5/T6) extend this
  * same file.
  */
+import { EMPTY_MEASURE_WIDTH, MIN_ADV } from "../constants.js";
 import {
+	advanceFor,
 	beamCountFor,
 	beamGeometry,
 	beamGroups,
@@ -18,8 +20,11 @@ import {
 	diatonicIndex,
 	dotPositions,
 	eventDuration,
+	handEnd,
+	handOnsets,
 	isBeamable,
 	ledgerLinesFor,
+	measureLayout,
 	normalizeAlters,
 	pitchToStaffStep,
 	resolveAccidental,
@@ -29,6 +34,7 @@ import {
 	stemDirectionForChord,
 	stemDirectionForStep,
 	stepIndex,
+	unionGrid,
 } from "../layout.js";
 
 // ── Pitch → staff position (design §5.2) ───────────────────────────────────────
@@ -516,5 +522,271 @@ describe("stackAccidentals (design §6.4, best-effort)", () => {
 		expect(high.column).toBe(0);
 		expect(low.column).toBe(1);
 		expect(low.dx).toBeGreaterThan(high.dx);
+	});
+});
+
+// ── T5: union-grid alignment + compressive spacing + intrinsic widths (§6.2) ────
+//
+// The §6.2 AC8/AC9 battery: onsets/grid/advances come PURELY from event durations
+// — `timeSignature` is never consulted for any X or width. These tests are the
+// spec's most-tested robustness path: no throw, no NaN, both staff bands for a
+// one-hand/empty-hand measure, floor width for an empty measure.
+
+describe("handOnsets / handEnd (design §6.2)", () => {
+	it("computes onsets as the running sum from 0 of each event's duration", () => {
+		// Four quarters → onsets 0,1,2,3; end 4.
+		const events = Array.from({ length: 4 }, () => ({
+			type: "note",
+			duration: "quarter",
+		}));
+		expect(handOnsets(events)).toEqual([0, 1, 2, 3]);
+		expect(handEnd(events)).toBe(4);
+	});
+
+	it("treats rests as full grid citizens (a rest advances the onset)", () => {
+		const events = [
+			{ type: "note", duration: "quarter" },
+			{ type: "rest", duration: "quarter" },
+			{ type: "note", duration: "quarter" },
+		];
+		expect(handOnsets(events)).toEqual([0, 1, 2]);
+		expect(handEnd(events)).toBe(3);
+	});
+
+	it("honours dotted durations in the onset arithmetic", () => {
+		// Dotted half (3) then quarter (1) → onsets 0, 3; end 4.
+		const events = [
+			{ type: "note", duration: "half", dots: 1 },
+			{ type: "note", duration: "quarter" },
+		];
+		expect(handOnsets(events)).toEqual([0, 3]);
+		expect(handEnd(events)).toBe(4);
+	});
+
+	it("returns an empty onset list and a zero end for an absent/empty hand", () => {
+		expect(handOnsets()).toEqual([]);
+		expect(handOnsets([])).toEqual([]);
+		expect(handEnd()).toBe(0);
+		expect(handEnd([])).toBe(0);
+	});
+});
+
+describe("unionGrid (design §6.2)", () => {
+	it("aligns equal onsets to a single shared column", () => {
+		// Both hands four quarters → identical onsets → one column each.
+		const rh = Array.from({ length: 4 }, () => ({
+			type: "note",
+			duration: "quarter",
+		}));
+		const lh = Array.from({ length: 4 }, () => ({
+			type: "note",
+			duration: "quarter",
+		}));
+		expect(unionGrid(handOnsets(rh), handOnsets(lh))).toEqual([0, 1, 2, 3]);
+	});
+
+	it("gives an off-beat RH eighth its own column between the LH quarters", () => {
+		// RH eighths: onsets 0,0.5,1,1.5; LH quarters: onsets 0,1. The union
+		// interleaves the RH off-beats (0.5, 1.5) between the shared on-beats.
+		const rh = Array.from({ length: 4 }, () => ({
+			type: "note",
+			duration: "eighth",
+		}));
+		const lh = Array.from({ length: 2 }, () => ({
+			type: "note",
+			duration: "quarter",
+		}));
+		expect(unionGrid(handOnsets(rh), handOnsets(lh))).toEqual([0, 0.5, 1, 1.5]);
+	});
+
+	it("extends the grid to the longer hand on unequal totals", () => {
+		// RH two quarters (onsets 0,1; end 2); LH one whole (onset 0; end 4). The
+		// grid is just the union of onsets {0,1}; the longer hand's END drives the
+		// last advance, not extra columns.
+		const rh = [
+			{ type: "note", duration: "quarter" },
+			{ type: "note", duration: "quarter" },
+		];
+		const lh = [{ type: "note", duration: "whole" }];
+		expect(unionGrid(handOnsets(rh), handOnsets(lh))).toEqual([0, 1]);
+	});
+
+	it("is the present hand's onsets for a one-hand measure", () => {
+		const rh = [
+			{ type: "note", duration: "quarter" },
+			{ type: "note", duration: "quarter" },
+		];
+		expect(unionGrid(handOnsets(rh), handOnsets([]))).toEqual([0, 1]);
+		expect(unionGrid(handOnsets([]), handOnsets(rh))).toEqual([0, 1]);
+	});
+
+	it("is empty for an empty measure", () => {
+		expect(unionGrid([], [])).toEqual([]);
+	});
+});
+
+describe("advanceFor (compressive spacing, design §6.2)", () => {
+	it("is MIN_ADV + ADV_K·sqrt(Δ)", () => {
+		// Δ = 4 → sqrt 2 → MIN_ADV + 3·2 = MIN_ADV + 6.
+		expect(advanceFor(4)).toBeCloseTo(MIN_ADV + 6, 10);
+		// Δ = 0 → the floor advance MIN_ADV.
+		expect(advanceFor(0)).toBeCloseTo(MIN_ADV, 10);
+	});
+
+	it("is compressive: whole-vs-32nd advance ratio is ~2.5:1, not 32:1", () => {
+		const ratio = advanceFor(4) / advanceFor(0.125);
+		expect(ratio).toBeGreaterThan(2);
+		expect(ratio).toBeLessThan(3);
+	});
+
+	it("is NaN-safe for a negative Δ (clamps via sqrt(max(Δ,0)))", () => {
+		const a = advanceFor(-5);
+		expect(Number.isNaN(a)).toBe(false);
+		expect(a).toBeCloseTo(MIN_ADV, 10);
+	});
+
+	it("raises the advance per-column when glyphs (accidentals/dots/flags) clear", () => {
+		// A column flagged with extra glyphs gets a wider minimum than a bare one.
+		const bare = advanceFor(0);
+		const wide = advanceFor(0, { extra: 2 });
+		expect(wide).toBeGreaterThan(bare);
+		expect(wide).toBeCloseTo(bare + 2, 10);
+	});
+});
+
+describe("measureLayout (design §6.2 — the AC8/AC9 battery)", () => {
+	it("returns a union grid, per-onset X, and an intrinsic width", () => {
+		const rh = [
+			{ type: "note", duration: "quarter" },
+			{ type: "note", duration: "quarter" },
+		];
+		const lh = [{ type: "note", duration: "half" }];
+		const layout = measureLayout(rh, lh);
+		expect(layout.grid).toEqual([0, 1]);
+		// One X per grid onset, monotonically increasing, the first at leadingPad.
+		expect(layout.columns).toHaveLength(2);
+		expect(layout.columns[0].onset).toBe(0);
+		expect(layout.columns[1].x).toBeGreaterThan(layout.columns[0].x);
+		expect(layout.width).toBeGreaterThan(0);
+		expect(Number.isFinite(layout.width)).toBe(true);
+	});
+
+	it("maps an onset present in either hand to the same X (vertical alignment)", () => {
+		// RH eighths and LH quarters: the on-beat columns (0, 1) are shared X's the
+		// LH lands on; the off-beats (0.5, 1.5) are RH-only columns in between.
+		const rh = Array.from({ length: 4 }, () => ({
+			type: "note",
+			duration: "eighth",
+		}));
+		const lh = Array.from({ length: 2 }, () => ({
+			type: "note",
+			duration: "quarter",
+		}));
+		const layout = measureLayout(rh, lh);
+		expect(layout.grid).toEqual([0, 0.5, 1, 1.5]);
+		const xOf = (t) => layout.columns.find((c) => c.onset === t).x;
+		// The LH quarter at onset 1 draws at the very same X as the RH eighth there.
+		expect(xOf(1)).toBeGreaterThan(xOf(0.5));
+		expect(xOf(0.5)).toBeGreaterThan(xOf(0));
+	});
+
+	it("extends the grid to max(handEnds); the short hand simply ends (AC8)", () => {
+		// RH two quarters (end 2); LH one whole (end 4). The last advance uses
+		// measureEnd = max(2,4) = 4, so the whole-note column gets a wide gap.
+		const rh = [
+			{ type: "note", duration: "quarter" },
+			{ type: "note", duration: "quarter" },
+		];
+		const lh = [{ type: "note", duration: "whole" }];
+		const layout = measureLayout(rh, lh);
+		expect(layout.grid).toEqual([0, 1]);
+		expect(layout.measureEnd).toBe(4);
+		expect(Number.isFinite(layout.width)).toBe(true);
+	});
+
+	it("produces both staff bands for a one-hand measure (AC9)", () => {
+		// LH absent: the grid is the RH onsets, but the measure still reports both
+		// hands' geometry so the emit layer draws both staves regardless.
+		const rh = [
+			{ type: "note", duration: "quarter" },
+			{ type: "note", duration: "quarter" },
+		];
+		const layout = measureLayout(rh, []);
+		expect(layout.grid).toEqual([0, 1]);
+		expect(layout.hands.right.onsets).toEqual([0, 1]);
+		expect(layout.hands.left.onsets).toEqual([]);
+		expect(Number.isFinite(layout.width)).toBe(true);
+	});
+
+	it("produces both staff bands for an empty measure at the floor width (AC9)", () => {
+		const layout = measureLayout([], []);
+		expect(layout.grid).toEqual([]);
+		expect(layout.columns).toEqual([]);
+		// Empty grid → the floor width plus pads; the content floor is the constant.
+		expect(layout.contentWidth).toBe(EMPTY_MEASURE_WIDTH);
+		expect(layout.hands.right.onsets).toEqual([]);
+		expect(layout.hands.left.onsets).toEqual([]);
+		expect(Number.isFinite(layout.width)).toBe(true);
+	});
+
+	it("never throws and stays NaN-free on an overflowing bar (AC8)", () => {
+		// Far more eighths than 4/4 holds — but the layout never knows or cares
+		// what the bar "should" total; it lays out purely from durations.
+		const rh = Array.from({ length: 20 }, () => ({
+			type: "note",
+			duration: "eighth",
+		}));
+		expect(() => measureLayout(rh, [])).not.toThrow();
+		const layout = measureLayout(rh, []);
+		expect(layout.columns).toHaveLength(20);
+		expect(layout.columns.every((c) => Number.isFinite(c.x))).toBe(true);
+		expect(Number.isFinite(layout.width)).toBe(true);
+	});
+
+	it("NEVER consults timeSignature — identical layout regardless of it", () => {
+		const rh = Array.from({ length: 6 }, () => ({
+			type: "note",
+			duration: "eighth",
+		}));
+		// Two wildly different time signatures (one where the events overflow) must
+		// yield byte-identical layout: the layer is structurally time-sig-blind.
+		const a = measureLayout(rh, [], {
+			timeSignature: { beats: 2, beatType: 4 },
+		});
+		const b = measureLayout(rh, [], {
+			timeSignature: { beats: 12, beatType: 8 },
+		});
+		expect(a).toEqual(b);
+		const bare = measureLayout(rh, []);
+		expect(bare).toEqual(a);
+	});
+
+	it("adds leadingPad only when the measure prints clef/keysig/timesig", () => {
+		const rh = [{ type: "note", duration: "quarter" }];
+		const plain = measureLayout(rh, []);
+		const withReserve = measureLayout(rh, [], { leadingPad: 12 });
+		expect(withReserve.width).toBeCloseTo(plain.width + 12, 10);
+		// The leading pad shifts the first column right by exactly that pad.
+		expect(withReserve.columns[0].x).toBeCloseTo(plain.columns[0].x + 12, 10);
+	});
+
+	it("adds a trailingPad (barline width) to the intrinsic width", () => {
+		const rh = [{ type: "note", duration: "quarter" }];
+		const plain = measureLayout(rh, []);
+		const withBar = measureLayout(rh, [], { trailingPad: 1.5 });
+		expect(withBar.width).toBeCloseTo(plain.width + 1.5, 10);
+	});
+
+	it("widens a column carrying accidentals/dots/flags so its glyphs clear", () => {
+		const rh = [
+			{ type: "note", duration: "quarter" },
+			{ type: "note", duration: "quarter" },
+		];
+		const plain = measureLayout(rh, []);
+		// Mark the first column as needing extra room (e.g. an accidental + a dot).
+		const padded = measureLayout(rh, [], { columnExtra: { 0: 2 } });
+		expect(padded.width).toBeGreaterThan(plain.width);
+		// Everything from that column rightward shifts by the extra room.
+		expect(padded.columns[1].x).toBeCloseTo(plain.columns[1].x + 2, 10);
 	});
 });
