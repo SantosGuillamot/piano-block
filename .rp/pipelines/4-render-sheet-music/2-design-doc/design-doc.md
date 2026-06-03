@@ -139,14 +139,19 @@ as plain text.
 
 **The `</script>` escaping is a load-bearing, easily-mis-implemented detail.**
 Inside a `<script>` raw-text element the HTML parser scans for the ETAGO sequence
-`</` (and `<!--`) **regardless of JSON quoting**, so a song containing the literal
-`</script>` (e.g. in a `chordSymbol` or `metadata.title`) could break out of the
-script element. `esc_html` / `htmlspecialchars` is **WRONG here**: raw-text script
-content does not decode HTML entities, so escaping would leave literal `&lt;` that
-`JSON.parse` chokes on. The correct, JSON-preserving transform is the **ETAGO
-escape**: replace `</` → `<\/` and `<!--` → `<\!--` before emitting. `\/` is a legal
-JSON escape for `/`, so `JSON.parse` decodes back to the **exact author bytes**,
-while the HTML parser never sees a literal closing tag.
+`</` (and the comment-open `<!--`) **regardless of JSON quoting**, so a song
+containing the literal `</script>` or `<!--` (e.g. in a `chordSymbol` or
+`metadata.title`) could break out of the script element. `esc_html` /
+`htmlspecialchars` is **WRONG here**: raw-text script content does not decode HTML
+entities, so escaping would leave literal `&lt;` that `JSON.parse` chokes on. The
+correct, JSON-preserving transform escapes the leading `<` of every breakout
+sequence as the **JSON unicode escape `<`** before emitting: replace `</` →
+`</` and `<!--` → `<!--`. (A blanket `<` → `<` is the simplest valid
+form and neutralizes both sequences at once.) `<` is a legal JSON escape for
+`<`, so `JSON.parse` decodes back to the **exact author bytes**, while the HTML
+parser never sees a literal `</` or `<!--` and cannot close or comment out the
+script element. The earlier `<\/` / `<\!--` form is **wrong**: `\!` is not a valid
+JSON escape, so `JSON.parse` would throw on a conformant song containing `<!--`.
 
 **PHP performs no validation.** `render.php` emits the container for any non-empty
 song; `view.js` owns validation and the render-or-nothing decision. No PHP
@@ -332,7 +337,7 @@ negligible at our scale.
 render.php
   song attribute (string)
     └─ trim=='' ? return : <div wrapper><script type="application/json" …>SONG</script></div>
-                                            (ETAGO-escaped:  </ → <\/ ,  <!-- → <\!-- )
+                                            (breakout-escaped:  </ → </ ,  <!-- → <!--  via <)
 
 (browser, frontend only)
 view.js  (viewScript, gated on document.fonts.ready for the first draw)
@@ -757,9 +762,12 @@ The pure layout-model seam (§3) makes all the hard logic DOM-free and unit-test
     `<svg>` / no visible notation, wrapper may exist; conformant → `<svg role="img">` with
     the expected accessible name);
   - responsive (wide vs narrow viewport → the number of systems / wrapping changes);
-  - injection safety (a `chordSymbol` / `title` containing `</script>` and
-    `<script>alert()</script>` → no script executes, text is inert via `textContent`, and
-    the JSON `<script>` does not break out — the relocated AC8 protection).
+  - injection safety (a `chordSymbol` / `title` containing `</script>`, a literal `<!--`,
+    and `<script>alert()</script>` → no script executes, text is inert via `textContent`,
+    and the JSON `<script>` does not break out; crucially, the song carrying these literals
+    is **conformant**, so it must still `JSON.parse` back to the exact author bytes and
+    **render its notation** — the `<` escape round-trips where the invalid `<\!--` would
+    have thrown — the relocated AC8 protection).
 - **`render.spec.js` REWRITE** (the current tests assert the old `<pre>` behavior and
   contradict the new design):
   - OLD "empty → no `<pre>`" → retarget to "empty → no SVG / nothing visible";
@@ -821,10 +829,14 @@ these are the concrete plan tasks):
    `build/`), and **gate the first `draw()` on `document.fonts.ready`** (`@font-face` in
    `style.scss` is harmless to the editor; an optional dedicated frontend-only `viewStyle`
    is a plan decision).
-2. **ETAGO escape in `render.php`.** Replace `</` → `<\/` and `<!--` → `<\!--` — **NOT**
-   `esc_html` (raw-text `<script>` does not decode entities). Test a literal `</script>` in
-   author free text (`chordSymbol` / `metadata.title`) round-tripping through the script tag
-   intact without breaking out.
+2. **Script-breakout escape in `render.php`.** Escape the leading `<` of every breakout
+   sequence as the JSON unicode escape `<`: replace `</` → `</` and `<!--` →
+   `<!--` (a blanket `<` → `<` is the simplest valid form) — **NOT** `esc_html`
+   (raw-text `<script>` does not decode entities) and **NOT** `<\!--` (`\!` is invalid
+   JSON and would make `JSON.parse` throw on a conformant song). Test a literal `</script>`
+   **and** a literal `<!--` in author free text (`chordSymbol` / `metadata.title`)
+   round-tripping through the script tag intact (decoding back to the exact author bytes via
+   `JSON.parse`) without breaking out.
 3. **Shared `normalizeStep()`.** A single note-name helper shared by the validator
    vocabulary, pitch→Y, and accidentals — exposed without changing validation behavior (no
    drift).
