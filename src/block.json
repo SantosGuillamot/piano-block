@@ -9,6 +9,9 @@
 	"description": "A placeholder Piano block — a scaffold for a future interactive piano.",
 	"keywords": ["piano", "music", "keyboard"],
 	"textdomain": "piano-block",
+	"attributes": {
+		"song": { "type": "string", "default": "" }
+	},
 	"editorScript": "file:./index.js",
 	"style": "file:./style-index.css",
 	"render": "file:./render.php"
