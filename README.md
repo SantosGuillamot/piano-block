@@ -14,6 +14,45 @@ The plugin registers exactly one block — **Piano** (`piano-block/piano`):
 
 There is no playable keyboard or sound yet — the placeholder is intentional, so the plugin can be built and smoke-tested while the real piano is developed on top of it.
 
+## Using the Piano block
+
+The Piano block stores one **song** — a JSON document in the plugin's own [song format](docs/song-format.md). In v1 you author that song **by hand**, by typing or pasting the JSON into the block. Here is the end-to-end workflow.
+
+### 1. Insert the block
+
+In the editor, open the inserter and add the **Piano** block — it lives under the **Media** category (search for "Piano").
+
+### 2. Enter a song
+
+The block's editor shows a single multi-line text field on the block canvas for the raw song JSON:
+
+- **Label:** *Song (JSON)*
+- **Help text:** *The raw song document as JSON. Validation is informational and never blocks saving.*
+
+Type or paste your song's JSON into this field. For the full structure — every field, the allowed values, the two note-name systems, and a complete annotated example — see the [song format reference](docs/song-format.md). (This README does not repeat the field-level detail; that document is the canonical source.)
+
+A **freshly inserted block has no song**: the field starts blank and nothing is stored until you enter something.
+
+### 3. What the validation does
+
+As you type, the editor **checks your input against the song format** and shows a clear error notice beneath the field when the content is not valid JSON or does not conform to the format.
+
+This validation is **informational only — it never blocks saving**. The raw text you typed is **always stored**, whether or not it conforms; the error notice is guidance, not a gate. A couple of details to keep in mind:
+
+- **Empty input shows no error.** Validation runs only on non-empty input; a blank field is the "no song" state and is not validated.
+- **It is structural / field checking only.** The validator checks the document's shape and field values, **not** musical timing. A bar whose events do not "add up" to its time signature still saves with no timing error.
+
+### 4. What the front end shows (v1)
+
+On the published page, the block outputs the **stored song content as text** — the exact JSON you entered, with your line breaks and indentation preserved — inside a preformatted (`<pre>`) block. The front end performs **no validation** and renders **whatever is stored**; if there is no song, it outputs **nothing**.
+
+Two expectations to set explicitly:
+
+- **v1 does not render musical notation or play audio.** The front end shows the song *as text*. Visual notation and playback are future work (see [Forthcoming](#forthcoming)).
+- **The output is safely escaped.** Any HTML or script characters in the song appear as inert text — no markup is executed.
+
+> **Tip:** The [annotated example song](docs/song-format.md#annotated-example-song) in the format reference is a ready-made starting template. Copy it into the field and adapt it to your own song.
+
 ## Requirements
 
 To **run** the plugin:
