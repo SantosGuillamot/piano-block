@@ -322,3 +322,79 @@ octaveShift and alto/tenor clefs affect placement.
   moves Y) — feeds the accidentals question.
 - The note-name normalization is shared with the validator's vocabulary; the
   engine should not re-encode it independently (avoid drift).
+
+### Q5 — Durations → noteheads/stems/flags/beams; chord stacking; dots
+
+**Question.** Map duration/dots/pitches[] to noteheads, stems, flags, beams (incl.
+the inferred beaming rule given NO beam markers + NO timing guarantee), chord
+notehead stacking (seconds rule), and dot placement. Concrete sp constants.
+
+**Evidence (researcher; standards-grounded, "recognizable" bar).**
+- **Notehead/stem/flag.** whole = open notehead, **no stem**; half = open + stem;
+  quarter & shorter = filled + stem. Flags only on **un-beamed** flagged notes
+  (eighth=1, sixteenth=2, thirty-second=3); a note is **either flagged or
+  beamed, never both**. Flag at the stem end, on the **right of the stem** for
+  both directions, additional flags stacked ~1 sp toward the notehead (use the
+  font glyph). stemLength ≈ 3.5 sp (extend so the stem end crosses the middle
+  line for far ledger notes); stem thickness ≈ 0.13 sp; notehead ≈ 1.18×1 sp
+  (ellipse rx≈0.6, ry≈0.5).
+- **Stem direction + side.** Single note: sFromBottom < 4 → stem **up**;
+  sFromBottom ≥ 4 → stem **down** (note on middle line stems down). Stem-up
+  attaches at the **right** of the notehead; stem-down at the **left** (Wikipedia
+  "Stem"). Chord: direction by the note **farthest from the middle line** (max
+  |sFromBottom − 4|; tie → down); stem spans the chord's full vertical extent.
+  Two hands: each staff is a **single voice** deciding direction independently by
+  its own middle line — the format gives one flat event array per hand per
+  measure, so **no cross-staff, no multi-voice forced directions**.
+- **Beaming — inferred (no markers, no timing guarantee), per hand per measure.**
+  (a) Walk events tracking running `pos` in quarter-beats using `baseDur` (quarter
+  1, half 2, whole 4, eighth 0.5, sixteenth 0.25, thirty-second 0.125) × dot
+  factor (1 dot ×1.5, 2 dots ×1.75) — **the same arithmetic horizontal spacing
+  needs, reused**. (b) Beamable = a *note* (not rest) of eighth/sixteenth/
+  thirty-second. (c) Accumulate consecutive beamables; **break** at a rest, a
+  non-beamable note, measure end, or a beat-boundary crossing. (d) Beat unit from
+  `timeSignature`: **compound** (beatType ∈ {8,16} AND beats % 3 == 0, e.g.
+  6/8, 9/8, 12/8) → dotted beat = group in **3s**; **simple** (everything else) →
+  one beatType unit per beat (4/4 eighths beam in 2s). Break when
+  `floor(pos/beatLen)` changes; a note straddling a boundary starts a new group
+  (don't split a note). (e) **Robustness:** `pos` is only a grouping aid — if
+  events overflow the bar, keep accumulating/grouping, never clamp/crash; a group
+  of length 1 renders as a **flagged** note, not a one-note beam. (Sources: Open
+  University 3.9 / Open Music Theory compound beaming; GuitarLand/Musicnotes
+  simple-meter beaming.)
+- **Beam geometry.** One stem direction per group (extreme rule). **Flat
+  horizontal beams are acceptable** at our bar (beam Y at the most-extreme
+  stem-end so no stem is too short; all stems run to that common Y) — sidesteps
+  beam-slope rules (explicitly out of scope). Primary beam = thick line across
+  stem ends; secondary beams for 16th/32nd parallel ~0.25–0.3 sp toward the
+  noteheads. Mixed group: between adjacent notes draw secondary beams =
+  min(beamCount(left), beamCount(right)); an isolated shorter note gets a short
+  **stub** pointing toward the beat. beamCount: eighth 1, sixteenth 2,
+  thirty-second 3. beam thickness ≈ 0.5 sp; ≈ 0.75 sp per stacked level.
+- **Chord stacking + seconds rule.** All pitches share one stem; each notehead at
+  its Q4 Y. **Seconds rule** (Wikipedia "Stem"; Ultimate Music Theory): when two
+  chord notes are a diatonic second apart (Δ sFromBottom = 1), the **lower goes
+  left of the stem, the higher right**, regardless of stem direction (the
+  displaced one is the back-note, offset ~1 notehead width). Clusters (C-D-E):
+  outer two normal, middle flipped. No seconds → all on the normal side. Chord
+  dots: one per notehead, aligned. Chord accidentals: a column to the LEFT of the
+  noteheads (detail deferred to the accidentals question).
+- **Dots.** Augmentation dot to the **right** of the notehead, centered on a
+  **space**: note in a space (odd sFromBottom) → dot at the notehead Y; note on a
+  line (even sFromBottom) → dot nudged up into the adjacent space (Y of
+  sFromBottom+1). Second dot further right. dot offset ≈ 0.5 sp right of
+  notehead, radius ≈ 0.15 sp, inter-dot ≈ 0.5 sp.
+
+**Decision.** Adopt this spec as the engine's duration/stem/flag/beam/chord/dot
+model verbatim, including: the inferred best-effort beaming rule (simple vs
+compound beat unit; break at rests/non-beamables/beat boundaries; overflow-safe;
+length-1 → flag); **flat beams**; the extreme-note stem-direction rule per
+single-voice staff; the lower-left/higher-right seconds rule; and the constants
+table. Share the `baseDur`+dots duration arithmetic between beaming and
+horizontal spacing (single source).
+
+**Consequences carried forward.**
+- The duration→quarter-beats arithmetic is the spine of the per-measure
+  horizontal time grid and two-hand alignment — the next question.
+- Chord accidental column + per-note vs section `alters` precedence → accidentals
+  question.
