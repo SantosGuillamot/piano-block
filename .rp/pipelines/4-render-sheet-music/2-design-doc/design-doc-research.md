@@ -718,3 +718,95 @@ stems/beams/chords → Q6 time grid → Q7 wrapping → Q8 accidentals → Q9 th
 Remaining design topics: module decomposition, the validate-vs-reparse decision,
 the render-nothing gating + block wiring (what replaces `<pre>`), the accessible
 label, and test strategy (incl. the existing render.spec.js rewrite).
+
+### Q10 — Block frontend wiring: what replaces `<pre>`, render-nothing gating, validate-vs-reparse, data delivery
+
+**Question.** Concrete plumbing for the client-side render (Q1): what render.php
+emits in place of the `<pre>`, how the song reaches view.js, the render-nothing
+gate, the validate-vs-reparse decision, and the build wiring (spec req 1/7/8/9;
+AC1/AC6/AC7). Especially: the `</script>`-in-JSON escaping and what "outputs
+nothing" permits.
+
+**Evidence (researcher).**
+- **Container + data delivery (endorsed).** Keep the PHP early return: `trim(song)
+  === ''` → output nothing (no container — truly nothing for req 7/AC6). Otherwise
+  emit `<div {get_block_wrapper_attributes()}>` containing a
+  `<script type="application/json" class="…__song">{song}</script>`; view.js reads
+  the child script's `textContent` + `JSON.parse`. The JSON `<script>` beats a
+  data-attribute (no HTML-attribute escaping of a large blob; the script type is
+  inert/not executed; read as text).
+- **The `</script>` escaping — precise (LOAD-BEARING correction).** Inside a
+  `<script>` raw-text element the HTML parser scans for the ETAGO `</` (and
+  `<!--`) **regardless of JSON quoting**, so a song containing `</script>` could
+  break out. **`esc_html`/`htmlspecialchars` is WRONG here** — raw-text script
+  content does NOT decode HTML entities, so escaping would leave literal `&lt;`
+  that `JSON.parse` chokes on. The correct, JSON-preserving transform is the
+  **ETAGO escape**: replace `</` → `<\/` and `<!--` → `<\!--`. `\/` is a legal
+  JSON escape for `/`, so `JSON.parse` decodes back to the **exact author bytes**;
+  the HTML parser never sees a literal closing tag. (Sources: HN "safely escape
+  JSON inside HTML script elements"; man42 blog on the ETAGO problem.)
+- **PHP does NOT validate (confirmed, per Q1).** render.php emits the container
+  for any non-empty song; view.js owns validation + render-or-nothing. No PHP
+  reimplementation of the validator.
+- **Render-nothing gate in view.js (confirmed).** raw = script `textContent` →
+  `validateSong(raw)` → `errors.length > 0` (invalid JSON OR non-conformant) →
+  render nothing → else `JSON.parse(raw)` + draw. (`validateSong` already returns
+  "Invalid JSON" for parse failures, so the gate covers it; the reparse runs only
+  after `errors.length === 0`, so it cannot fail — still wrap defensively.)
+- **"Outputs nothing" = no VISIBLE/meaningful output, not literally zero DOM
+  nodes.** For the non-renderable case, an **empty invisible wrapper** (with the
+  inert JSON `<script>` inside) is acceptable — nothing visible appears, no raw
+  echo, no error message (req 8 / Out-of-Scope intent). Do NOT remove the wrapper
+  (a flash + fighting WP's block wrapper); leave it empty/invisible. **Downstream
+  test consequence:** new e2e tests must assert "no SVG / no visible notation" for
+  the non-renderable case, NOT "zero DOM nodes" (the old render.spec.js asserted
+  on `<pre>` presence — it must be rewritten to target the SVG).
+- **Validate-vs-reparse → recommend (a) reparse.** Call `validateSong(raw)` for
+  the gate, then `JSON.parse(raw)` again for the data. Zero footprint on
+  `src/song/*` (most conservative reading of "don't touch the format/validation");
+  double-parse cost is nil for these tiny songs; guaranteed-safe (runs only after
+  `errors === []`). Option (b) — adding a `parseSong(raw) → {data, errors}` helper
+  — is ADDITIVE and does not change format/validation behavior, so it's defensible
+  and slightly cleaner, but not needed. Lean (a); (b) noted as acceptable.
+- **State machine (confirmed, satisfies AC1/AC6/AC7).** empty → no container,
+  nothing; non-renderable → container + view.js renders nothing (empty invisible
+  wrapper); conformant → container + view.js draws SVG. (req 9 robustness lives
+  inside the "draw" step, specified Q5–Q9.)
+- **Build wiring (confirmed).** block.json gains `"viewScript": "file:./view.js"`;
+  editorScript/style/render stay (editor unchanged, req 13). `viewScript` compiles
+  with the **unchanged `wp-scripts build`** — **no package.json change**. Font:
+  `@font-face` in style.scss (compiles to `style-index.css`, the block `style`,
+  loaded on the frontend) with a `url()` to the subsetted `.woff2` placed in src/
+  so webpack processes/emits it to build/ (importing via the SCSS `url()` makes
+  emission reliable). Optional: a dedicated frontend-only `viewStyle` for the font
+  (the editor never draws notation, so `style` is harmless either way) — plan
+  decision.
+- **A11y metadata (confirmed, no extra plumbing).** view.js already has the parsed
+  song, so `metadata.title`/`composer` are in hand; the accessible name is computed
+  client-side and set on `<svg role="img">` via a `<title>` using `textContent`
+  (Q9 safety). No PHP plumbing. (Exact wording = separate question.)
+
+**Decision.** Adopt the wiring verbatim:
+- render.php: `if (trim(song)==='') return;` else echo `<div {wrapper}>` +
+  `<script type="application/json" class="…__song">` + song with **`</`→`<\/`
+  and `<!--`→`<\!--`** (NOT `esc_html`) + `</script></div>`.
+- view.js (plain `viewScript`): per container, `raw = script.textContent`;
+  `errors = validateSong(raw)`; if errors → leave empty (render nothing); else
+  `data = JSON.parse(raw)` (defensive try/catch) → draw SVG via createElementNS +
+  textContent; set `role="img"` + `<title>` from metadata; wire ResizeObserver
+  (Q7).
+- **(a) reparse** (validateSong gate, then JSON.parse for data); (b) acceptable.
+- block.json: add `viewScript`; keep editorScript/style/render; **no package.json
+  change**. Font via SCSS `@font-face` `url()`, `.woff2` in src/ → build/.
+- Non-renderable → empty invisible wrapper (do not remove).
+
+**Consequences carried forward.**
+- The ETAGO escape (`</`→`<\/`, `<!--`→`<\!--`, NOT esc_html) is a sharp,
+  easily-mis-implemented detail — call it out explicitly in the plan and test it
+  (a song with a literal `</script>` in `chordSymbol`/`metadata.title` must
+  round-trip through the script tag intact and not break out).
+- Test strategy must rewrite the old `<pre>`-asserting render.spec.js to assert on
+  the SVG (conformant) / absence-of-SVG (non-renderable/empty) — test-strategy
+  question.
+- Module decomposition (view.js entry vs pure engine vs glyph-map vs layout) for
+  unit-testability — next question.
