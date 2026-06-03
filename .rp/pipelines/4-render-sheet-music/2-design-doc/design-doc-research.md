@@ -626,3 +626,95 @@ format's own cases).**
 - The `normalizeStep()` single-source helper is a plan-phase item (validator
   currently keeps `NOTE_NAMES` private; export a helper or carefully duplicate —
   must not change validation behavior, only expose/reuse the vocabulary).
+
+### Q9 — Remaining symbol catalogue + section-change inline rendering
+
+**Question.** Clear the rest of spec req 2 + req 3/AC4: barlines/repeats, measure
+numbers, ties, slurs, dynamics, chord symbols, tempo text, and section-change
+inline rendering. Especially: tie/slur dangling-marker robustness and SVG
+text-escaping safety.
+
+**Evidence (researcher; tie/slur matching + section diff coded and verified).**
+- **Barlines** (span both staves of the grand staff; thin ≈ 0.13 sp, thick ≈
+  0.5 sp): regular = one thin; double = two thin ~0.5 sp apart; final = thin then
+  thick (right); repeat-start = thick+thin + two dots to the right at the 2nd/3rd
+  spaces; repeat-end = two dots left + thin+thick. `barlineEnd` at the right edge,
+  `barlineStart` at the left. **Shared barline rule:** always draw `barlineEnd`;
+  draw `barlineStart` only when it's `repeat-start` (collapse otherwise to avoid a
+  double line). System breaks: the last measure of a system always closes with its
+  `barlineEnd`; a `repeat-start` on a new system's first measure still shows
+  (after the leading reserve); the first measure of the score has no left barline.
+- **Measure numbers.** System-start numbering: number each system's first measure,
+  above-left of the RH staff, small text ~2–2.5 sp. Index basis = **sequential
+  1..N across the entire song; section boundaries do NOT reset**. (Omitting "1" on
+  the first system is an optional nicety.)
+- **Ties — stack-based, dangling-safe (verified).** Per hand, a `tie:start` opens
+  a pending tie closed by the next `tie:stop` → tie matching pitches (same
+  diatonicIndex) of the two events' noteheads; chords tie shared pitches
+  best-effort. Geometry: short shallow quadratic Bézier from the right of the
+  start notehead to the left of the stop notehead at ~notehead Y, bulging opposite
+  the stem (down for stem-up, up for stem-down), height ~0.5–1 sp, thin stroke.
+  **Robustness (verified):** dangling start (incl. end-of-hand), dangling stop, or
+  a second start before a stop → best-effort stub or skip, never throws. Across
+  barlines/systems → draw between actual laid-out positions, clip to system edges;
+  never assume same-system.
+- **Slurs — same matching machinery, different curve.** Stack-based pairing
+  (independent of ties; a note may have both); dangling handled identically.
+  Geometry: a longer arc OVER the phrase (above, opposite stems), bulge clears the
+  intervening noteheads/stems. Tie vs slur distinction comes from the data
+  (markers) + the curve shape/reach/side; same Bézier primitive.
+- **Dynamics.** Bold-italic text ~2.5–3 sp, below each hand's staff at the event's
+  grid X (RH in the inter-staff gap, LH below the LH staff — consistent
+  "each hand's dynamics just below that hand's staff"). SMuFL dynamics glyphs are
+  an optional later upgrade.
+- **Chord symbols — free text, escaped (verified safe).** Render the string
+  verbatim (no parsing) above the RH staff at the event's X, ~2.5–3 sp.
+  **Safety:** build SVG via `createElementNS` + **`textContent`/`createTextNode`,
+  NEVER `innerHTML`**, and never `<script>`/`<foreignObject>` — author free text
+  (chordSymbol, and `metadata.title` in the a11y `<title>`) renders as inert text,
+  preserving render.php's old `esc_html` posture in the client engine. If SVG is
+  ever string-built, author text MUST be escaped first.
+- **Tempo text.** "[beatUnit note-glyph] = [bpm]" (e.g. ♩ = 120): beatUnit drawn
+  as the matching note-value font glyph + " = " + bpm number; **beatUnit absent →
+  default quarter glyph** (don't omit — the glyph+"="+number is the recognizable
+  metronome mark). Above the first measure of the section, at song start and at
+  any section that changes tempo.
+- **Section-change inline rendering — diff effective contexts (verified vs the
+  docs' annotated example).** Resolve each section's effective context via the
+  inheritance model (each field inherits from defaults independently; `alters`
+  replaces wholesale; `octaveShift` defaults 0), then **diff against the previous
+  section's effective context and draw ONLY what changed** (first section draws
+  everything). Verified the example's sec1→sec2: tempo 120→90 (redraw), timesig
+  4/4→3/4 (redraw), RH clef treble UNCHANGED (inherited — NOT redrawn), LH clef
+  bass→tenor (redraw), RH alters {}→{F,C} + LH alters {B:-1}→{} (redraw both), RH
+  octaveShift 0→1 (start 8va), LH octaveShift unchanged (nothing). Per change-type:
+  tempo→tempo text; timeSignature→timesig glyph; clef (per changed hand)→inline
+  cautionary clef; alters (per changed hand)→new key-sig cluster; octaveShift (per
+  changed hand)→begin/end ottava bracket. At a system start these go in the leading
+  reserve; mid-system, inline at the boundary measure. The diff drives mid-song
+  changes; the per-system restatement (Q7) always redraws current clef+alters
+  regardless.
+
+**Decision.** Adopt the full symbol catalogue verbatim, including: the
+"draw barlineEnd; barlineStart only if repeat-start" collapse rule; sequential
+song-wide measure numbers at system starts; **stack-based dangling-safe tie/slur
+matching** (best-effort stub/skip, never throw); dynamics below each hand;
+**chord-symbol + a11y-title via createElementNS + textContent, never innerHTML,
+no `<script>`/`<foreignObject>`**; tempo "glyph = bpm" with quarter default;
+section-change rendering via resolved-effective-context diffing (draw only what
+changed).
+
+**Consequences carried forward.**
+- The SVG-build-via-DOM (createElementNS + textContent) decision is also the XSS
+  safety guarantee replacing render.php's `esc_html` — record prominently for the
+  gating/security and testability sections.
+- Effective-context resolution (inheritance + alters-wholesale + octaveShift
+  default) is a shared engine pre-pass feeding key sig, clef, tempo, timesig,
+  ottava, AND the section diff — a single "resolve context per section" step.
+
+**Coverage status:** the engine's symbol set + layout + robustness are now
+specified end-to-end (Q1 wiring → Q2 SVG → Q3 glyphs → Q4 placement → Q5
+stems/beams/chords → Q6 time grid → Q7 wrapping → Q8 accidentals → Q9 the rest).
+Remaining design topics: module decomposition, the validate-vs-reparse decision,
+the render-nothing gating + block wiring (what replaces `<pre>`), the accessible
+label, and test strategy (incl. the existing render.spec.js rewrite).
