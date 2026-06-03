@@ -468,3 +468,86 @@ drawn from geometry, not from events (AC9).
   ResizeObserver; restate clef/keysig per system).
 - Per-column `MIN_ADV` should widen when accidentals/dots/flags are present at
   that column — ties into the accidentals question.
+
+### Q7 — System wrapping into stacked grand-staff systems + responsive reflow
+
+**Question.** Pack intrinsic measure widths (Q6) into width-fitted stacked
+systems; justify; handle a single measure wider than the container; choose the
+sizing model; per-system restatement; resize behavior; vertical spacing
+(spec req 6 / AC5, client-side per Q1).
+
+**Evidence (researcher; code-checked desktop/mobile/over-wide cases).**
+- **Greedy packing is sufficient** (Knuth–Plass optimal breaking is out-of-scope
+  engraving polish). `budgetSp = containerPx/spPx`; `availSp = budgetSp −
+  leadingReserve`; fill a system until the next measure would exceed availSp, then
+  break; **always ≥1 measure per system** (prevents infinite loop on a wide
+  measure). Leading reserve (per system) = brace + both clefs + alters
+  (+ timesig only system 1 / on change); ~10–14 sp, computed exactly from the
+  glyphs actually printed (varies with #alters).
+- **Justify, with a clamp.** Stretch each system to fill width by scaling the
+  internal grid **advances only** (NOT leading reserve, glyph sizes, stems,
+  noteheads) — stretch whitespace, not symbols. `scale = clamp(availSp/contentSp,
+  ·, MAXSTRETCH≈1.6)`; when scale would exceed the cap, leave that system
+  ragged-right. **Do NOT justify the last system** of the whole score
+  (conventional ragged last line) nor an over-wide (scale<1) system.
+- **Single measure wider than W → downscale that system.** The over-wide measure
+  goes alone on its system, and that SYSTEM is uniformly **downscaled to fit**
+  (`downscaleFactor = min(1, availSp/measureContentSp)`, applied as a transform on
+  that system's `<g>`, glyphs included) — no overflow, no horizontal scroll
+  (more usable on mobile than clipping/scrolling, and avoids a UX the spec
+  doesn't ask for). Only the offending system shrinks; the rest stay readable.
+  Rare in practice but the guaranteed no-overflow fallback. (Verified: 60 sp
+  measure on a 33 sp-avail phone → factor 0.55, fits.)
+- **Sizing model = (i) fixed sp px, wrap-on-resize.** `sp = 8 px` (staff height
+  32 px) fixed; SVG width = container width; SVG height grows with #systems;
+  resize = recompute packing only. Keeps glyphs/staff/text a constant readable
+  size and only changes wrapping — how a real score reflows; keeps dynamics/chord/
+  tempo text legible (it doesn't shrink with the page). Model (ii) whole-SVG
+  downscale is used ONLY as the per-system over-wide fallback. Optional refinement:
+  step sp to 7 px below a ~480 px container (discrete breakpoint, not continuous).
+  Fixed sp is what makes resize a pure re-wrap (cheap, stable).
+- **Per-system restatement (confirmed).** Every system restates the **brace, both
+  clefs, and the alters**. The **time signature only on system 1 and where it
+  changes** (a section change), not on every system. Section changes mid-system
+  are drawn **inline** at that measure's start (small clef/keysig/timesig glyphs
+  at the boundary, per Q4 / spec req 3 / AC4); the next system restates the
+  now-current clef+alters in its leading reserve.
+- **Resize = re-pack only; rAF-guarded one-way observer.** ResizeObserver on the
+  CONTAINER → debounce/rAF → recompute packing + justify → rebuild SVG (cheap per
+  Q2). Per-measure intrinsic widths and pitch Ys are sp-relative and **invariant**
+  on resize — only system breaking + X justification change. Loop guard: width
+  flows **container → SVG one-way**; inside the callback only set the SVG's height
+  + inner content, **never write back the container width**, and wrap in rAF. This
+  structurally avoids the "ResizeObserver loop" (the "undelivered notifications"
+  warning is benign; rAF removes it). (Sources: TrackJS, ckeditor5 #7371.)
+- **Vertical spacing (sp constants, starting points):** intra-system staff gap
+  (between the RH and LH 5-line staves) ≈ 8 sp (room for middle-C ledgers between
+  them); inter-system gap ≈ 8–12 sp. One grand-staff band ≈ topMargin ~4–6 (chord
+  symbols/ottava/tempo) + RH 4 + intra 8 + LH 4 + bottomMargin ~4–6 ≈ 24 sp.
+  **Compute top/bottom margins from CONTENT** (max ledger extent + presence of
+  ottava/dynamics/chord-symbols in that system) so tall stacks don't collide with
+  the neighboring system — a measured per-system margin, not a fixed guess.
+
+**Decision.** Adopt the responsive model verbatim:
+- Fixed `spPx = 8` (optional breakpoint step to 7 below ~480 px); SVG width =
+  container, height grows with #systems.
+- Greedy packing, ≥1 measure/system; per-system leading reserve computed from the
+  glyphs printed.
+- Justify by scaling internal advances only, `clamp(…, MAXSTRETCH≈1.6)`; skip the
+  last system and over-wide systems.
+- Over-wide measure → alone + uniform system downscale to fit (no scroll).
+- Restate brace + clefs + alters every system; timesig only system 1 + on change;
+  section changes inline mid-system.
+- Resize: ResizeObserver(container) → rAF + debounce → re-pack + re-justify +
+  rebuild; only set SVG height/content, never container width.
+- Vertical: intra-staff ~8 sp, inter-system ~8–12 sp, content-measured top/bottom
+  margins.
+
+**Consequences carried forward.**
+- Barlines at system ends (last measure's `barlineEnd`); a repeat-start at a new
+  system's first measure should still show → barlines/repeats question.
+- Measure numbers (req 2): system-start numbering (above the first measure of each
+  line) is the common low-clutter choice → confirm in the barlines/numbers
+  question.
+- Section-change inline rendering (clef/keysig/timesig/tempo/ottava at the section
+  boundary) → section-change question (spec req 3 / AC4).
