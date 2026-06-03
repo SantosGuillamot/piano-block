@@ -1,0 +1,154 @@
+/**
+ * The single home for the staff-space (sp) and layout constants shared by the
+ * pure layout layer (`layout.js`) and the thin SVG-emit layer (`svg.js`), so the
+ * magic numbers live in one place (design §5.1, §6.1–§6.3).
+ *
+ * The drawing uses the standard engraving unit, the **staff space (sp)** — the
+ * distance between adjacent staff lines; the 5-line staff spans 4 sp. EVERY value
+ * here is expressed in staff spaces EXCEPT `SP_PX` (the sp→px scale the emit layer
+ * applies) and the integer count/multiplier tables. Keeping all geometry in sp
+ * means the layout layer never touches pixels and resize is a pure re-wrap.
+ *
+ * The starting values come from design §5/§6; they may be tuned within the
+ * documented ranges. This module is pure data — no DOM, no imports, no side
+ * effects, so importing it is free.
+ */
+
+// ── Coordinate / staff sizing (design §5.1) ────────────────────────────────────
+
+/** sp→px scale: one staff space in SVG pixels. Staff height = 4 sp = 32 px. */
+export const SP_PX = 8;
+
+/** Number of lines in a single 5-line staff. */
+export const STAFF_LINE_COUNT = 5;
+
+/** Height of one 5-line staff, in sp (4 spaces between the 5 lines). */
+export const STAFF_HEIGHT_SP = 4;
+
+// ── Noteheads / stems / flags / beams (design §6.1) ────────────────────────────
+
+/** Notehead ellipse horizontal radius (≈ 1.18 sp wide notehead). */
+export const NOTEHEAD_RX = 0.6;
+
+/** Notehead ellipse vertical radius (~1 sp tall notehead). */
+export const NOTEHEAD_RY = 0.5;
+
+/** Stem stroke thickness. */
+export const STEM_THICKNESS = 0.13;
+
+/** Default stem length; extended so far ledger notes still cross the middle line. */
+export const STEM_LENGTH = 3.5;
+
+/** Beam (primary) thickness. */
+export const BEAM_THICKNESS = 0.5;
+
+/** Vertical gap added per stacked beam level (secondary/tertiary beams). */
+export const BEAM_GAP = 0.75;
+
+/** Inset of secondary beams toward the noteheads, parallel to the primary beam. */
+export const SECONDARY_BEAM_INSET = 0.28;
+
+// ── Augmentation dots (design §6.1) ────────────────────────────────────────────
+
+/** Augmentation-dot circle radius. */
+export const DOT_RADIUS = 0.15;
+
+/** Horizontal offset of the first dot to the right of the notehead. */
+export const DOT_OFFSET = 0.5;
+
+/** Horizontal gap between successive dots (second dot further right). */
+export const DOT_GAP = 0.5;
+
+// ── Horizontal spacing (design §6.2) ───────────────────────────────────────────
+
+/** Minimum advance between adjacent onsets; raised per-column for glyph clearance. */
+export const MIN_ADV = 2.2;
+
+/** Compressive-spacing coefficient: `advance(Δ) = MIN_ADV + ADV_K · sqrt(Δ)`. */
+export const ADV_K = 3.0;
+
+/** Floor width for an empty measure (no events on either hand). */
+export const EMPTY_MEASURE_WIDTH = 3.3;
+
+// ── System wrapping / justify / vertical gaps (design §6.3) ─────────────────────
+
+/** Maximum justify stretch applied to internal grid advances (whitespace only). */
+export const MAX_STRETCH = 1.6;
+
+/** Vertical gap between the RH and LH staves within one grand-staff band. */
+export const INTRA_STAFF_GAP = 8;
+
+/** Vertical gap between stacked grand-staff systems. */
+export const INTER_SYSTEM_GAP = 10;
+
+/** Top margin of a system (room for chord symbols / ottava / tempo / ledgers). */
+export const SYSTEM_TOP_MARGIN = 5;
+
+/** Bottom margin of a system (room for dynamics / low ledgers). */
+export const SYSTEM_BOTTOM_MARGIN = 5;
+
+// ── Barlines (design §6.7) ─────────────────────────────────────────────────────
+
+/** Thin barline stroke thickness (regular bar / first stroke of a double). */
+export const BARLINE_THIN = 0.13;
+
+/** Thick barline stroke thickness (final bar / repeat heavy stroke). */
+export const BARLINE_THICK = 0.5;
+
+// ── Accidentals / ledger lines (design §5.2, §6.4) ─────────────────────────────
+
+/** Ledger-line segment width, centered on the notehead. */
+export const LEDGER_WIDTH = 2;
+
+/** Gap between an accidental glyph and the notehead it sits left of. */
+export const ACCIDENTAL_GAP = 0.6;
+
+/** Horizontal step pushing a chord accidental into a further-left column. */
+export const ACCIDENTAL_COL_STEP = 1.3;
+
+// ── Text sizes, in sp (design §6.7) ────────────────────────────────────────────
+
+/** Dynamics (bold-italic) text size. */
+export const DYNAMIC_SIZE = 2.8;
+
+/** Chord-symbol text size (free author text above the RH staff). */
+export const CHORD_SYMBOL_SIZE = 2.8;
+
+/** Tempo marking text size ("[note-glyph] = [bpm]"). */
+export const TEMPO_SIZE = 2.8;
+
+/** Measure-number text size (above-left of each system's first measure). */
+export const MEASURE_NUMBER_SIZE = 2.2;
+
+/** Ottava-bracket label text size ("8va" / "8vb" / "15ma" / "15mb"). */
+export const OTTAVA_SIZE = 2.2;
+
+// ── Duration tables (design §6.1, §6.2) ────────────────────────────────────────
+
+/**
+ * Base duration of each note value in quarter-beats. Used by both the beaming
+ * `pos` walk (§6.1) and the union-grid onset arithmetic (§6.2):
+ * `dur(e) = BASE_DUR[duration] × DOT_MUL[dots]`.
+ */
+export const BASE_DUR = {
+	whole: 4,
+	half: 2,
+	quarter: 1,
+	eighth: 0.5,
+	sixteenth: 0.25,
+	"thirty-second": 0.125,
+};
+
+/** Dot multiplier keyed by dot count: 1 dot ×1.5, 2 dots ×1.75 (design §6.1). */
+export const DOT_MUL = {
+	0: 1,
+	1: 1.5,
+	2: 1.75,
+};
+
+/** Number of beams/flags per beamable note value (design §6.1 `beamCount`). */
+export const BEAM_COUNT = {
+	eighth: 1,
+	sixteenth: 2,
+	"thirty-second": 3,
+};
