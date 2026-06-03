@@ -2,17 +2,17 @@
 
 A WordPress block plugin for creating piano song sheets — the long-term goal is to write out notes and build practice sheets you can use to learn and train piano skills.
 
-> **Status:** This repository is an installable WordPress plugin that registers a single **Piano** block. Today that block is a deliberate **scaffold** — a placeholder that appears in the editor and renders on the front end, but with no real piano behaviour yet. The interactive keys, audio, visual design, and input handling are planned for a future task (see [Forthcoming](#forthcoming)). A build pipeline (`@wordpress/scripts`) and a local dev environment (`wp-env`) are in place to build on.
+> **Status:** This repository is an installable WordPress plugin that registers a single **Piano** block. The block now **stores a complete song** as structured JSON — a right-hand + left-hand grand staff in the plugin's own [song format](docs/song-format.md) — authored by hand in a raw-JSON editor field and rendered on the front end as escaped text. It does **not** yet draw musical notation, play audio, or offer a visual authoring UI; interactive keys, audio, and notation rendering remain future work (see [Forthcoming](#forthcoming)). A build pipeline (`@wordpress/scripts`) and a local dev environment (`wp-env`) are in place to build on.
 
 ## What the block does today
 
 The plugin registers exactly one block — **Piano** (`piano-block/piano`):
 
 - It appears in the block inserter under the **Media** category (search for "Piano").
-- In the editor, inserting it renders a simple **placeholder** that identifies it as the Piano block.
-- It is a **dynamic** (server-rendered) block: its front-end HTML is produced by PHP at render time, and nothing but the block's delimiter comment is stored in post content. On a published page, the block renders a matching placeholder.
+- In the editor, it shows a single **raw-JSON field** where you author a song document in the plugin's own [song format](docs/song-format.md). The field's input is **validated for conformance**, but that check is **informational only — it never blocks saving**, and your raw text is always stored.
+- It is a **dynamic** (server-rendered) block: the stored `song` string lives in the block's delimiter comment, and its front-end HTML is produced by PHP at render time. On a published page, the block renders the stored song **as escaped text** inside a `<pre>` (and nothing at all when there is no song).
 
-There is no playable keyboard or sound yet — the placeholder is intentional, so the plugin can be built and smoke-tested while the real piano is developed on top of it.
+There is no playable keyboard, audio, or visual notation yet — v1 stores and shows the song *as text*, so the format and storage layer can be built and smoke-tested while the real piano experience is developed on top of it. See [Using the Piano block](#using-the-piano-block) for the authoring workflow.
 
 ## Using the Piano block
 
@@ -87,7 +87,7 @@ Because the block is compiled, the installable plugin is the repository **plus i
 npm install && npm run build
 ```
 
-Then copy the plugin directory — **including the generated `build/` folder** — into `wp-content/plugins/` (for example as `wp-content/plugins/piano-block/`) of a WordPress 6.9+ / PHP 7.4+ site, and activate **Piano Block** under **Plugins**. A successful install: the plugin activates with no error, the **Piano** block appears in the inserter under **Media**, and a published post containing it shows the placeholder on the front end.
+Then copy the plugin directory — **including the generated `build/` folder** — into `wp-content/plugins/` (for example as `wp-content/plugins/piano-block/`) of a WordPress 6.9+ / PHP 7.4+ site, and activate **Piano Block** under **Plugins**. A successful install: the plugin activates with no error, the **Piano** block appears in the inserter under **Media**, and a published post containing a block with a song shows that song as escaped text on the front end.
 
 ## For contributors
 
@@ -105,9 +105,9 @@ The block is built with [`@wordpress/scripts`](https://developer.wordpress.org/b
 | Path | Role |
 | --- | --- |
 | `piano-block.php` | Main plugin file: the plugin header and the `init` hook that registers the block from `build/`. |
-| `src/block.json` | Block metadata — identity (name, title, `media` category, icon), text domain, and the wiring to the editor script, stylesheet, and server render. |
+| `src/block.json` | Block metadata — identity (name, title, `media` category, icon), text domain, the `song` string attribute (`default: ""`), and the wiring to the editor script, stylesheet, and server render. |
 | `src/index.js` | Editor entry point: registers the block and imports the styles. |
-| `src/edit.js` | The block's editor component (JSX) — renders the placeholder and the raw-JSON `song` field (`TextareaControl` + non-blocking error `Notice`). |
+| `src/edit.js` | The block's editor component (JSX) — renders the raw-JSON `song` field (`TextareaControl` + non-blocking error `Notice`) on the block canvas. |
 | `src/style.scss` | Placeholder styling (editor + front end), compiled by the build. |
 | `src/render.php` | Server-rendered front-end output for the dynamic block — the escaped, verbatim `song` passthrough. |
 | `src/song/schema.js` | The song format's declarative **schema-as-data** — the single source of truth for "what is a conformant song." |
@@ -158,4 +158,11 @@ Three checks the keyword subset cannot express are handled directly by the walke
 
 ## Forthcoming
 
-The real piano experience — interactive keys, audio, visual design, and input handling — is planned for a future task and is **not** part of this scaffold. The build pipeline and local environment that work will rely on are now in place; the block itself remains a placeholder until then. This README will be updated when the real functionality lands.
+Song *storage* has landed, but the visual and audible piano experience has not. The following are planned for future tasks and are **not** part of v1 (the spec's "Out of Scope" set):
+
+- **Visual notation rendering** — drawing staves and notes on the front end. v1 shows the song *as text*, not as notation.
+- **Audio playback** — the format retains the pitch, octave, duration, and tempo precision needed for future sound, but nothing plays yet.
+- **A visual authoring UI** — anything beyond the single raw-JSON field; in v1 you write the song JSON by hand.
+- **Richer notation elements** — articulations, ornaments, pedal, fingering, tuplets, voltas, multiple voices per hand, lyrics, and similar (the format grows by adding optional fields, with no `version` field).
+
+This README will be updated as each capability lands.
