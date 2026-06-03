@@ -1,0 +1,10 @@
+/**
+ * Piano block — placeholder styles (applied in the editor and on the front end).
+ * Minimal scaffold styling; the real piano UI will replace this.
+ */
+
+.wp-block-piano-block-piano {
+	border: 1px dashed #767676;
+	padding: 1em;
+	color: #767676;
+}
