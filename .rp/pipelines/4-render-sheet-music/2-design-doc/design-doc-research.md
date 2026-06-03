@@ -810,3 +810,147 @@ nothing" permits.
   question.
 - Module decomposition (view.js entry vs pure engine vs glyph-map vs layout) for
   unit-testability — next question.
+
+### Q11 — Module decomposition + accessible-label wording + test strategy
+
+**Question.** (A) the file/module split separating pure layout logic from DOM
+emission (testability + don't-preclude-interactivity); (B) the exact accessible-
+label wording from metadata + frontend i18n practicality (req 14 / AC12); (C) the
+test strategy incl. the existing render.spec.js rewrite.
+
+**Evidence (researcher).**
+- **(A) Decomposition — endorsed; the layout-MODEL seam IS worth it.**
+  - `src/view.js` — viewScript ENTRY (thin, DOM-coupled): query containers, read
+    the JSON `<script>` textContent, `validateSong` gate, `JSON.parse`, call
+    `render(...)`, wire the rAF-debounced ResizeObserver. Keep tiny.
+  - `src/notation/` (prefer "notation" — render.php owns "render"):
+    `layout.js` = the PURE layout layer (input: parsed song + availableWidthInSp;
+    output: a LAYOUT MODEL = a plain-data tree of positioned primitives in SP
+    units — systems → grand-staff bands → staff lines/clefs/keysig/timesig/
+    barlines/brace + per-event noteheads/stem/flags/beams/accidentals/dots/ledgers/
+    rest + spans ties/slurs + texts dynamics/chordSymbols/tempo/measureNumbers/
+    ottava; NO DOM, NO sp→px). `svg.js` = thin EMIT layer (walk the model,
+    createElementNS, sp→px scale + system Y-offsets, textContent for author text,
+    root `role="img"` + `<title>`). `glyphs.js` = the glyph map (codepoints + hand-
+    drawn primitive specs + font-failure skeleton; swappable). optional
+    `constants.js` (SP constants).
+  - Put `normalizeStep` in `src/song/` next to the vocabulary it shares with the
+    validator; import into `notation/` (ONE home for the English/Spanish/case
+    equivalence).
+  - **The intermediate model is worth it (not over-engineering)** for three
+    concrete reasons: (1) **testability** — all hard/adversarial logic (pitch→Y,
+    beaming, union-grid + AC8, accidental precedence, section diff, tie/slur
+    matching) becomes pure functions returning data, assertable with NO DOM; the
+    single biggest reason given the 12 ACs + adversarial AC8. (2) **interactivity
+    (req 16)** — a model node per note is what a future IAPI store addresses
+    (emit stamps ids/data-* from model nodes). (3) **resize (Q7)** — only packing/
+    justify recompute; per-event geometry is computed once. Cost is one data
+    structure + a mechanical walk — negligible at our scale. Caveat: keep the model
+    a SIMPLE positioned-primitive tree, don't build a scene-graph framework.
+- **(B) Accessible-label templates** (one accessible name, root `<svg>` `<title>`
+  via textContent; metadata strings count only when non-empty after trim):
+  - title + composer → "{title} by {composer}"
+  - title, no composer → "{title}"
+  - no title, composer → "Piano sheet music by {composer}"
+  - no metadata → "Piano sheet music"
+  i18n: fallback `__("Piano sheet music", "piano-block")`; with composer use
+  `sprintf(_x("%1$s by %2$s", "...", "piano-block"), title, composer)` /
+  `sprintf(_x("Piano sheet music by %s", "...", "piano-block"), composer)`; title-
+  only is the author's own text (no wrapper). **Frontend i18n practicality:**
+  `@wordpress/i18n` `__`/`_x`/`sprintf` work in a viewScript, but translations
+  only LOAD if PHP calls `wp_set_script_translations(<viewScript handle>,
+  "piano-block", <path>)` for the frontend handle + ships PO→JSON files. PRAGMATIC
+  CALL: wrap strings in `__`/`_x` now (zero cost, correct English by default); the
+  full translation-loading wiring is a minor plan task (spec only needs a concise
+  accessible name, not full localization).
+- **(C) Test strategy.**
+  - **UNIT (test-unit-js / Jest) on the PURE layout layer** — the high-value
+    coverage: pitch→Y per clef (Q4-verified cases as fixtures), simple/compound
+    beaming + breaks + length-1→flag, union-grid + **AC8 robustness** (equal/
+    different-subdivision/unequal/overflow/empty-hand → no throw, both staff bands
+    present (AC9), empty song → floor width, no NaN), accidental resolution +
+    **AC3 precedence** (override, natural cancellation, English/Spanish
+    normalization, doubles), section resolve+diff (the docs' annotated 2-section
+    song = the exact Q9 fixture), tie/slur dangling matching. The pure-model seam
+    makes ALL of these DOM-free.
+  - **E2E (Playwright, specs/):** the three display states (empty → no SVG/nothing
+    visible; non-renderable → no `<svg>`/visible notation, wrapper may exist;
+    conformant → `<svg role="img">` with the expected accessible name); responsive
+    (wide vs narrow viewport → #systems / wrapping changes); injection safety
+    (chordSymbol/title with `</script>` + `<script>alert()</script>` → no script
+    executes, text inert via textContent, the JSON `<script>` doesn't break out —
+    the relocated AC8).
+  - **render.spec.js REWRITE mapping** (current tests contradict the new behavior):
+    OLD AC3 (empty → no `<pre>`) → retarget to "empty → no SVG/nothing visible";
+    OLD AC7 (verbatim `<pre>`) → REPLACE with "conformant → `<svg role=img>` grand
+    staff, no `<pre>`, raw JSON not shown" (the core flip); OLD AC8 (escaped
+    `<pre>`, no XSS) → REWRITE preserving intent: "hostile text inert (no script
+    exec), rendered via textContent, JSON-in-`<script>` doesn't break out" (XSS
+    protection survives, relocated from `esc_html(<pre>)` to `textContent(SVG)` +
+    the ETAGO escape). **editor.spec.js UNCHANGED** (editor untouched, req 13 /
+    AC11); optionally add one assertion that no notation renders in the editor.
+  - **Sample song:** reuse the docs' annotated example (`docs/song-format.md`) —
+    the deliberate "exercises everything" song AND the validator's own fixture
+    (known-conformant) — as (1) the unit fixture for the full layout model and (2)
+    the e2e conformant input. Add a few TARGETED tiny fixtures for the adversarial
+    AC8 cases (overflow bar, empty hand, dangling tie) since the annotated song is
+    well-formed.
+
+**Decision.** Adopt all three:
+- Decomposition: `view.js` (entry) + `notation/{layout.js` pure-model, `svg.js`
+  emit, `glyphs.js` map, `constants.js}` + reuse `song/validate.js` +
+  `song/normalizeStep`. Produce a simple positioned-primitive layout MODEL; the
+  emit layer renders it. (The seam is the testability + interactivity + resize
+  win.)
+- A11y label: the four templates above, `__`/`_x`-wrapped; full translation
+  loading (`wp_set_script_translations` + JSON) is a minor plan task; English
+  works out of the box.
+- Tests: unit on the pure layer (Q4/Q6/Q8/Q9 cases + adversarial AC8 fixtures);
+  e2e for the three states + responsive + injection; rewrite render.spec.js per
+  the mapping; leave editor.spec.js unchanged; the annotated example song is the
+  full-coverage fixture.
+
+---
+
+## Design completeness
+
+The design is fully specified with evidence, end to end:
+
+- **Where/how it renders (Q1, Q10):** client-side JS via a plain `viewScript`
+  (not IAPI/viewScriptModule — avoids `--experimental-modules` on the pinned
+  32.3.0); block stays dynamic; render.php emits a `<div>` + inert JSON
+  `<script>` (ETAGO-escaped, NOT esc_html); view.js gates via the reused
+  `validateSong`, reparses, and draws.
+- **Substrate (Q2):** inline SVG (a11y label, DOM-addressable for future
+  interactivity, HiDPI-crisp, cheap resize regeneration). Canvas + HTML/CSS
+  rejected.
+- **Glyphs (Q3):** HYBRID — subsetted+renamed Bravura (OFL) woff2 for ornate
+  discrete glyphs + hand-drawn SVG for geometry & trivial glyphs (font-failure
+  skeleton). All-hand-paths recorded as the zero-asset alternative.
+- **Engine internals (Q4–Q9):** staff-space coordinate model + verified pitch→Y
+  per clef with ledger lines; noteheads/stems/flags + inferred best-effort beaming
+  + flat beams + chord seconds rule + dots; union-grid two-hand alignment +
+  compressive spacing with the structural AC8 rule (never use `timeSignature` for
+  positioning); greedy packing + clamped justify + over-wide downscale + rAF-
+  guarded ResizeObserver reflow; data-faithful stateless accidentals with the AC3
+  override precedence; the full symbol catalogue (barlines/repeats, song-wide
+  measure numbers, dangling-safe ties/slurs, dynamics, escaped chord symbols,
+  tempo text, octaveShift ottava) + section-change-by-diff rendering.
+- **Architecture/a11y/tests (Q11):** pure layout-MODEL + thin SVG emit + glyph
+  map decomposition; four accessible-label templates; unit tests on the pure layer
+  + e2e for the three states/responsive/injection + the render.spec.js rewrite,
+  with the docs' annotated example as the full-coverage fixture.
+
+**Key plan-phase items flagged for the writer/plan (not design decisions, but
+load-bearing implementation details surfaced here):**
+1. Subset + RENAME Bravura (drop the reserved font name), commit the `.woff2` +
+   `OFL.txt`, wire `@font-face`, gate the first draw on `document.fonts.ready`.
+2. The ETAGO escape in render.php (`</`→`<\/`, `<!--`→`<\!--`) — **NOT** esc_html
+   (raw-text `<script>` doesn't decode entities); test a literal `</script>` in
+   author free-text.
+3. A single `normalizeStep()` note-name helper shared by the validator vocabulary,
+   pitch→Y, and accidentals (no drift).
+4. `wp_set_script_translations` on the viewScript handle for the a11y label
+   strings (minor; English works without it).
+5. Rewrite `specs/render.spec.js` (old `<pre>` assertions → SVG); leave
+   `specs/editor.spec.js` unchanged.
