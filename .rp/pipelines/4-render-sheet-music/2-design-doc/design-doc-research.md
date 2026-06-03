@@ -398,3 +398,73 @@ horizontal spacing (single source).
   horizontal time grid and two-hand alignment — the next question.
 - Chord accidental column + per-note vs section `alters` precedence → accidentals
   question.
+
+### Q6 — Per-measure two-hand time grid + duration-proportional horizontal spacing
+
+**Question.** A concrete, deterministic per-measure layout: a shared time grid
+that vertically aligns both hands (req 5 / AC5), robust when bars don't sum to the
+time signature and hands are unequal (AC8) and when a hand is empty (AC9); plus a
+horizontal spacing rule. The most adversarially-tested requirement.
+
+**Evidence (researcher; algorithm implemented and run on every AC8/AC9 case —
+no NaN/Inf, both staves always drawn, alignment holds).**
+- **Union-grid alignment (confirmed).** Per hand, each event's onset = running
+  sum from 0 of `dur(e) = baseDur[duration] × dotMul[dots]` (dotMul 0→1, 1→1.5,
+  2→1.75) — the Q5 arithmetic, computed per hand independently. **GRID = sorted
+  unique union of both hands' onsets**; each unique onset t → one X; an event at t
+  in either hand draws at X(t) → automatic vertical alignment. Verified:
+  equal onsets align; different subdivisions (RH eighths / LH quarters) → the
+  off-beat RH note gets its own X between LH columns; unequal totals → grid
+  extends to `max(handEnds)` and the short hand just has no events past its end;
+  empty/one-hand → grid = present hand's onsets, **both staves still drawn from
+  measure geometry** (staff lines don't depend on events).
+- **Spacing — compressive (recommended over strict proportional).** Real
+  engraving spacing is **logarithmic (~1.5:1 per duration-doubling), not 2:1**
+  (RPM Seattle; LilyPond horizontal-spacing/proportional-notation; MuseScore).
+  Strict proportional would make a whole note 32× a 32nd — absurd. Formula:
+  **`advance(Δ) = MIN_ADV + K·sqrt(Δ)`**, `MIN_ADV ≈ 2.2 sp` (raise per-column to
+  clear accidentals/dots/flags), `K ≈ 3.0 sp`. Δ = gap to the next onset; the
+  last onset uses Δ = `measureEnd − lastOnset`. Verified whole vs 32nd ≈ 2.5:1
+  (not 32:1) — whole gets more room without dominating. Empty measure → floor
+  width ≈ 3.3 sp.
+- **Measure width is intrinsic/content-driven (confirmed):** `measureWidth =
+  Σ advances + leadingPad + trailingPad`. Leading pad only on measures that print
+  clef/keysig/timesig (system start, or section-change re-statement); trailing pad
+  = barline width (+repeat dots / final thick bar). Systems then pack measures by
+  these widths (wrapping question).
+- **Rests are full grid citizens (confirmed):** a rest advances the running onset
+  by its duration, gets an onset in the union grid, occupies horizontal space.
+- **Same onset, different durations (confirmed, no fill needed):** RH half@0 +
+  LH q@0/q@1/... → grid {0,1,2,...}; RH has no glyph at the intervening columns;
+  the half-notehead at X(0) visually spans toward its next onset. Empty columns in
+  a staff are correct and read as a sustained note.
+- **Robustness / AC8 (verified NaN-safe):** overflow bars just grow the grid (no
+  clamping to the time signature); both-hands-empty → floor width, both staves
+  drawn; huge dotted note → big-but-bounded advance. Guards: `sqrt(max(Δ,0))`,
+  empty-grid short-circuit to floor width, `measureEnd = max(handEnds, 0)`. Inputs
+  are finite durations from a closed (already-validated) vocabulary.
+
+**Decision.** Adopt the **union-grid + compressive-spacing** algorithm verbatim:
+1. per hand, onsets = running sum of `dur(e)`; `handEnd` = final sum.
+2. `grid` = sorted unique union of both hands' onsets; `measureEnd =
+   max(handEnds, 0)`.
+3. lay out X across grid with `advance(Δ) = MIN_ADV + K·sqrt(Δ)` (Δ to next onset
+   / to measureEnd for the last).
+4. `measureWidth` = (empty ? floor) + Σ advances + leading/trailing pads; draw
+   both staff backgrounds full width regardless of events.
+5. place each hand's glyphs at `X[onset]`, Y from Q4.
+
+**CRITICAL ROBUSTNESS RULE (record prominently).** The renderer **must NEVER use
+`timeSignature` to compute positions or widths** — `timeSignature` is used ONLY
+to (a) draw the time-sig glyph and (b) derive the beat unit for beam grouping
+(Q5). Onsets and widths come purely from the events' own durations. This makes
+AC8 ("events don't sum to the time signature") fall out structurally — the layout
+doesn't know or care what the bar "should" total, and both staves are always
+drawn from geometry, not from events (AC9).
+
+**Consequences carried forward.**
+- Intrinsic measure widths feed the system-wrapping / responsive question (pack
+  widths into width-fitted stacked systems; recompute on resize via the Q1
+  ResizeObserver; restate clef/keysig per system).
+- Per-column `MIN_ADV` should widen when accidentals/dots/flags are present at
+  that column — ties into the accidentals question.
