@@ -1,0 +1,15 @@
+{
+	"$schema": "https://schemas.wp.org/trunk/block.json",
+	"apiVersion": 3,
+	"name": "piano-block/piano",
+	"version": "0.1.0",
+	"title": "Piano",
+	"category": "media",
+	"icon": "format-audio",
+	"description": "A placeholder Piano block — a scaffold for a future interactive piano.",
+	"keywords": ["piano", "music", "keyboard"],
+	"textdomain": "piano-block",
+	"editorScript": "file:./index.js",
+	"style": "file:./style.css",
+	"render": "file:./render.php"
+}
