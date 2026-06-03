@@ -11,6 +11,8 @@
 	"scripts": {
 		"build": "wp-scripts build",
 		"start": "wp-scripts start",
+		"test:unit": "wp-scripts test-unit-js",
+		"test:e2e": "wp-scripts test-playwright",
 		"env:start": "wp-env start",
 		"env:stop": "wp-env stop",
 		"lint": "biome lint .",
