@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       Piano Block
  * Plugin URI:        https://github.com/SantosGuillamot/piano-block
- * Description:        Registers the Piano block — a scaffold for a future interactive piano.
+ * Description:        Registers the Piano block — stores a piano song (both hands of a grand staff) as structured JSON.
  * Version:           0.1.0
  * Requires at least: 6.9
  * Requires PHP:      7.4
