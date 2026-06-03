@@ -283,7 +283,7 @@ The format from Sections 3–4 is small and closed: ~6 object shapes (`song`, `m
 
 - **Honors the spec's "canonical, machine-checkable definition."** The schema object *is* that definition, in code, and doubles as documentation (publishable verbatim in the design doc / README).
 - **Honors the project's zero-runtime-dependency identity.** The issue-#1 scaffold added nothing beyond WordPress externals + Biome; bundling `ajv` would be the first runtime dependency. The *song format* dependency-free mandate (requirement 2) sets the tone even though it technically governs the format, not tooling. **No `ajv` / no third-party validator.**
-- **Bounded effort.** The schema uses only a small, known keyword subset — `type`, `required`, `properties`, `items`, `enum`, `$ref`/`$defs`, integer `minimum`/`maximum`, permissive `additionalProperties`, and one `if/then` — so the validator is a small recursive walk (roughly ~100–150 lines), not a general JSON-Schema engine.
+- **Bounded effort.** The schema uses only a small, known keyword subset — `type`, `required`, `properties`, `items`, `enum`, `$ref`/`$defs`, integer `minimum`/`maximum`, permissive `additionalProperties`, and one `if/then` (with a `const` discriminant) — so the validator is a small recursive walk (roughly ~100–150 lines), not a general JSON-Schema engine. A couple of checks the keywords cannot express (note-name vocabulary, `alters` entries, and the `bpm > 0` strict bound) are handled directly by the walker — see Section 7.
 - **First-class errors.** A purpose-built walker can produce **human-readable, path-pointed messages** ("`sections[0].measures[1].rightHand[0].duration`: `quaver` is not an allowed duration") tuned for the raw-JSON author, rather than a generic library's terse output.
 
 `ajv` + a literal JSON Schema (option i) is recorded as the considered alternative, with a **low-cost swap trigger:** if the format later grows enough that the hand-rolled walker becomes a maintenance burden (many conditionals, cross-references), adopting `ajv` consuming the *same* schema-as-data is a localized change, because the schema is already the source of truth.
@@ -291,7 +291,7 @@ The format from Sections 3–4 is small and closed: ~6 object shapes (`song`, `m
 **What the validator checks** (for **non-empty** input only — the empty string is the "no song" state, never validated):
 
 1. **Valid JSON first.** The string must `JSON.parse` without throwing; a parse failure **is** a conformance error (AC6: "not valid JSON *or* does not conform").
-2. **Structural / field conformance** against the schema: required fields present (`sections`; per-object requireds like event `type`+`duration`, pitch `step`+`octave`); recognised fields' values within their **closed enums** (durations, clefs, dynamics, barlines, tie/slur, `type`, `beatType`) — note names checked **case-insensitively**; correct **types** and **nesting**; **integer ranges** (`octave` 0–9; `alter` / `alters` values / `octaveShift` −2..+2; `dots` 0–2; tempo `bpm` > 0; `timeSignature.beats` ≥ 1; `beatType` ∈ {1,2,4,8,16,32}); the **`note`→non-empty `pitches`** conditional; **unknown object properties IGNORED** (Section 5 leniency).
+2. **Structural / field conformance** against the schema: required fields present (`sections`; per-object requireds like event `type`+`duration`, pitch `step`+`octave`); recognised fields' values within their **closed enums** (durations, clefs, dynamics, barlines, tie/slur, `type`, `beatType`) — note names checked **case-insensitively**; correct **types** and **nesting**; **integer ranges** (`octave` 0–9; `alter` / `alters` values / `octaveShift` −2..+2; `dots` 0–2; `timeSignature.beats` ≥ 1; `beatType` ∈ {1,2,4,8,16,32}); the **strict numeric bound** `tempo.bpm` > 0 (a walker check — see Section 7); the **`note`→non-empty `pitches`** conditional; **unknown object properties IGNORED** (Section 5 leniency).
 3. **Explicitly NOT checked (AC10):** **no musical-timing validation** — no measure-duration arithmetic (events need not sum to the time signature) and no right/left-hand time-alignment. A structurally-conformant but musically-unbalanced song is **accepted**. Timing is the author's responsibility in v1.
 
 ### 6.3 Non-blocking persistence and error surfacing
@@ -314,7 +314,7 @@ The format from Sections 3–4 is small and closed: ~6 object shapes (`song`, `m
 
 ## 7. The schema-as-data definition (single source of truth)
 
-The validator interprets the following declarative schema (a JSON-Schema **subset**). It is shown here at design level; the Code phase finalizes the literal object placed in `src/`. It uses only: `type`, `required`, `properties`, `items`, `enum`, `$ref`/`$defs`, integer `minimum`/`maximum`, one `if/then`, and **permissive** `additionalProperties` (unknown properties ignored, per Section 5).
+The validator interprets the following declarative schema (a JSON-Schema **subset**). It is shown here at design level; the Code phase finalizes the literal object placed in `src/`. It uses only these keywords: `type`, `required`, `properties`, `items`, `enum`, `$ref`/`$defs`, integer `minimum`/`maximum`, one `if/then` (whose discriminant uses `const`), and **permissive** `additionalProperties` (unknown properties ignored, per Section 5). The one bound the keyword subset deliberately does *not* cover — the **strict** lower bound `bpm > 0` — is delegated to the walker (Section 6.2), the same way the `alters` and note-name checks are; see the two walker special cases below.
 
 ```jsonc
 {
@@ -377,7 +377,9 @@ The validator interprets the following declarative schema (a JSON-Schema **subse
       "type": "object",
       "required": ["bpm"],
       "properties": {
-        "bpm":      { "type": "number", "minimum": 0, "exclusiveMinimum": true },
+        // bpm: a number; the STRICT lower bound (bpm > 0) is enforced by the
+        // walker (the keyword subset has no exclusive-minimum keyword).
+        "bpm":      { "type": "number" },
         "beatUnit": { "enum": ["whole", "half", "quarter", "eighth", "sixteenth", "thirty-second"] }
       }
     },
@@ -435,10 +437,11 @@ The validator interprets the following declarative schema (a JSON-Schema **subse
 }
 ```
 
-Two checks the schema keywords cannot fully express, handled by the **walker** as documented special cases:
+Three checks the schema keywords cannot fully express, handled by the **walker** as documented special cases:
 
 - **Note names** (`pitch.step` and `alters` keys) are matched **case-insensitively** against the two-system vocabulary (English `C D E F G A B` + Spanish `do re mi fa sol la si`) — a closed enum, but case-folded. A typo like `"H"` or `"doh"` is a conformance error; `"c"` or `"DO"` is accepted.
 - **`alters`** is a map whose every value must be an integer in −2..+2 and whose every key must be a recognised note name (case-insensitive).
+- **`tempo.bpm` strict lower bound** (`bpm > 0`) — the declared keyword subset has no exclusive-minimum keyword (draft-2020-12's `exclusiveMinimum` is a number, but it is intentionally outside the subset), so the walker enforces `bpm > 0` (a `bpm` of `0` or negative is a conformance error). The schema's `tempo.bpm` entry only declares `type: "number"`.
 
 ## 8. Front-end output (`render.php`)
 
@@ -447,7 +450,7 @@ Two checks the schema keywords cannot fully express, handled by the **walker** a
 - **Passthrough, no re-serialization (requirement 11, AC7).** Because `song` is already a string (Section 6.1), "serialize the stored content to a string" is satisfied by emitting it as-is. `render.php` **must NOT** run `wp_json_encode()` / `json_decode()` on it — re-encoding would transform the author's literal text (re-escaping, reordering, or, for non-JSON input, failing), violating requirement 11's "outputs **whatever is stored**." This also **resolves the design-deferred "compact vs pretty" formatting question: neither — verbatim passthrough.** The output's formatting is exactly whatever the author typed (their own indentation/newlines, or single-line).
 - **Escaping — the security decision (requirement 13, AC8).** The stored string is arbitrary author input and may contain HTML-significant characters (`<`, `>`, `&`, `"`, `'`) or script (`<script>…`). It is emitted as a **text node** inside the wrapper element, so the correct, sufficient WordPress escaper is **`esc_html()`**, which the function reference documents as encoding text for use in an HTML block — converting `&`, `<`, `>`, `"`, `'` to HTML entities [[5]](#refs). Any markup or script in the stored content therefore renders as inert visible text and **cannot execute** (no XSS) — satisfying AC8. `esc_html` (escape everything) is both the simplest and the safest choice here, since the intent is to output the content as *text*, not sanitized HTML; `wp_kses_post` (allow some tags) would be wrong and riskier. (The mechanism is doc-backed; exercising an actual XSS payload end-to-end in *this* plugin is AC8, confirmed in the Code phase — see Section 12.)
 - **Wrapping element = `<pre>` (resolves the design-deferred wrapping element).** The content is multi-line preformatted text (JSON when conformant, free text otherwise), so the fitting semantic wrapper is **`<pre>`**, carrying the standard block wrapper attributes via `get_block_wrapper_attributes()`. `<pre>` preserves the author's newlines/indentation so the song reads as the text it is. (`<div>`/`<p>` lose whitespace semantics; an inner `<code>` is a defensible-but-functionally-inert refinement, recorded as optional.) **Do not double-escape the wrapper:** the function reference shows `get_block_wrapper_attributes()` returns an already-escaped attribute string [[4]](#refs), so it is echoed directly into the opening tag (NOT wrapped in `esc_attr()`, which would double-escape) — the same rule the issue-#1 scaffold already follows.
-- **Empty state outputs nothing (requirement 12, AC3).** When `song` is empty — the default `""`, unset on an older instance, or whitespace-only — `render.php` outputs **nothing**: no wrapper element, no content. Read the value safely as `$attributes['song'] ?? ''` (null-coalesce to avoid a PHP 8 "Undefined array key" warning under `WP_DEBUG`), then treat empty as `'' === trim( (string) $song )` so a whitespace-only value is also "nothing meaningful," and early-return. (Emitting an empty `<pre>` for styling consistency was considered and rejected for AC3 clarity — "no song content is output" reads most cleanly as *no element at all*.)
+- **Empty state outputs nothing (requirement 12, AC3).** When `song` is empty — the default `""`, unset on an older instance, or whitespace-only — `render.php` outputs **nothing**: no wrapper element, no content. Read the value safely as `isset( $attributes['song'] ) ? (string) $attributes['song'] : ''` — the `isset` guard avoids a PHP 8 "Undefined array key" warning under `WP_DEBUG` when an older instance has no `song`, and the `(string)` cast defensively coerces any non-string attribute value to a string. Then treat empty as `'' === trim( $song )` so a whitespace-only value is also "nothing meaningful," and early-return. (Emitting an empty `<pre>` for styling consistency was considered and rejected for AC3 clarity — "no song content is output" reads most cleanly as *no element at all*.)
 - **No render-time validation (requirement 11, out of scope).** `render.php` performs **no** parsing, validation, or well-formedness check — `song` is opaque text. Non-conformant or non-JSON content is output identically (escaped). The **only** branch is the empty check.
 
 Illustrative shape (the Code phase finalizes the exact form):
@@ -532,20 +535,21 @@ A song that exercises every required element (notes, rests, chords, dotted durat
       ]
     },
 
-    // ── Section 2 — MID-SONG CHANGES: new tempo, time signature, clef, alters,
-    //    and a right-hand octave shift. Each field overrides defaults; the
-    //    left-hand clef (bass) is inherited because leftHand only sets alters. ──
+    // ── Section 2 — MID-SONG CHANGES: new tempo, time signature, a left-hand
+    //    clef change, alters, and a right-hand octave shift. Each field overrides
+    //    defaults; the right-hand clef (treble) is inherited because rightHand
+    //    only sets octaveShift + alters. ──
     {
       "tempo": { "bpm": 90, "beatUnit": "quarter" },   // tempo change → ♩ = 90
       "timeSignature": { "beats": 3, "beatType": 4 },  // time-signature change → 3/4
       "rightHand": {
-        "clef": "treble",
         "octaveShift": 1,                               // 8va: sounds one octave higher
         "alters": { "F": 1, "C": 1 }                    // section default accidentals: F#, C#
+        // clef inherited from defaults (treble)
       },
       "leftHand": {
+        "clef": "tenor",                                // CLEF CHANGE: bass (defaults) → tenor
         "alters": {}                                    // clear inherited B♭ for this section
-        // clef inherited from defaults (bass)
       },
       "measures": [
         {
@@ -569,7 +573,7 @@ A song that exercises every required element (notes, rests, chords, dotted durat
 }
 ```
 
-What this demonstrates, mapped to AC5: notes & rests (both hands); chords (the opening 3-pitch C-major chord); dotted durations (`dots: 1`); per-note accidentals (`F#2` via `alter`); both note-name systems mixed (English in the right hand, Spanish `do`/`sol`/`si` in the left); per-hand clef, default accidentals (`alters`), and octave shift; mid-song tempo / clef / time-signature / accidental changes (Section 2); dynamics (`mf`, `p`); a free-text chord symbol (`"C"`); ties and slurs (start in section 1, stop in measure 2); repeat barlines (`repeat-start` … `repeat-end`) and a `final` barline; and `metadata` title/composer.
+What this demonstrates, mapped to AC5: notes & rests (both hands); chords (the opening 3-pitch C-major chord); dotted durations (`dots: 1`); per-note accidentals (`F#2` via `alter`); both note-name systems mixed (English in the right hand, Spanish `do`/`sol`/`si` in the left); per-hand clef, default accidentals (`alters`), and octave shift; mid-song changes in Section 2 — tempo (120→90), time signature (4/4→3/4), a left-hand **clef change** (`bass`→`tenor`), and accidentals (the right-hand `alters` and the cleared left-hand `alters`); dynamics (`mf`, `p`); a free-text chord symbol (`"C"`); ties and slurs (start in section 1, stop in measure 2); repeat barlines (`repeat-start` … `repeat-end`) and a `final` barline; and `metadata` title/composer.
 
 Per AC10 this song is **not** required to be timing-balanced — e.g. the right hand of section 1's first measure (dotted half + quarter rest = 4 beats) and the left hand (quarter + quarter + half = 4 beats) happen to align in 4/4, but a song where they did not would still validate.
 
