@@ -551,3 +551,78 @@ sizing model; per-system restatement; resize behavior; vertical spacing
   question.
 - Section-change inline rendering (clef/keysig/timesig/tempo/ottava at the section
   boundary) → section-change question (spec req 3 / AC4).
+
+### Q8 — Accidentals: alters defaults vs per-note overrides + key-sig rendering
+
+**Question.** Correctness-critical (spec req 4 / AC3: per-note `alter` overrides
+the hand's `alters` default; doubles −2..+2). How to render the key-sig-like
+`alters` cluster, which notes get a per-note glyph (the precedence rule),
+naturals, glyphs/placement, and note-name normalization for alters lookup.
+
+**Evidence (researcher; effective-alter + glyph rule coded and run on the
+format's own cases).**
+- **Key-sig-like display of `alters`.** Render `alters` as a cluster at each
+  system start (and section change), ONE glyph per altered note name at that
+  letter's standard key-sig position for the clef. Do NOT try to detect/canonicalize
+  a circle-of-fifths key — `alters` is an arbitrary map. Standard sets render in
+  conventional order (sharps F C G D A E B / flats B E A D G C F, others appended
+  in note-name order) so they look right; odd/partial sets just show those
+  accidentals — data-faithful. Vertical placement = the conventional key-sig
+  register for each letter in the active clef (a fixed per-clef table of 7
+  positions). Doubles in `alters` (never in real key sigs) just draw the double
+  glyph — faithful, recognizable.
+- **Per-note precedence — endorse the data-faithful stateless rule (2b).** Draw a
+  per-note accidental glyph **whenever `pitch.alter` is explicitly present**; notes
+  without an explicit `pitch.alter` get no glyph (their default lives in the key
+  sig). Rationale: renders exactly what the author wrote (explicit overrides win
+  and always show — AC3 falls out structurally via `effectiveAlter = pitch.alter
+  ?? alters[name] ?? 0`); it is **stateless** (no measure-local accidental
+  tracking), which matters because the format has no timing/measure model — a
+  stateful "lasts-till-barline" rule would have to reason about boundaries the
+  data doesn't guarantee, adding fragility for no fidelity gain at our bar.
+  Verified: B default-flat no override → no glyph; B explicit alter:0 → natural;
+  F#2 explicit → sharp; Spanish "si" under alters{B:-1} → −1 no glyph; "C" under
+  alters{do:1} → +1 no glyph; explicit doubles → double glyphs.
+- **Naturals — refined final glyph rule (still stateless):** if `pitch.alter` is
+  present: `alter ≠ 0` → draw that accidental (even if redundant — a legitimate
+  **courtesy/cautionary accidental**, never a wrong pitch); `alter == 0` → draw
+  **natural only if the key-sig default for that letter ≠ 0** (else nothing, so
+  plain notes don't get pointless naturals). If `pitch.alter` is absent → no
+  glyph. Consults the key sig only, not measure history.
+- **Glyphs + placement.** Five glyphs from the font:
+  `["double-flat","flat","natural","sharp","double-sharp"][alter+2]`. Left of the
+  notehead, **same Y** (alter never moves Y), 0.5–1 sp gap; glyph width ≈ 1–1.3
+  sp. Chords: a column ~1 sp left of the noteheads; if two accidentals are within
+  ~1.5 sp (3 staff-steps) vertically, push one into a second column ~1.3 sp
+  further left (process top-down). Full optimal stacking out of scope.
+- **Normalization — single source shared with the validator + pitch→Y.**
+  Normalize BOTH `alters` keys and `pitch.step` to a canonical letter
+  (do→C…si→B; English to itself; case-insensitive) using the **same vocabulary
+  the validator encodes** (`NOTE_NAMES`, `src/song/validate.js`). So `alters{do:1}`
+  alters a pitch "C". This canonical step→letter knowledge is the SAME the Q4
+  `stepIndex` needs — centralize ONE `normalizeStep()` helper (export from the
+  song module, or duplicate the 14-entry map) reused by pitch→Y, alters lookup,
+  and any note-name comparison.
+
+**Decision.** Adopt the data-faithful stateless model verbatim:
+- `normalizeStep(s)` (shared single source with the validator's vocabulary +
+  pitch→Y); `normAlters` = alters mapped through it; `effectiveAlter = pitch.alter
+  ?? normAlters[letter] ?? 0`.
+- Key sig: one glyph per `normAlters` entry at the letter's standard key-sig
+  position for the clef (sharps/flats conventional order, others appended;
+  doubles drawn).
+- Per-note glyph (final rule): `pitch.alter` present & ≠0 → that glyph; present &
+  ==0 → natural iff key-sig default ≠0; absent → none. Stateless.
+- Glyph placement constants as above; chord two-column nudge for overlaps.
+
+**Consequences carried forward / honest caveat.**
+- Stateless 2b deliberately does NOT auto-cancel a mid-measure accidental on a
+  later same-named note (strict notation would). Accepted: the format has no
+  reliable measure/timing model to anchor persistence, and each note expresses
+  its own intent via its `alter` (or relies on the key-sig default). The only
+  divergence is occasional courtesy accidentals — themselves a real convention.
+  Strict measure-persistence (option a) is more code, more fragile under
+  no-timing data, and not needed for "recognizable + data-faithful."
+- The `normalizeStep()` single-source helper is a plan-phase item (validator
+  currently keeps `NOTE_NAMES` private; export a helper or carefully duplicate —
+  must not change validation behavior, only expose/reuse the vocabulary).
