@@ -145,9 +145,9 @@ containing the literal `</script>` or `<!--` (e.g. in a `chordSymbol` or
 `htmlspecialchars` is **WRONG here**: raw-text script content does not decode HTML
 entities, so escaping would leave literal `&lt;` that `JSON.parse` chokes on. The
 correct, JSON-preserving transform escapes the leading `<` of every breakout
-sequence as the **JSON unicode escape `<`** before emitting: replace `</` →
-`</` and `<!--` → `<!--`. (A blanket `<` → `<` is the simplest valid
-form and neutralizes both sequences at once.) `<` is a legal JSON escape for
+sequence as the **JSON unicode escape `\u003C`** before emitting: replace `</` →
+`\u003C/` and `<!--` → `\u003C!--`. (A blanket `<` → `\u003C` is the simplest valid
+form and neutralizes both sequences at once.) `\u003C` is a legal JSON escape for
 `<`, so `JSON.parse` decodes back to the **exact author bytes**, while the HTML
 parser never sees a literal `</` or `<!--` and cannot close or comment out the
 script element. The earlier `<\/` / `<\!--` form is **wrong**: `\!` is not a valid
@@ -337,7 +337,7 @@ negligible at our scale.
 render.php
   song attribute (string)
     └─ trim=='' ? return : <div wrapper><script type="application/json" …>SONG</script></div>
-                                            (breakout-escaped:  </ → </ ,  <!-- → <!--  via <)
+                                            (breakout-escaped:  </ → \u003C/ ,  <!-- → \u003C!--  via \u003C)
 
 (browser, frontend only)
 view.js  (viewScript, gated on document.fonts.ready for the first draw)
@@ -766,7 +766,7 @@ The pure layout-model seam (§3) makes all the hard logic DOM-free and unit-test
     and `<script>alert()</script>` → no script executes, text is inert via `textContent`,
     and the JSON `<script>` does not break out; crucially, the song carrying these literals
     is **conformant**, so it must still `JSON.parse` back to the exact author bytes and
-    **render its notation** — the `<` escape round-trips where the invalid `<\!--` would
+    **render its notation** — the `\u003C` escape round-trips where the invalid `<\!--` would
     have thrown — the relocated AC8 protection).
 - **`render.spec.js` REWRITE** (the current tests assert the old `<pre>` behavior and
   contradict the new design):
@@ -830,8 +830,8 @@ these are the concrete plan tasks):
    `style.scss` is harmless to the editor; an optional dedicated frontend-only `viewStyle`
    is a plan decision).
 2. **Script-breakout escape in `render.php`.** Escape the leading `<` of every breakout
-   sequence as the JSON unicode escape `<`: replace `</` → `</` and `<!--` →
-   `<!--` (a blanket `<` → `<` is the simplest valid form) — **NOT** `esc_html`
+   sequence as the JSON unicode escape `\u003C`: replace `</` → `\u003C/` and `<!--` →
+   `\u003C!--` (a blanket `<` → `\u003C` is the simplest valid form) — **NOT** `esc_html`
    (raw-text `<script>` does not decode entities) and **NOT** `<\!--` (`\!` is invalid
    JSON and would make `JSON.parse` throw on a conformant song). Test a literal `</script>`
    **and** a literal `<!--` in author free text (`chordSymbol` / `metadata.title`)
