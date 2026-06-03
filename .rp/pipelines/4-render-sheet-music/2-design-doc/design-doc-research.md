@@ -248,3 +248,77 @@ present B as the credible zero-asset alternative; C is the recommendation.
   detail for the symbol-catalogue question.
 - Engine must expose glyphs behind a small indirection (a glyph map) so the B
   alternative — or a future font swap — doesn't ripple through the renderer.
+
+### Q4 — Staff-space coordinate model + pitch→staff-position mapping + ledger lines
+
+**Question.** Nail down the SVG coordinate convention (staff-space unit) and the
+pitch→Y mapping per clef with ledger lines (spec req 4 / AC3), plus how
+octaveShift and alto/tenor clefs affect placement.
+
+**Evidence (researcher; pitch→Y formula verified in code across all 4 clefs).**
+- **Coordinate system.** Standard engraving unit is the **staff space (sp)** =
+  distance between adjacent staff lines; the 5-line staff spans **4 sp** (SMuFL
+  defines all metrics in staff spaces; em = 4 sp). Model: one constant `SP` in
+  SVG user units (e.g. SP = 10; viewBox decouples user units from px). Y
+  increases **downward** (SVG default) → higher pitch = smaller Y. Use a
+  **staff-step** integer (1 staff-step = one line-or-space = **0.5 sp** in Y) so
+  every notehead lands on an exact half-sp grid. **Lines at even** staff-steps,
+  **spaces at odd**.
+- **Pitch → diatonic index.** Placement depends ONLY on diatonic step + octave,
+  **never on `alter`** (an accidental shifts the glyph left of the notehead, not
+  the staff line). `stepIndex`: C0 D1 E2 F3 G4 A5 B6; normalize Spanish
+  do/re/mi/fa/sol/la/si → C/D/E/F/G/A/B, case-insensitive (**reuse the
+  validator's normalization**, `src/song/validate.js`). `diatonicIndex =
+  octave*7 + stepIndex`. Middle C = **C4 = 28** (confirmed by
+  `docs/song-format.md`).
+- **Clef references** (verified vs notation sources): treble G4 on line 2; bass
+  F3 on line 4; alto C4 on the middle line 3; tenor C4 on line 4. Modeled as
+  `sFromBottom` (bottom line = 0, top line = 8; lines 0/2/4/6/8, spaces
+  1/3/5/7): `treble {G4, 2}`, `bass {F3, 6}`, `alto {C4, 4}`, `tenor {C4, 6}`.
+- **General Y formula (clef-agnostic):**
+  `staffStepFromBottom(pitch) = ref.sFromBottom + (diatonicIndex(pitch) −
+  diatonicIndex(ref.pitch))`; `Y(pitch) = bottomLineY − staffStepFromBottom ×
+  (SP/2)`. Verified: treble E4→0, G4→2, F5→8, C4→−2 (1 ledger below), C6→12 (2
+  ledgers above); bass C4→+10 (1 ledger above — classic middle C above bass).
+  Cross-check: treble C4 (−2, ledger below) and bass C4 (+10, ledger above) are
+  the SAME middle C on one unified `diatonicIndex` scale — confirms the grand
+  staff is internally consistent.
+- **Ledger lines.** Draw a short segment at every **line position (even
+  sFromBottom)** between the staff and a note outside it, inclusive of the note's
+  own line when it sits on a ledger line. Above: even sFromBottom from 10 up
+  through the largest even ≤ note's sFromBottom. Below: mirror from −2 down. None
+  needed for 0 ≤ sFromBottom ≤ 8. Each ledger is centered on the notehead, ~2 sp
+  wide (~1.5–2 notehead-widths). Same routine for both staves.
+- **octaveShift = bracket, NOT a vertical move** (confirmed; Humanities
+  LibreTexts, Wikipedia, MuseScore handbook): the WRITTEN pitch on the staff is
+  unchanged; only the sounding pitch transposes (matches the format's own
+  forward-looking note). So for static notation: place notes by their written
+  octave; draw an **ottava marking** (dashed bracket + label) spanning the
+  affected hand's section notes — `+1` "8va" / `−1` "8vb" / `+2` "15ma" / `−2`
+  "15mb"; above for +, below for −. octaveShift is section-scoped per hand; a
+  bracket per affected hand over the section's measures (re-stated per wrapped
+  system) is acceptable. KEY correctness point: do NOT shift Y.
+- **Alto/tenor — no special case.** The Y formula handles them with zero
+  special-casing — just two more `clefRef` entries + the C-clef glyph. Everything
+  downstream (ledgers, stems, beams) operates on `sFromBottom`, so it's
+  clef-independent. Verified alto (C4 on middle line) / tenor (C4 on line 4).
+
+**Decision.** Adopt this model verbatim:
+- `SP` constant; staff-step grid (lines even, spaces odd); Y downward.
+- `stepIndex` + Spanish normalization (shared with the validator's table);
+  `diatonicIndex = octave*7 + stepIndex`; middle C = C4 = 28.
+- `clefRef = { treble:{G4, sFromBottom 2}, bass:{F3, 6}, alto:{C4, 4},
+  tenor:{C4, 6} }`.
+- `Y(pitch) = bottomLineY − (ref.sFromBottom + diatonicIndex(pitch) −
+  diatonicIndex(ref)) × (SP/2)`. `alter` never affects Y.
+- Ledger lines at even sFromBottom between the staff and the note, centered, ~2
+  sp wide.
+- octaveShift → ottava bracket/label only, never a vertical shift.
+
+**Consequences carried forward.**
+- Stem-direction note (for the stems/beams question): conventionally flips at the
+  middle line (sFromBottom 4) — below middle = stem up, at/above = stem down.
+- Accidental glyph sits to the LEFT of the notehead at the same Y (alter never
+  moves Y) — feeds the accidentals question.
+- The note-name normalization is shared with the validator's vocabulary; the
+  engine should not re-encode it independently (avoid drift).
