@@ -20,7 +20,8 @@
  * `$defs` names so they stay tied to the single source of truth:
  *   1. note names (`pitch.step` and `alters` keys) — matched case-insensitively
  *      against the closed two-system vocabulary (English C D E F G A B +
- *      Spanish do re mi fa sol la si), encoded ONCE in `NOTE_NAMES`;
+ *      Spanish do re mi fa sol la si), encoded ONCE in `normalizeStep.js` and
+ *      reused here via `isNoteName` (design §6.5);
  *   2. `alters` — a map whose every key is a recognised note name and whose
  *      every value is an integer in −2..+2;
  *   3. `tempo.bpm` — the strict lower bound `bpm > 0`.
@@ -29,33 +30,12 @@
  * (events need not sum to the time signature; the two hands need not align) —
  * a structurally-conformant but musically-unbalanced song is accepted (AC10).
  */
+
+// The closed two-system note-name vocabulary lives in one shared home so the
+// validator and the renderer cannot drift; `isNoteName` keeps the validator's
+// exact semantics (design §6.5, §7).
+import { isNoteName } from "./normalizeStep.js";
 import songSchema from "./schema.js";
-
-/**
- * The closed note-name vocabulary, lowercased — both systems, encoded once and
- * reused for `pitch.step` and `alters` keys so the equivalence lives in one
- * place (design §4.4, §7). English letters and Spanish solfège; no token
- * collides across the two systems.
- */
-const NOTE_NAMES = new Set([
-	"c",
-	"d",
-	"e",
-	"f",
-	"g",
-	"a",
-	"b",
-	"do",
-	"re",
-	"mi",
-	"fa",
-	"sol",
-	"la",
-	"si",
-]);
-
-const isNoteName = (key) =>
-	typeof key === "string" && NOTE_NAMES.has(key.toLowerCase());
 
 /** Render a value compactly for an error message (quotes strings via JSON). */
 const show = (value) => {
