@@ -2,18 +2,24 @@
 	"name": "piano-block",
 	"version": "0.1.0",
 	"private": true,
-	"description": "A WordPress block (planned) for creating piano song sheets to practice and learn piano.",
+	"description": "An installable WordPress block plugin scaffold — a placeholder block for the future piano song sheets used to practice and learn piano.",
 	"license": "GPL-2.0-or-later",
 	"engines": {
 		"node": ">=24",
 		"npm": ">=11"
 	},
 	"scripts": {
+		"build": "wp-scripts build",
+		"start": "wp-scripts start",
+		"env:start": "wp-env start",
+		"env:stop": "wp-env stop",
 		"lint": "biome lint .",
 		"format": "biome format --write .",
 		"check": "biome check --write ."
 	},
 	"devDependencies": {
-		"@biomejs/biome": "2.4.16"
+		"@biomejs/biome": "2.4.16",
+		"@wordpress/env": "^11.7.0",
+		"@wordpress/scripts": "^32.3.0"
 	}
 }
