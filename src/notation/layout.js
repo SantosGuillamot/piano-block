@@ -1885,6 +1885,10 @@ export function buildLayoutModel(song, availableWidthInSp) {
 	for (const sp of spans) {
 		const sys = systems[sp.systemIndex];
 		if (sys) {
+			// A cross-system span is filed under its start system only; clip it to that
+			// system's staff end so it draws its start-system portion (a no-op for a
+			// within-system span — see `clipSpanToStartSystem`).
+			clipSpanToStartSystem(sp, sys.staffEndX);
 			sys.spans.push(sp);
 		}
 	}
@@ -2285,6 +2289,53 @@ export function buildHairpinSpec(kind, start, stop, hand) {
 		// True when the pair spans two systems: the layout clip trims to system edges.
 		crossSystem: start.systemIndex !== stop.systemIndex,
 	};
+}
+
+/**
+ * Clip a resolved span to its start system's staff end, in place, so a cross-system
+ * span draws only its start-system portion. v1 files the whole span under its start
+ * system and drops the continuation, so a span whose end note landed on a later
+ * system would otherwise aim its right edge at a FOREIGN-frame X (a system-local
+ * coordinate from a different system) — a garbage stroke. This trims the right edge
+ * to the start system's `staffEndX`.
+ *
+ * The clip is a STRICT no-op for a within-system span (`crossSystem === false`): it
+ * returns the record untouched, so within-system tie/slur and hairpin output is
+ * provably unchanged. It is degenerate-safe (never strokes backwards): the right edge
+ * is clamped to `max(x1, min(x2, staffEndX))`, so a start already at/past the staff
+ * end collapses to a finite zero-width span rather than reversing. It adjusts
+ * HORIZONTAL coordinates only — it never touches any Y:
+ *
+ * - A hairpin wedge rides a FLAT lane Y (`yCenter`) constant across the whole span,
+ *   so clamping `x2` alone yields a fully correct start-system clip (the clipped
+ *   wedge stays on the lane it started on).
+ * - A tie/slur arc gets `x2` clamped and its Bézier control X recomputed to the new
+ *   midpoint (`cx = (x1 + x2) / 2`, the same rule `buildSpanSpec` uses) so the arc
+ *   terminates at the new right edge rather than aiming at a foreign X. Its `y2`/`cy`
+ *   derive from the end note's notehead Y on the foreign end system and are
+ *   deliberately LEFT unchanged: the clipped arc terminates at a foreign vertical
+ *   position, an accepted v1 best-effort (draw the start-system portion, drop the
+ *   continuation). No start-system-local vertical re-projection is attempted.
+ *
+ * @param {object} span The resolved span record (mutated in place when clipped). A
+ *   wedge carries `{ x1, x2, crossSystem, ... }`; a tie/slur arc additionally carries
+ *   `{ cx, y2, cy, ... }`.
+ * @param {number} staffEndX The start system's staff-end X (`budgetSp - STAFF_MARGIN_X`).
+ * @return {object} The same span record — untouched when within-system, else clipped.
+ */
+export function clipSpanToStartSystem(span, staffEndX) {
+	if (!span.crossSystem) {
+		return span;
+	}
+	// Trim the right edge to the start system's staff end; never reverse the stroke.
+	const rightX = Math.max(span.x1, Math.min(span.x2, staffEndX));
+	span.x2 = rightX;
+	// A tie/slur arc carries a Bézier control X (a wedge does not); re-center it on the
+	// clipped span so the arc lands on the new right edge, not the old foreign midpoint.
+	if (typeof span.cx === "number") {
+		span.cx = (span.x1 + span.x2) / 2;
+	}
+	return span;
 }
 
 /**

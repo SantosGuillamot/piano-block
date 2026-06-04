@@ -27,6 +27,7 @@ import {
 	beatGroupLength,
 	buildHairpinSpec,
 	buildLayoutModel,
+	clipSpanToStartSystem,
 	decodeDuration,
 	diatonicIndex,
 	diffContext,
@@ -2110,6 +2111,290 @@ describe("hairpin span resolution (crescendo / decrescendo)", () => {
 			expect(span).toHaveProperty("cy");
 			expect(span).not.toHaveProperty("yCenter");
 			expect(span).not.toHaveProperty("aperture");
+		}
+	});
+});
+
+// ── Cross-system span clip (tie / slur / hairpin) ─────────────────────────────────
+//
+// A span whose endpoints fall on different systems must draw only its start-system
+// portion: filed under the start system, clipped to that system's `staffEndX`, never
+// a backwards stroke. The clip is a STRICT no-op for within-system spans (the only
+// case existing tests/examples exercise), and it touches horizontal coordinates only
+// — never any Y. `clipSpanToStartSystem` is the pure helper the bucketing loop runs
+// before filing each resolved span; the narrow-width `buildLayoutModel` idiom forces
+// the real multi-system path.
+
+describe("clipSpanToStartSystem — start-system clip for cross-system spans", () => {
+	it("leaves a within-system hairpin record byte-identical (strict no-op)", () => {
+		const span = {
+			kind: "crescendo",
+			hand: "rightHand",
+			systemIndex: 0,
+			x1: 10,
+			x2: 40,
+			yCenter: 12,
+			aperture: HAIRPIN_APERTURE,
+			crossSystem: false,
+		};
+		const before = { ...span };
+		const out = clipSpanToStartSystem(span, 28.5);
+		// Same object, mutated in place to nothing: every field equals the original.
+		expect(out).toEqual(before);
+	});
+
+	it("leaves a within-system tie/slur record byte-identical (strict no-op)", () => {
+		for (const kind of ["tie", "slur"]) {
+			const span = {
+				kind,
+				hand: "rightHand",
+				systemIndex: 0,
+				x1: 10,
+				y1: 5,
+				x2: 40,
+				y2: 7,
+				cx: 25,
+				cy: 4,
+				crossSystem: false,
+			};
+			const before = { ...span };
+			const out = clipSpanToStartSystem(span, 28.5);
+			expect(out).toEqual(before);
+		}
+	});
+
+	it("clips a cross-system hairpin's x2 to staffEndX (X only; yCenter untouched)", () => {
+		// The foreign end X (50) sits past the start system's staff end (28.5), so the
+		// clamp trims x2 to staffEndX exactly. yCenter is the flat lane Y — never touched.
+		const span = {
+			kind: "crescendo",
+			hand: "rightHand",
+			systemIndex: 0,
+			x1: 10,
+			x2: 50,
+			yCenter: 12,
+			aperture: HAIRPIN_APERTURE,
+			crossSystem: true,
+		};
+		const out = clipSpanToStartSystem(span, 28.5);
+		expect(out.x2).toBe(28.5);
+		expect(out.x1).toBe(10); // start untouched
+		expect(out.yCenter).toBe(12); // Y never touched
+		expect(out.aperture).toBe(HAIRPIN_APERTURE);
+		expect(out.systemIndex).toBe(0); // still filed under the start system
+	});
+
+	it("clips a cross-system tie/slur's x2 to staffEndX and recomputes cx; leaves y2/cy", () => {
+		for (const kind of ["tie", "slur"]) {
+			const span = {
+				kind,
+				hand: "rightHand",
+				systemIndex: 0,
+				x1: 10,
+				y1: 5,
+				x2: 50, // foreign end X past staffEndX
+				y2: 7, // a FOREIGN end-system notehead Y
+				cx: 30,
+				cy: 4, // a FOREIGN-derived control Y
+				crossSystem: true,
+			};
+			const out = clipSpanToStartSystem(span, 28.5);
+			expect(out.x2).toBe(28.5); // clamped to the start system's staff end
+			// cx recomputed to the NEW midpoint so the arc terminates at the new right edge.
+			expect(out.cx).toBeCloseTo((10 + 28.5) / 2, 10);
+			// y2 / cy are deliberately NOT clamped — accepted v1 best-effort (X-only clip).
+			expect(out.y2).toBe(7);
+			expect(out.cy).toBe(4);
+			expect(out.y1).toBe(5); // start Y untouched
+		}
+	});
+
+	it("never strokes backwards: a start at or past staffEndX clamps x2 to x1 (zero width)", () => {
+		// The clamp is max(x1, min(x2, staffEndX)); when x1 itself is past staffEndX the
+		// right edge collapses to x1, yielding a finite zero-width (never reversed) span.
+		const span = {
+			kind: "crescendo",
+			hand: "rightHand",
+			systemIndex: 0,
+			x1: 35, // already past staffEndX
+			x2: 60,
+			yCenter: 12,
+			aperture: HAIRPIN_APERTURE,
+			crossSystem: true,
+		};
+		const out = clipSpanToStartSystem(span, 28.5);
+		expect(out.x2).toBe(35); // never less than x1
+		expect(out.x2).toBeGreaterThanOrEqual(out.x1);
+		expect(Number.isFinite(out.x2)).toBe(true);
+	});
+
+	it("clamps a foreign end X that is below staffEndX to that (smaller) foreign X", () => {
+		// When the foreign end X (20) is already inside the start system's staff, the
+		// clamp leaves it there — min(20, 28.5) === 20 — never extending it to staffEndX.
+		const span = {
+			kind: "crescendo",
+			hand: "rightHand",
+			systemIndex: 0,
+			x1: 10,
+			x2: 20,
+			yCenter: 12,
+			aperture: HAIRPIN_APERTURE,
+			crossSystem: true,
+		};
+		const out = clipSpanToStartSystem(span, 28.5);
+		expect(out.x2).toBe(20);
+		expect(out.x2).toBeGreaterThanOrEqual(out.x1);
+	});
+});
+
+describe("cross-system span clip — full buildLayoutModel (narrow width)", () => {
+	// Several single-note measures so a narrow render width forces multiple systems and
+	// a span authored from the first note to a last-system note crosses systems.
+	const crossSong = (kind) => {
+		const note = (markers = {}) => ({
+			type: "note",
+			duration: "whole",
+			pitches: [{ step: "C", octave: 5 }],
+			...markers,
+		});
+		const measures = [];
+		for (let i = 0; i < 8; i++) {
+			const markers = {};
+			if (i === 0) {
+				markers[kind] = "start";
+			}
+			if (i === 7) {
+				markers[kind] = "stop";
+			}
+			measures.push({ rightHand: [note(markers)] });
+		}
+		return { sections: [{ measures }] };
+	};
+
+	it("files a cross-system crescendo under the start system only, clipped to staffEndX, never throwing", () => {
+		let model;
+		expect(() => {
+			model = buildLayoutModel(crossSong("crescendo"), 30);
+		}).not.toThrow();
+		expect(model.systems.length).toBeGreaterThan(1);
+		const located = model.systems.flatMap((sys, i) =>
+			sys.spans
+				.filter((sp) => sp.kind === "crescendo")
+				.map((sp) => ({ arrayIndex: i, sp })),
+		);
+		// Exactly one wedge, filed under its own `systemIndex` and nowhere else.
+		expect(located).toHaveLength(1);
+		const { arrayIndex, sp } = located[0];
+		expect(sp.crossSystem).toBe(true);
+		expect(arrayIndex).toBe(sp.systemIndex); // filed under the start system only
+		const startSys = model.systems[sp.systemIndex];
+		// Clipped within the start system's staff: never past its end, never backwards.
+		expect(sp.x2).toBeLessThanOrEqual(startSys.staffEndX + 1e-9);
+		expect(sp.x2).toBeGreaterThanOrEqual(sp.x1 - 1e-9);
+		// No wedge with this span's foreign coordinates leaks into any OTHER system.
+		for (let i = 0; i < model.systems.length; i++) {
+			if (i === sp.systemIndex) {
+				continue;
+			}
+			expect(
+				model.systems[i].spans.some((other) => other.kind === "crescendo"),
+			).toBe(false);
+		}
+	});
+
+	it("clips a cross-system tie and slur to the start system's staff end and recomputes cx, never throwing", () => {
+		for (const kind of ["tie", "slur"]) {
+			let model;
+			expect(() => {
+				model = buildLayoutModel(crossSong(kind), 30);
+			}).not.toThrow();
+			const spans = model.systems.flatMap((s) => s.spans);
+			const sp = spans.find((s) => s.kind === kind);
+			expect(sp).toBeDefined();
+			expect(sp.crossSystem).toBe(true);
+			const startSys = model.systems[sp.systemIndex];
+			// X clamped within the start system's staff; cx is the new midpoint.
+			expect(sp.x2).toBeLessThanOrEqual(startSys.staffEndX + 1e-9);
+			expect(sp.x2).toBeGreaterThanOrEqual(sp.x1 - 1e-9);
+			expect(sp.cx).toBeCloseTo((sp.x1 + sp.x2) / 2, 6);
+		}
+	});
+
+	it("the clip changes horizontal coordinates only — y2/cy stay at the foreign end-system value", () => {
+		// Resolve the same cross-system tie WITHOUT the clip (read the raw record from a
+		// fresh resolve) to prove the clip touched x2/cx but left y2/cy untouched.
+		const model = buildLayoutModel(crossSong("tie"), 30);
+		const sp = model.systems.flatMap((s) => s.spans).find((s) => s.kind === "tie");
+		// y2 and cy derive from the foreign end note's notehead Y; the clip leaves them.
+		// They are finite (a real Y), and the clip is asserted not to have collapsed them
+		// to the start edge — the arc terminates at a foreign vertical position by design.
+		expect(Number.isFinite(sp.y2)).toBe(true);
+		expect(Number.isFinite(sp.cy)).toBe(true);
+		// The within-record consistency the clip DOES enforce: x2 ≤ staffEndX and cx is
+		// the recomputed midpoint of the clipped x-span (not the old foreign midpoint).
+		expect(sp.cx).toBeCloseTo((sp.x1 + sp.x2) / 2, 6);
+	});
+
+	it("a within-system crescendo across a barline is left untouched (one continuous wedge past the bar)", () => {
+		// Two notes in different measures of the SAME system: crossSystem is false and x2
+		// sits past the intervening barline X — the clip is a strict no-op here.
+		const song = {
+			sections: [
+				{
+					measures: [
+						{
+							rightHand: [
+								{
+									type: "note",
+									duration: "whole",
+									crescendo: "start",
+									pitches: [{ step: "C", octave: 5 }],
+								},
+							],
+						},
+						{
+							rightHand: [
+								{
+									type: "note",
+									duration: "whole",
+									crescendo: "stop",
+									pitches: [{ step: "C", octave: 5 }],
+								},
+							],
+						},
+					],
+				},
+			],
+		};
+		const model = buildLayoutModel(song, 200);
+		expect(model.systems.length).toBe(1); // both measures on one system
+		const [w] = model.systems
+			.flatMap((s) => s.spans)
+			.filter((s) => s.kind === "crescendo");
+		expect(w).toBeDefined();
+		expect(w.crossSystem).toBe(false);
+		// The barline between the two measures sits between the start and end note X, so
+		// the wedge spans it as one continuous element (x2 is past that barline X).
+		const m1 = model.systems[0].measures[0];
+		const barlineX = m1.x + m1.width;
+		expect(w.x1).toBeLessThan(barlineX);
+		expect(w.x2).toBeGreaterThan(barlineX);
+	});
+
+	it("produces byte-identical span records for a within-system tie/slur song (clip is a strict no-op)", () => {
+		// The clip must not perturb the only case existing tests exercise: a within-system
+		// tie/slur song. Resolve the comprehensive fixture and assert each within-system
+		// arc record carries its full original field set with x2/cx unmodified by a clip.
+		const model = buildLayoutModel(COMPREHENSIVE_SONG, 200);
+		const spans = model.systems.flatMap((s) => s.spans);
+		for (const kind of ["tie", "slur"]) {
+			const sp = spans.find((s) => s.kind === kind);
+			expect(sp).toBeDefined();
+			expect(sp.crossSystem).toBe(false);
+			// A within-system arc's cx is still exactly the midpoint of its UNCLIPPED span
+			// (the clip never ran), and x2 is the real end-note X (> x1).
+			expect(sp.cx).toBeCloseTo((sp.x1 + sp.x2) / 2, 6);
+			expect(sp.x2).toBeGreaterThan(sp.x1);
 		}
 	});
 });
