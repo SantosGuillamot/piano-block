@@ -183,6 +183,28 @@ export const HAIRPIN_APERTURE = 1.0;
  */
 export const HAIRPIN_LANE_DY = 3.0;
 
+/**
+ * The light horizontal gap (sp) at a messa-di-voce hinge: when a crescendo's open
+ * tip and a decrescendo's open mouth meet on a shared hinge note, each is inset by
+ * half of this so a small space shows between the `<` and the `>`.
+ */
+export const HAIRPIN_HINGE_GAP = 0.6;
+
+/**
+ * Horizontal clearance (sp) between a point dynamic glyph and a hairpin that begins
+ * on the same note. A hairpin and a dynamic share the below-staff dynamics line, so
+ * a hairpin starting where a dynamic sits is shifted right to clear it (standard
+ * engraving) rather than drawn across it.
+ */
+export const HAIRPIN_DYNAMIC_GAP = 0.6;
+
+/**
+ * Approximate per-character advance, in em, of the bold-italic dynamic glyphs. Used
+ * only to estimate where a dynamic glyph ends so an adjacent hairpin can clear it
+ * (dynamics are center-anchored, so no exact metrics are otherwise needed).
+ */
+export const DYNAMIC_ADVANCE_EM = 0.6;
+
 // ── Duration tables ────────────────────────────────────────────────────────────
 
 /**

@@ -34,8 +34,12 @@ import {
 	DOT_GAP,
 	DOT_MUL,
 	DOT_OFFSET,
+	DYNAMIC_ADVANCE_EM,
+	DYNAMIC_SIZE,
 	EMPTY_MEASURE_WIDTH,
 	HAIRPIN_APERTURE,
+	HAIRPIN_DYNAMIC_GAP,
+	HAIRPIN_HINGE_GAP,
 	HAIRPIN_LANE_DY,
 	INTER_SYSTEM_GAP,
 	INTRA_STAFF_GAP,
@@ -2114,7 +2118,9 @@ function inlineSectionChange(member, x) {
  * `crescendo`, and `decrescendo`. The notehead-anchored arcs (tie/slur) read only the
  * notehead `anchor`; the flat below-staff hairpins (crescendo/decrescendo) cannot
  * reconstruct their lane from the pitch-dependent `anchor.y`, so each entry also
- * carries `laneY`, the precomputed per-hand below-staff lane center.
+ * carries `laneY`, the precomputed per-hand below-staff lane center. Each entry also
+ * carries the event's point `dynamic` (if any) so a hairpin beginning on that note can
+ * clear the dynamic glyph rather than draw across it.
  *
  * @param {object[]} [events] The hand's events for this measure.
  * @param {{ notes: object[] }} laidOut The hand's laid-out primitives (`layoutHand`).
@@ -2154,6 +2160,8 @@ export function recordSpanMarkers(events, laidOut, options) {
 			slur: event?.slur,
 			crescendo: event?.crescendo,
 			decrescendo: event?.decrescendo,
+			// The point dynamic on this event (if any); a hairpin starting here clears it.
+			dynamic: event?.dynamic,
 			anchor,
 			systemIndex,
 			laneY,
@@ -2181,6 +2189,7 @@ function resolveAllSpans(placedEvents) {
 	const spans = [];
 	for (const hand of HANDS) {
 		const stream = placedEvents[hand];
+		const handSpans = [];
 		for (const kind of ["tie", "slur", "crescendo", "decrescendo"]) {
 			const projected = stream.map((e) => ({ marker: e[kind] }));
 			const pairs = matchSpans(projected);
@@ -2195,12 +2204,15 @@ function resolveAllSpans(placedEvents) {
 				// Notehead-anchored arcs vs. flat below-staff wedges diverge only here:
 				// the wedge ignores the notehead Y and stem side and rides a flat lane.
 				if (kind === "crescendo" || kind === "decrescendo") {
-					spans.push(buildHairpinSpec(kind, start, stop, hand));
+					handSpans.push(buildHairpinSpec(kind, start, stop, hand));
 				} else {
-					spans.push(buildSpanSpec(kind, start, stop, hand));
+					handSpans.push(buildSpanSpec(kind, start, stop, hand));
 				}
 			}
 		}
+		// Insert the messa-di-voce gap before the hand's wedges leave this scope.
+		insetHingeGap(handSpans);
+		spans.push(...handSpans);
 	}
 	return spans;
 }
@@ -2260,26 +2272,48 @@ function buildSpanSpec(kind, start, stop, hand) {
  * (the builder never divides by `x2 - x1`). The opening-vs-closing shape itself is
  * produced at emit time from `kind`; this record only carries the lane geometry.
  *
+ * When the start note also carries a point dynamic, the wedge would otherwise begin
+ * across the dynamic glyph (both share the below-staff dynamics line). The start X is
+ * therefore shifted right to clear the dynamic — past an estimate of the glyph's
+ * half-width plus `HAIRPIN_DYNAMIC_GAP` — so the two read as one line, the dynamic
+ * then the hairpin (standard engraving). The shift is clamped to the end X for a
+ * within-system span so the wedge never runs backwards; a cross-system span keeps the
+ * shifted start and lets the later staff-end clip trim the right edge.
+ *
  * @param {"crescendo"|"decrescendo"} kind The wedge direction.
- * @param {{ anchor: { x: number }, laneY: number, systemIndex: number }} start The
- *   start anchor; `anchor.x` is the start note's horizontal center and `laneY` is
- *   this hand's flat below-staff lane center.
- * @param {{ anchor: { x: number } }} stop The stop anchor; `anchor.x` is the end
- *   note's horizontal center.
+ * @param {{ anchor: { x: number }, laneY: number, systemIndex: number,
+ *   dynamic?: string }} start The start anchor; `anchor.x` is the start note's
+ *   horizontal center, `laneY` this hand's flat below-staff lane center, and
+ *   `dynamic` the point dynamic on the start note (if any).
+ * @param {{ anchor: { x: number }, systemIndex: number }} stop The stop anchor;
+ *   `anchor.x` is the end note's horizontal center.
  * @param {string} hand The hand key (`"rightHand"` | `"leftHand"`).
  * @return {{ kind: string, hand: string, systemIndex: number, x1: number,
  *   x2: number, yCenter: number, aperture: number, crossSystem: boolean }} The
- *   wedge record: endpoints `x1`/`x2` at the two note centers, the flat lane
+ *   wedge record: endpoints `x1`/`x2` (start cleared past any dynamic), the flat lane
  *   `yCenter`, the constant `aperture`, the start system, and whether the pair
  *   crosses systems.
  */
 export function buildHairpinSpec(kind, start, stop, hand) {
+	const crossSystem = start.systemIndex !== stop.systemIndex;
+	let x1 = start.anchor.x;
+	if (start.dynamic) {
+		// Clear the center-anchored dynamic glyph: shift past its half-width + a gap.
+		const halfWidth = (start.dynamic.length * DYNAMIC_ADVANCE_EM * DYNAMIC_SIZE) / 2;
+		x1 = start.anchor.x + halfWidth + HAIRPIN_DYNAMIC_GAP;
+		// Within a system, never let the cleared start run past the end (degenerate-safe);
+		// cross-system keeps the shift — the staff-end clip sets the right edge later.
+		if (!crossSystem) {
+			x1 = Math.min(x1, stop.anchor.x);
+		}
+	}
 	return {
 		kind,
 		hand,
 		systemIndex: start.systemIndex,
-		// The note horizontal centers, the same `measureX + note.x` value tie/slur use.
-		x1: start.anchor.x,
+		// The note horizontal centers, the same `measureX + note.x` value tie/slur use
+		// (the start cleared past any point dynamic on its note).
+		x1,
 		x2: stop.anchor.x,
 		// The flat per-hand below-staff lane Y, constant across the span (carried from
 		// recording so it survives even though the notehead Y cannot reconstruct it).
@@ -2287,8 +2321,37 @@ export function buildHairpinSpec(kind, start, stop, hand) {
 		// A fixed constant, never width-derived → degenerate-safe (no division).
 		aperture: HAIRPIN_APERTURE,
 		// True when the pair spans two systems: the layout clip trims to system edges.
-		crossSystem: start.systemIndex !== stop.systemIndex,
+		crossSystem,
 	};
+}
+
+/**
+ * Insert the light messa-di-voce gap between a crescendo and a decrescendo that meet
+ * on a shared hinge note. The hinge is a single note carrying both `crescendo: "stop"`
+ * and `decrescendo: "start"`, so the crescendo's open tip (`x2`) and the decrescendo's
+ * open mouth (`x1`) land on the same note X. Without a gap the two `<`/`>` mouths touch;
+ * this insets each by half of `HAIRPIN_HINGE_GAP` so a small space shows.
+ *
+ * Operates in place on one hand's resolved spans (a hand's note X values are unique, so
+ * a coincident crescendo-`x2` / decrescendo-`x1` is necessarily that hand's hinge). Each
+ * inset is clamped so neither wedge is pushed backwards past its other end.
+ *
+ * @param {object[]} handSpans One hand's resolved span records (arcs and/or wedges).
+ */
+function insetHingeGap(handSpans) {
+	const half = HAIRPIN_HINGE_GAP / 2;
+	for (const cres of handSpans) {
+		if (cres.kind !== "crescendo") {
+			continue;
+		}
+		for (const dec of handSpans) {
+			if (dec.kind !== "decrescendo" || Math.abs(cres.x2 - dec.x1) > 1e-6) {
+				continue;
+			}
+			cres.x2 = Math.max(cres.x1, cres.x2 - half);
+			dec.x1 = Math.min(dec.x2, dec.x1 + half);
+		}
+	}
 }
 
 /**

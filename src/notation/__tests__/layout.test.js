@@ -10,8 +10,12 @@
  */
 import {
 	ACCIDENTAL_GAP,
+	DYNAMIC_ADVANCE_EM,
+	DYNAMIC_SIZE,
 	EMPTY_MEASURE_WIDTH,
 	HAIRPIN_APERTURE,
+	HAIRPIN_DYNAMIC_GAP,
+	HAIRPIN_HINGE_GAP,
 	HAIRPIN_LANE_DY,
 	MAX_STRETCH,
 	MIN_ADV,
@@ -2018,7 +2022,7 @@ describe("hairpin span resolution (crescendo / decrescendo)", () => {
 		});
 	});
 
-	it("resolves a messa-di-voce hinge into a gap-free `< >` sharing the hinge X, yCenter and aperture", () => {
+	it("resolves a messa-di-voce hinge into a `< >` with a light gap, symmetric about the hinge X, sharing yCenter and aperture", () => {
 		// The middle note both stops the crescendo and starts the decrescendo.
 		const model = buildLayoutModel(
 			song([
@@ -2032,12 +2036,77 @@ describe("hairpin span resolution (crescendo / decrescendo)", () => {
 		const [dec] = spansOf(model).filter((s) => s.kind === "decrescendo");
 		expect(cres).toBeDefined();
 		expect(dec).toBeDefined();
-		// The crescendo ends and the decrescendo starts at the SAME hinge X — no gap,
-		// no overlap.
-		expect(cres.x2).toBeCloseTo(dec.x1, 6);
-		// They share the flat lane and the constant aperture so the `< >` is seamless.
+		// A light space shows between the crescendo's tip and the decrescendo's mouth:
+		// the decrescendo starts HAIRPIN_HINGE_GAP to the right of where the crescendo ends.
+		expect(dec.x1).toBeGreaterThan(cres.x2);
+		expect(dec.x1 - cres.x2).toBeCloseTo(HAIRPIN_HINGE_GAP, 6);
+		// The gap is symmetric about the shared hinge X (each tip inset by half the gap).
+		const hingeX = (cres.x2 + dec.x1) / 2;
+		expect(cres.x2).toBeCloseTo(hingeX - HAIRPIN_HINGE_GAP / 2, 6);
+		expect(dec.x1).toBeCloseTo(hingeX + HAIRPIN_HINGE_GAP / 2, 6);
+		// Neither wedge is pushed backwards past its other end.
+		expect(cres.x2).toBeGreaterThan(cres.x1);
+		expect(dec.x1).toBeLessThan(dec.x2);
+		// They still share the flat lane and the constant aperture.
 		expect(cres.yCenter).toBe(dec.yCenter);
 		expect(cres.aperture).toBe(dec.aperture);
+	});
+
+	it("clears a point dynamic on the start note: shifts x1 right past the glyph + gap", () => {
+		const start = { anchor: { x: 10 }, laneY: 12, systemIndex: 0, dynamic: "mf" };
+		const stop = { anchor: { x: 40 }, systemIndex: 0 };
+		const w = buildHairpinSpec("crescendo", start, stop, "rightHand");
+		const halfWidth = ("mf".length * DYNAMIC_ADVANCE_EM * DYNAMIC_SIZE) / 2;
+		expect(w.x1).toBeCloseTo(10 + halfWidth + HAIRPIN_DYNAMIC_GAP, 6);
+		expect(w.x1).toBeGreaterThan(10); // shifted right off the dynamic
+		expect(w.x1).toBeLessThan(w.x2); // still a forward wedge
+		expect(w.x2).toBe(40); // the end is untouched
+	});
+
+	it("leaves x1 at the start note when it carries no dynamic", () => {
+		const start = { anchor: { x: 10 }, laneY: 12, systemIndex: 0 };
+		const stop = { anchor: { x: 40 }, systemIndex: 0 };
+		const w = buildHairpinSpec("crescendo", start, stop, "rightHand");
+		expect(w.x1).toBe(10);
+	});
+
+	it("clamps the dynamic clearance to the end X on a short within-system span (degenerate-safe)", () => {
+		// A wide dynamic on a very short span would shift x1 past x2; clamp to x2 so the
+		// wedge never runs backwards.
+		const start = { anchor: { x: 10 }, laneY: 12, systemIndex: 0, dynamic: "fff" };
+		const stop = { anchor: { x: 11 }, systemIndex: 0 };
+		const w = buildHairpinSpec("crescendo", start, stop, "rightHand");
+		expect(w.x1).toBe(11);
+		expect(w.x1).toBeLessThanOrEqual(w.x2);
+	});
+
+	it("keeps the dynamic clearance unclamped for a cross-system span (the clip trims the right edge later)", () => {
+		// Cross-system: stop.anchor.x is a foreign-frame X, so the within-system clamp is
+		// skipped; x1 keeps its full shift and the staff-end clip sets the right edge.
+		const start = { anchor: { x: 10 }, laneY: 12, systemIndex: 0, dynamic: "p" };
+		const stop = { anchor: { x: 3 }, systemIndex: 1 };
+		const w = buildHairpinSpec("crescendo", start, stop, "rightHand");
+		const halfWidth = ("p".length * DYNAMIC_ADVANCE_EM * DYNAMIC_SIZE) / 2;
+		expect(w.x1).toBeCloseTo(10 + halfWidth + HAIRPIN_DYNAMIC_GAP, 6);
+		expect(w.crossSystem).toBe(true);
+	});
+
+	it("flows the dynamic clearance through the full model (start-note dynamic shifts the wedge start right)", () => {
+		const withDyn = buildLayoutModel(
+			song([
+				note({ crescendo: "start", dynamic: "mf" }),
+				note({ crescendo: "stop" }),
+			]),
+			200,
+		);
+		const withoutDyn = buildLayoutModel(
+			song([note({ crescendo: "start" }), note({ crescendo: "stop" })]),
+			200,
+		);
+		const [a] = spansOf(withDyn).filter((s) => s.kind === "crescendo");
+		const [b] = spansOf(withoutDyn).filter((s) => s.kind === "crescendo");
+		expect(a.x1).toBeGreaterThan(b.x1); // the dynamic pushes the start right
+		expect(a.x2).toBeCloseTo(b.x2, 6); // the end is unaffected
 	});
 
 	it("resolves the wedge unchanged regardless of a bracketing point dynamic (all four cases)", () => {
