@@ -68,6 +68,7 @@ The following are deliberately deferred to the **design phase** (this spec fixes
 ### Data model and `chordSymbol` removal
 
 - Given an `event` with `notes: [{ "text": "C", "placement": "above" }]`, when the song is validated, then it is valid.
+- Given a `type: "rest"` event with `notes: [{ "text": "pedal", "placement": "below" }]`, when the song is validated, then it is valid (a `notes` array is carried by note and rest events alike).
 - Given an `event` with no `notes` key, when the song is validated, then it is valid.
 - Given an `event` (or `measure`) with `notes: []`, when the song is validated, then it is valid.
 - Given a `measure` with `notes: [{ "text": "rit.", "placement": "above", "staff": "rightHand" }]`, when the song is validated, then it is valid.
@@ -93,12 +94,17 @@ The following are deliberately deferred to the **design phase** (this spec fixes
 
 - Given a per-event note on a right-hand event with `placement: "above"`, when rendered, then its text node sits above the right-hand staff's top line.
 - Given a per-event note on a right-hand event with `placement: "below"`, when rendered, then its text node sits in the inter-staff gap (below the right-hand staff's bottom line and above the left-hand staff's top line).
+- Given a per-event note on a **left-hand** event with `placement: "above"`, when rendered, then its text node sits in the inter-staff gap (below the right-hand staff's bottom line and above the left-hand staff's top line).
+- Given a per-event note on a **left-hand** event with `placement: "below"`, when rendered, then its text node sits below the left-hand staff's bottom line.
+- Given a standalone note with `staff: "rightHand"` and `placement: "above"`, when rendered, then its text node sits above the right-hand staff's top line.
+- Given a standalone note with `staff: "rightHand"` and `placement: "below"`, when rendered, then its text node sits in the inter-staff gap (below the right-hand staff's bottom line and above the left-hand staff's top line).
 - Given a standalone note with `staff: "leftHand"` and `placement: "above"`, when rendered, then its text node sits in the inter-staff gap (above the left-hand staff's top line).
 - Given a standalone note with `staff: "leftHand"` and `placement: "below"`, when rendered, then its text node sits below the left-hand staff's bottom line.
 - Given any rendered note, when its node is inspected, then both its placement (above/below) and its staff are observable from the node.
 - Given a per-event note, when rendered, then its text occupies the same horizontal column as its event's notehead.
 - Given two standalone notes in the same measure with `beat: 0` and `beat: 2`, when rendered, then the `beat: 2` note is positioned further right than the `beat: 0` note.
-- Given a standalone note with no `beat`, when rendered, then it is positioned near the measure's left edge (within the measure's horizontal bounds).
+- Given a standalone note with no `beat` and another standalone note with `beat: 0` in the same measure, when rendered, then the no-`beat` note renders at (or near) the same horizontal position as the `beat: 0` note, and both render in the left portion of the measure (to the left of a `beat: 2` note in the same measure).
+- Given a standalone note with a `beat` larger than the measure's musical content (e.g. `beat: 99`), when rendered, then a text node still appears within the system's horizontal bounds (the exact clamped horizontal position is design-defined).
 
 ### Rendering — free text, safety, and coexistence
 
@@ -106,5 +112,7 @@ The following are deliberately deferred to the **design phase** (this spec fixes
 - Given a note with `text: "<script>alert(1)</script>"`, when rendered, then it appears as inert literal text and no executable or markup node is produced.
 - Given a note with `text: 'C7 & <alt> "sus"'`, when rendered, then it appears verbatim as inert literal text.
 - Given an event carrying both an above note and a below note, when rendered, then both render — one in the above band and one in the below band, both aligned to the event's horizontal column.
+- Given a below-right-hand note and an above-left-hand note in the same measure (both occupying the shared inter-staff band), when rendered, then both render and each node's staff is observable, so the two remain distinguishable even though they share the inter-staff band.
 - Given an anchor with N notes of the same placement, when rendered, then N text nodes render at N distinct vertical positions with none lost and none overlapping at an identical position.
 - Given a measure containing both a per-event note and a standalone note, when rendered, then both render.
+- Given a `rest` event carrying `notes: [{ "text": "pedal", "placement": "below" }]`, when rendered, then the note renders in the below band anchored to the rest's horizontal column.
