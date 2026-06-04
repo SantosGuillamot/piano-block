@@ -2295,16 +2295,17 @@ export function buildHairpinSpec(kind, start, stop, hand) {
  * Clip a resolved span to its start system's staff end, in place, so a cross-system
  * span draws only its start-system portion. v1 files the whole span under its start
  * system and drops the continuation, so a span whose end note landed on a later
- * system would otherwise aim its right edge at a FOREIGN-frame X (a system-local
- * coordinate from a different system) — a garbage stroke. This trims the right edge
- * to the start system's `staffEndX`.
+ * system has an `x2` that is a FOREIGN-frame X (a system-local coordinate from a
+ * different system) — meaningless in the start system's frame and a garbage stroke if
+ * drawn. The right edge is therefore set to the start system's own `staffEndX`; the
+ * foreign `x2` is never consulted.
  *
  * The clip is a STRICT no-op for a within-system span (`crossSystem === false`): it
  * returns the record untouched, so within-system tie/slur and hairpin output is
  * provably unchanged. It is degenerate-safe (never strokes backwards): the right edge
- * is clamped to `max(x1, min(x2, staffEndX))`, so a start already at/past the staff
- * end collapses to a finite zero-width span rather than reversing. It adjusts
- * HORIZONTAL coordinates only — it never touches any Y:
+ * is `max(x1, staffEndX)`, so a start already at/past the staff end collapses to a
+ * finite zero-width span rather than reversing. It adjusts HORIZONTAL coordinates only
+ * — it never touches any Y:
  *
  * - A hairpin wedge rides a FLAT lane Y (`yCenter`) constant across the whole span,
  *   so clamping `x2` alone yields a fully correct start-system clip (the clipped
@@ -2327,8 +2328,12 @@ export function clipSpanToStartSystem(span, staffEndX) {
 	if (!span.crossSystem) {
 		return span;
 	}
-	// Trim the right edge to the start system's staff end; never reverse the stroke.
-	const rightX = Math.max(span.x1, Math.min(span.x2, staffEndX));
+	// The end note lives on a later system, so `span.x2` is a coordinate in THAT
+	// system's frame — meaningless in the start system's frame and not to be consulted.
+	// The start-system right edge is the start system's own staff end. Clamp up from x1
+	// so a start already at/past the staff end collapses to a finite zero-width span
+	// (never a backwards stroke) rather than reversing.
+	const rightX = Math.max(span.x1, staffEndX);
 	span.x2 = rightX;
 	// A tie/slur arc carries a Bézier control X (a wedge does not); re-center it on the
 	// clipped span so the arc lands on the new right edge, not the old foreign midpoint.

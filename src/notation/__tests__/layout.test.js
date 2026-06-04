@@ -2164,8 +2164,9 @@ describe("clipSpanToStartSystem — start-system clip for cross-system spans", (
 	});
 
 	it("clips a cross-system hairpin's x2 to staffEndX (X only; yCenter untouched)", () => {
-		// The foreign end X (50) sits past the start system's staff end (28.5), so the
-		// clamp trims x2 to staffEndX exactly. yCenter is the flat lane Y — never touched.
+		// A cross-system span's right edge is the start system's own staffEndX (28.5),
+		// regardless of the end note's foreign-frame X (50). yCenter is the flat lane Y —
+		// never touched.
 		const span = {
 			kind: "crescendo",
 			hand: "rightHand",
@@ -2228,9 +2229,11 @@ describe("clipSpanToStartSystem — start-system clip for cross-system spans", (
 		expect(Number.isFinite(out.x2)).toBe(true);
 	});
 
-	it("clamps a foreign end X that is below staffEndX to that (smaller) foreign X", () => {
-		// When the foreign end X (20) is already inside the start system's staff, the
-		// clamp leaves it there — min(20, 28.5) === 20 — never extending it to staffEndX.
+	it("sets x2 to staffEndX even when the foreign end X is below it (foreign X is not consulted)", () => {
+		// The end note's X (20) is a coordinate in a DIFFERENT system's frame; it is
+		// meaningless in the start system's frame. The clip must set the right edge to the
+		// start system's own staffEndX (28.5), not leave it at the foreign 20 — that is the
+		// common cross-system case and the exact garbage stroke the clip exists to remove.
 		const span = {
 			kind: "crescendo",
 			hand: "rightHand",
@@ -2242,7 +2245,7 @@ describe("clipSpanToStartSystem — start-system clip for cross-system spans", (
 			crossSystem: true,
 		};
 		const out = clipSpanToStartSystem(span, 28.5);
-		expect(out.x2).toBe(20);
+		expect(out.x2).toBe(28.5);
 		expect(out.x2).toBeGreaterThanOrEqual(out.x1);
 	});
 });
@@ -2288,8 +2291,11 @@ describe("cross-system span clip — full buildLayoutModel (narrow width)", () =
 		expect(sp.crossSystem).toBe(true);
 		expect(arrayIndex).toBe(sp.systemIndex); // filed under the start system only
 		const startSys = model.systems[sp.systemIndex];
-		// Clipped within the start system's staff: never past its end, never backwards.
-		expect(sp.x2).toBeLessThanOrEqual(startSys.staffEndX + 1e-9);
+		// Clipped to the start system's staff end exactly: the right edge IS staffEndX,
+		// not the end note's foreign-frame X. (The end note's local X here is smaller than
+		// staffEndX, so a plain `min(x2, staffEndX)` clamp would leave a garbage foreign X;
+		// asserting equality to staffEndX is what distinguishes the fix from that bug.)
+		expect(sp.x2).toBeCloseTo(startSys.staffEndX, 6);
 		expect(sp.x2).toBeGreaterThanOrEqual(sp.x1 - 1e-9);
 		// No wedge with this span's foreign coordinates leaks into any OTHER system.
 		for (let i = 0; i < model.systems.length; i++) {
@@ -2313,8 +2319,10 @@ describe("cross-system span clip — full buildLayoutModel (narrow width)", () =
 			expect(sp).toBeDefined();
 			expect(sp.crossSystem).toBe(true);
 			const startSys = model.systems[sp.systemIndex];
-			// X clamped within the start system's staff; cx is the new midpoint.
-			expect(sp.x2).toBeLessThanOrEqual(startSys.staffEndX + 1e-9);
+			// X clamped to the start system's staff end exactly (the end note's foreign-frame
+			// X is below staffEndX here, so equality — not just `<=` — locks the latent-bug
+			// fix); cx is the recomputed midpoint of the clipped x-span.
+			expect(sp.x2).toBeCloseTo(startSys.staffEndX, 6);
 			expect(sp.x2).toBeGreaterThanOrEqual(sp.x1 - 1e-9);
 			expect(sp.cx).toBeCloseTo((sp.x1 + sp.x2) / 2, 6);
 		}
