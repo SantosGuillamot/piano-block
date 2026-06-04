@@ -6,7 +6,7 @@
 	"title": "Piano",
 	"category": "media",
 	"icon": "format-audio",
-	"description": "Stores a complete piano song — both hands of a grand staff — as structured JSON. Visual notation and audio playback are future work.",
+	"description": "Stores a complete piano song — both hands of a grand staff — as structured JSON and renders it as piano sheet music on the frontend. Audio playback is future work.",
 	"keywords": ["piano", "music", "keyboard"],
 	"textdomain": "piano-block",
 	"attributes": {
