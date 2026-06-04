@@ -23,15 +23,12 @@ Each finding is independently addressable. Format: **observation → where it li
 - **Cause:** `src/notation/layout.js` › `leadingReserveFor()` (~L1287) *does* size the reserve from real widths (`CLEF_WIDTH = 3`, key-sig cluster `glyphCount × ACCIDENTAL_COL_STEP = 1.3`, `TIME_SIG_WIDTH = 2.5`), but the emit layer ignores those widths for *inner* placement. With ≥2 key-sig accidentals the cluster (starts at 3.5, ≥2.6 wide) runs into the time signature fixed at 5.5.
 - **Direction:** Make the layout model carry explicit `x` for clef / key sig / time sig (advance each field by the previous field's true width, mirroring `leadingReserveFor`); `renderReserve` should only place what the model positions, never re-derive offsets. This is the root cause that F2 and F3 also sit on.
 
-**F2 — The key signature at the beginning isn't centered.**
-- **Where:** `src/notation/svg.js` › `appendKeySig()` (~L386) places each glyph at `baseX + glyph.x` with no centering inside an allotted slot; shares the fixed-offset root with F1.
-- **Direction:** Once each head field owns a real slot (F1), center the key-sig cluster within its slot (and confirm the intended axis with the owner — horizontal alignment vs. the digits' vertical centering in `appendTimeSignature`/`appendDigits`, ~L405–424).
+**F2 — The brace joining the two staves isn't centered.** *(Owner clarified: this is the grand-staff brace, not the key/time signature.)*
+- **Where:** `src/notation/svg.js` › `renderReserve()` (~L342): the brace is a `fontGlyph("brace", …)` drawn at `braceY = (rightStaffTopY + leftStaffBottomY) / 2` with `size = braceHeight`, but `fontGlyph` hard-codes `dominant-baseline: "alphabetic"` (~L152), so the glyph is anchored at its *baseline*, not its center — it rides high instead of straddling both staves. Its `x ≈ 0` also bleeds left (see F9).
+- **Direction:** Center the brace vertically on the band (give `fontGlyph` a baseline override and use a centered baseline for the brace, or offset `braceY` by the glyph metrics) and place it inside the left margin (F9).
 
-**F3 — Global alters (the key-signature `alters`) should go *after* the time signature.**
-- **Context:** "Global alters" = the per-hand default accidentals from `defaults`/section `alters` (song-format `handConfig.alters`), drawn as the key-signature cluster.
-- **Where:** order is currently clef → key sig → time sig in both `renderReserve()` (svg.js ~L357–365) and the reserve width composition in `leadingReserveFor()` (layout.js ~L1287). The mid-system section-change restate in `inlineSectionChange()` (layout.js ~L1905) must stay consistent with whatever order is chosen.
-- **Note:** This *reverses* standard engraving order (key sig normally precedes time sig). Capturing the owner's preference as stated — flag for explicit confirmation before implementing, since it's an intentional deviation.
-- **Direction:** Swap the field order (alters after time sig) in the model's head-field placement and in the inline section-change restate; keep the reserve-width sum the same (order doesn't change total width).
+**F3 — Key-signature `alters` vs. the time signature.** *(Owner decision: KEEP standard order — clef → alters → time sig.)*
+- **Resolution:** No reorder. The real problem the owner saw was the *overlap*, which is exactly F1. The "global alters" (per-hand default accidentals from `defaults`/section `alters`, drawn as the key-signature cluster) stay in standard position; fixing F1's spacing makes the existing order read cleanly. **Folded into F1 — no separate work.**
 
 ### Vertical placement of tempo & ottava
 
@@ -72,8 +69,8 @@ Each finding is independently addressable. Format: **observation → where it li
 | ID | Owner's point | Primary location | Type |
 |----|---------------|------------------|------|
 | F1 | Reserve space per head field | `svg.js renderReserve` / `layout.js leadingReserveFor` | overlap (root) |
-| F2 | Key sig not centered | `svg.js appendKeySig` | alignment |
-| F3 | Alters after the time signature | `svg.js renderReserve` / `layout.js inlineSectionChange` | ordering (confirm) |
+| F2 | Brace not centered | `svg.js renderReserve` brace / `fontGlyph` baseline | alignment |
+| F3 | ~~Alters after time sig~~ → keep standard order | folded into F1 | resolved |
 | F4 | Tempo & ottava higher | `layout.js buildSystemTexts` + top margin | overlap w/ notes |
 | F5 | Tempo & ottava in separate lanes | `layout.js buildSystemTexts` + top margin | overlap w/ each other |
 | F6 | Space before & after each barline | `layout.js` system walk / `trailingPad` | spacing |
@@ -81,10 +78,14 @@ Each finding is independently addressable. Format: **observation → where it li
 | F8 | Ties above/below, not through | `layout.js buildSpanSpec` | tie geometry |
 | F9 | Staff escapes the box | `svg.js` viewBox/margins / `model.width` | bounds |
 
+## Owner decisions (resolved during review)
+
+- **F2** refers to the **grand-staff brace**, not the key/time signature — re-scoped to brace centering.
+- **F3** — **keep standard engraving order** (clef → alters → time sig). No reorder; the overlap is fixed via F1. F3 is folded into F1.
+
 ## Notes for the fix pass
 
-- F1 is the root for F2 and F3 — the head should become a model-positioned set of slots; do it first.
+- F1 is the root for F3 (and the head spacing F2's brace sits in) — make the head a model-positioned set of slots that respects each glyph's real width; do it first.
 - F4 and F5 share the same `buildSystemTexts` + top-margin work — handle together.
-- F3 reverses standard key-sig/time-sig order — **confirm with the owner** before implementing.
 - Most fixes are tunable constants in `constants.js` (`ACCIDENTAL_GAP`, top margins, a new barline/edge pad) plus positioning logic in `layout.js`; `svg.js` should stop deriving its own offsets and only place what the model gives it.
 - Regression guard: the layout engine has 199 unit tests; new placement should keep them green and add cases for head-field spacing, barline gaps, tie clearance, and viewBox margins.
