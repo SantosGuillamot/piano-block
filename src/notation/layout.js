@@ -2201,7 +2201,7 @@ function buildSpanSpec(kind, start, stop, hand) {
 	// offset clear of the noteheads and the control bulges further so the whole arc
 	// stays off the heads; a slur (a phrase) bulges more than a tie (two notes).
 	const sign = a.direction === "up" ? 1 : -1;
-	const bulge = kind === "slur" ? 1.6 : 0.9;
+	const bulge = kind === "slur" ? 2.1 : 1.3;
 	const x1 = a.x;
 	const x2 = b.x;
 	const y1 = a.y + sign * TIE_NOTE_CLEARANCE;
