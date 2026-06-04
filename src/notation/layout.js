@@ -41,6 +41,7 @@ import {
 	MAX_STRETCH,
 	MEASURE_NUMBER_SIZE,
 	MIN_ADV,
+	NOTE_CLAMP_INSET,
 	NOTE_SIZE,
 	NOTEHEAD_RX,
 	OTTAVA_SIZE,
@@ -1572,6 +1573,108 @@ export function collectEventTexts(event, x, out) {
 }
 
 /**
+ * Resolve a measure's standalone (measure-level) `notes` into positioned
+ * primitives, computing each note's horizontal X by interpolating its `beat`
+ * onset over the measure's SCALED relative column grid (the same `columnX` frame
+ * the per-event notes carry), with an over-content clamp. It computes NO Y — the
+ * band model places notes vertically later — and carries a RAW-`beat` group key
+ * so later stacking groups by the raw beat, never the resolved X.
+ *
+ * Every X this produces is MEASURE-RELATIVE: the same frame as `ctx.columnX`
+ * (which starts at `ctx.leadInset`, the content-left edge) and `ctx.scaledContent`
+ * (the relative right edge, `= measureRightX − measure.x`). The caller therefore
+ * emits the primitives under the measure's own `translate(measure.x 0)` group with
+ * no `measure.x` subtraction.
+ *
+ * X resolution, all terms measure-relative:
+ * - A note with no `beat` is treated as `beat: 0`, mapping to `ctx.leadInset`.
+ * - For a `beat` value, `beatToX` finds the bracketing onsets `[t_i, t_next]` with
+ *   `t_i ≤ beat < t_next` and lerps between their relative X positions, where the
+ *   last column's far edge is `t_next = ctx.measureEnd` at X = `ctx.scaledContent`.
+ *   A `beat` coinciding with an event column lands exactly at that column's X.
+ * - Over-content clamp: `x = min(beatToX(min(beat, measureEnd)), scaledContent −
+ *   NOTE_CLAMP_INSET)`, so a `beat` past the content (e.g. 99) is reined in to one
+ *   `NOTE_CLAMP_INSET` inside the trailing barline.
+ *
+ * The group key is the RAW `beat` (pre-interpolation), stored as a precomputed
+ * `group` string `` `${staff}|${placement}|${beat ?? "noBeat"}` ``. Two records
+ * sharing `(staff, placement, raw beat ?? "noBeat")` share a `group`; a `beat: 2`
+ * and a `beat: 2.0001` note (same staff/placement) get DIFFERENT groups, and two
+ * distinct over-content beats that clamp to the same resolved X (e.g. `50` and
+ * `99`) likewise stay distinct — grouping never reads the resolved X.
+ *
+ * Elements whose `text` is empty or absent push nothing.
+ *
+ * @param {{ text?: string, placement?: string, staff?: string, beat?: number }[]}
+ *   [measureNotes] The measure's standalone notes. `text` is the annotation text;
+ *   `placement` is `"above"`/`"below"`; `staff` is `"rightHand"`/`"leftHand"`;
+ *   `beat` is the optional onset (quarter-beats) that anchors the X.
+ * @param {{ columnX: Map<number, number>, gridOnsets: number[], measureEnd: number,
+ *   leadInset: number, scaledContent: number }} ctx The measure's scaled relative
+ *   geometry. `columnX` maps each onset to its scaled relative X; `gridOnsets` is
+ *   the ascending onset list (the `columnX` keys in column order); `measureEnd` is
+ *   the measure's content end in quarter-beats; `leadInset` is the content-left X;
+ *   `scaledContent` is the relative right edge.
+ * @return {{ kind: "note", x: number, text: string, placement?: string,
+ *   staff?: string, group: string }[]} One record per non-empty-text note, in
+ *   array order (= stacking order within a group).
+ */
+export function collectStandaloneNotes(measureNotes, ctx) {
+	const { columnX, gridOnsets, measureEnd, leadInset, scaledContent } = ctx;
+
+	// Interpolate a (measure-relative) X for a beat over the scaled column grid.
+	const beatToX = (beat) => {
+		if (gridOnsets.length === 0) {
+			return leadInset;
+		}
+		// Before/at the first onset: hug the first column (normally onset 0 = leadInset).
+		if (beat <= gridOnsets[0]) {
+			return columnX.get(gridOnsets[0]) ?? leadInset;
+		}
+		// Find the bracketing segment [t_i, t_next). The last column's far edge is
+		// `measureEnd` at X = `scaledContent`.
+		for (let i = 0; i < gridOnsets.length; i++) {
+			const ti = gridOnsets[i];
+			const tNext = i + 1 < gridOnsets.length ? gridOnsets[i + 1] : measureEnd;
+			const xi = columnX.get(ti) ?? leadInset;
+			const nextX =
+				i + 1 < gridOnsets.length ? columnX.get(tNext) : scaledContent;
+			if (beat < tNext) {
+				const span = tNext - ti || 1;
+				return xi + (nextX - xi) * ((beat - ti) / span);
+			}
+		}
+		// At/after the last onset's far edge: the relative right edge.
+		return scaledContent;
+	};
+
+	const out = [];
+	for (const el of measureNotes ?? []) {
+		if (typeof el?.text !== "string" || el.text.length === 0) {
+			continue;
+		}
+		const hasBeat = typeof el.beat === "number";
+		const beat = hasBeat ? el.beat : 0;
+		// Over-content clamp (both sides measure-relative): rein an over-content beat
+		// to one NOTE_CLAMP_INSET inside the trailing barline.
+		const x = Math.min(
+			beatToX(Math.min(beat, measureEnd)),
+			scaledContent - NOTE_CLAMP_INSET,
+		);
+		out.push({
+			kind: "note",
+			x,
+			text: el.text,
+			placement: el.placement,
+			staff: el.staff,
+			// Group by the RAW beat (absent ⇒ "noBeat"), never the resolved X.
+			group: `${el.staff}|${el.placement}|${hasBeat ? el.beat : "noBeat"}`,
+		});
+	}
+	return out;
+}
+
+/**
  * Build the FULL positioned-primitive layout model for a song — the single pure
  * entry point. Pure, DOM-free, sp-only: it returns
  * `{ systems }`, where each system carries its Y band layout, leading reserve
@@ -1838,6 +1941,16 @@ export function buildLayoutModel(song, availableWidthInSp) {
 					? inlineSectionChange(m, x)
 					: null;
 
+			// Measure-level standalone notes, X resolved by beat→column interpolation in
+			// the same measure-relative frame as `columnX` (see collectStandaloneNotes).
+			const standaloneNotes = collectStandaloneNotes(m.measure?.notes, {
+				columnX,
+				gridOnsets: ml.columns.map((col) => col.onset),
+				measureEnd: ml.measureEnd,
+				leadInset,
+				scaledContent,
+			});
+
 			// Record tie/slur markers + the laid-out note X for span resolution.
 			recordSpanMarkers(m.measure?.rightHand, right, {
 				measureX: x,
@@ -1863,6 +1976,7 @@ export function buildLayoutModel(song, availableWidthInSp) {
 				left,
 				barlines,
 				inline,
+				standaloneNotes,
 			});
 
 			// Advance past the full trailing room so the next measure clears the bar.

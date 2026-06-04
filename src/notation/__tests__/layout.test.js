@@ -13,6 +13,7 @@ import {
 	EMPTY_MEASURE_WIDTH,
 	MAX_STRETCH,
 	MIN_ADV,
+	NOTE_CLAMP_INSET,
 	NOTEHEAD_RX,
 	STAFF_MARGIN_X,
 } from "../constants.js";
@@ -25,6 +26,7 @@ import {
 	beatGroupLength,
 	buildLayoutModel,
 	collectEventTexts,
+	collectStandaloneNotes,
 	decodeDuration,
 	diatonicIndex,
 	diffContext,
@@ -1167,6 +1169,399 @@ describe("collectEventTexts — per-event notes with placement", () => {
 		const empty = [];
 		collectEventTexts({ notes: [] }, 0, empty);
 		expect(notesOnly(empty)).toEqual([]);
+	});
+});
+
+// ── Standalone (measure-level) notes — collectStandaloneNotes ────────────────────
+//
+// `collectStandaloneNotes` resolves `measure.notes` into measure-level primitives,
+// computing each note's horizontal X by interpolating its `beat` onset over the
+// SCALED relative column grid (the same `columnX` frame the per-event notes use),
+// with an over-content clamp. It computes NO Y (the band model does that) and
+// carries a RAW-`beat` group key so later stacking groups by the raw beat, never
+// the resolved X. Every X it stores is measure-relative (the `columnX` frame).
+
+describe("collectStandaloneNotes — measure-level notes with beat→X interpolation", () => {
+	// A two-column measure: onsets 0 and 2 over a 4-beat span. `leadInset` is the
+	// content-left edge; the grid is justified, so column X positions are scaled
+	// and the last column's segment [2, measureEnd] runs to `scaledContent`.
+	const LEAD = 3;
+	const COL2 = 9; // columnX(2): the second column's scaled relative X
+	const SCALED_CONTENT = 15; // the measure's relative right edge (= measureRightX − x)
+	const baseCtx = () => ({
+		columnX: new Map([
+			[0, LEAD],
+			[2, COL2],
+		]),
+		gridOnsets: [0, 2],
+		measureEnd: 4,
+		leadInset: LEAD,
+		scaledContent: SCALED_CONTENT,
+	});
+
+	it("resolves beat 0 and beat 2 to ascending X, both carrying kind/text/placement/staff", () => {
+		const out = collectStandaloneNotes(
+			[
+				{ text: "a", placement: "above", staff: "rightHand", beat: 0 },
+				{ text: "b", placement: "above", staff: "rightHand", beat: 2 },
+			],
+			baseCtx(),
+		);
+		expect(out).toHaveLength(2);
+		expect(out[0]).toMatchObject({
+			kind: "note",
+			text: "a",
+			placement: "above",
+			staff: "rightHand",
+		});
+		expect(out[1]).toMatchObject({
+			kind: "note",
+			text: "b",
+			placement: "above",
+			staff: "rightHand",
+		});
+		expect(out[1].x).toBeGreaterThan(out[0].x);
+	});
+
+	it("places a beat-0 note at the content-left edge (leadInset)", () => {
+		const [note] = collectStandaloneNotes(
+			[{ text: "a", placement: "above", staff: "rightHand", beat: 0 }],
+			baseCtx(),
+		);
+		expect(note.x).toBeCloseTo(LEAD, 6);
+	});
+
+	it("treats a no-`beat` note as beat 0 — same X as an explicit beat 0, both left of beat 2", () => {
+		const out = collectStandaloneNotes(
+			[
+				{ text: "none", placement: "above", staff: "rightHand" },
+				{ text: "zero", placement: "above", staff: "rightHand", beat: 0 },
+				{ text: "two", placement: "above", staff: "rightHand", beat: 2 },
+			],
+			baseCtx(),
+		);
+		const [none, zero, two] = out;
+		expect(none.x).toBeCloseTo(zero.x, 6);
+		expect(none.x).toBeCloseTo(LEAD, 6);
+		expect(none.x).toBeLessThan(two.x);
+		expect(zero.x).toBeLessThan(two.x);
+	});
+
+	it("lands a beat coinciding with an event column at that column's X", () => {
+		const [note] = collectStandaloneNotes(
+			[{ text: "b", placement: "above", staff: "rightHand", beat: 2 }],
+			baseCtx(),
+		);
+		expect(note.x).toBeCloseTo(COL2, 6);
+	});
+
+	it("interpolates a mid-segment beat linearly between bracketing columns", () => {
+		// beat 1 is halfway between onset 0 (X=LEAD) and onset 2 (X=COL2).
+		const [note] = collectStandaloneNotes(
+			[{ text: "mid", placement: "above", staff: "rightHand", beat: 1 }],
+			baseCtx(),
+		);
+		expect(note.x).toBeCloseTo((LEAD + COL2) / 2, 6);
+	});
+
+	it("clamps an over-content beat to scaledContent − NOTE_CLAMP_INSET (inside the content)", () => {
+		const [note] = collectStandaloneNotes(
+			[{ text: "far", placement: "above", staff: "rightHand", beat: 99 }],
+			baseCtx(),
+		);
+		expect(note.x).toBeCloseTo(SCALED_CONTENT - NOTE_CLAMP_INSET, 6);
+		expect(note.x).toBeLessThanOrEqual(SCALED_CONTENT);
+		expect(note.x).toBeGreaterThan(LEAD);
+	});
+
+	it("clamps two DIFFERENT over-content beats to the same resolved X yet keeps them distinct groups", () => {
+		const out = collectStandaloneNotes(
+			[
+				{ text: "fifty", placement: "above", staff: "rightHand", beat: 50 },
+				{
+					text: "ninetynine",
+					placement: "above",
+					staff: "rightHand",
+					beat: 99,
+				},
+			],
+			baseCtx(),
+		);
+		expect(out[0].x).toBeCloseTo(out[1].x, 6);
+		expect(out[0].group).not.toEqual(out[1].group);
+	});
+
+	it("groups by the RAW (staff, placement, beat) key — beat 2 and beat 2.0001 differ", () => {
+		const out = collectStandaloneNotes(
+			[
+				{ text: "x", placement: "above", staff: "rightHand", beat: 2 },
+				{ text: "y", placement: "above", staff: "rightHand", beat: 2.0001 },
+			],
+			baseCtx(),
+		);
+		expect(out[0].group).not.toEqual(out[1].group);
+	});
+
+	it("shares a group for two notes with the same (staff, placement, raw beat)", () => {
+		const out = collectStandaloneNotes(
+			[
+				{ text: "x", placement: "above", staff: "rightHand", beat: 2 },
+				{ text: "y", placement: "above", staff: "rightHand", beat: 2 },
+			],
+			baseCtx(),
+		);
+		expect(out[0].group).toEqual(out[1].group);
+	});
+
+	it("separates groups that differ only in staff or placement at the same raw beat", () => {
+		const out = collectStandaloneNotes(
+			[
+				{ text: "a", placement: "above", staff: "rightHand", beat: 0 },
+				{ text: "b", placement: "below", staff: "rightHand", beat: 0 },
+				{ text: "c", placement: "above", staff: "leftHand", beat: 0 },
+			],
+			baseCtx(),
+		);
+		const groups = new Set(out.map((n) => n.group));
+		expect(groups.size).toBe(3);
+	});
+
+	it("uses a no-beat group key distinct from an explicit beat-0 group", () => {
+		const out = collectStandaloneNotes(
+			[
+				{ text: "none", placement: "above", staff: "rightHand" },
+				{ text: "zero", placement: "above", staff: "rightHand", beat: 0 },
+			],
+			baseCtx(),
+		);
+		expect(out[0].group).not.toEqual(out[1].group);
+	});
+
+	it("produces no record for an empty-string text", () => {
+		const out = collectStandaloneNotes(
+			[
+				{ text: "", placement: "above", staff: "rightHand", beat: 0 },
+				{ placement: "above", staff: "rightHand", beat: 0 },
+				{ text: "keep", placement: "above", staff: "rightHand", beat: 0 },
+			],
+			baseCtx(),
+		);
+		expect(out.map((n) => n.text)).toEqual(["keep"]);
+	});
+
+	it("returns an empty array for an absent or empty notes input", () => {
+		expect(collectStandaloneNotes(undefined, baseCtx())).toEqual([]);
+		expect(collectStandaloneNotes([], baseCtx())).toEqual([]);
+	});
+});
+
+describe("buildLayoutModel — standalone notes on measureModel.standaloneNotes", () => {
+	/** A minimal one-section song with a single measure carrying `notes`. */
+	const songWithNotes = (notes) => ({
+		metadata: { title: "T" },
+		defaults: {
+			tempo: { bpm: 120, beatUnit: "quarter" },
+			timeSignature: { beats: 4, beatType: 4 },
+			rightHand: { clef: "treble" },
+			leftHand: { clef: "bass" },
+		},
+		sections: [
+			{
+				measures: [
+					{
+						notes,
+						rightHand: [
+							{
+								type: "note",
+								duration: "half",
+								pitches: [{ step: "C", octave: 5 }],
+							},
+							{
+								type: "note",
+								duration: "half",
+								pitches: [{ step: "E", octave: 5 }],
+							},
+						],
+						leftHand: [
+							{
+								type: "note",
+								duration: "whole",
+								pitches: [{ step: "C", octave: 3 }],
+							},
+						],
+					},
+				],
+			},
+		],
+	});
+
+	it("attaches a standaloneNotes array to each measure model (parallel to barlines)", () => {
+		const model = buildLayoutModel(songWithNotes([]), 200);
+		const measure = model.systems[0].measures[0];
+		expect(Array.isArray(measure.standaloneNotes)).toBe(true);
+		expect(measure.standaloneNotes).toHaveLength(0);
+	});
+
+	it("resolves beat 0 left of beat 2, both as kind:note with text/placement/staff/group", () => {
+		const model = buildLayoutModel(
+			songWithNotes([
+				{ text: "a", placement: "above", staff: "rightHand", beat: 0 },
+				{ text: "b", placement: "above", staff: "rightHand", beat: 2 },
+			]),
+			200,
+		);
+		const sn = model.systems[0].measures[0].standaloneNotes;
+		expect(sn).toHaveLength(2);
+		expect(sn[1].x).toBeGreaterThan(sn[0].x);
+		for (const rec of sn) {
+			expect(rec.kind).toBe("note");
+			expect(typeof rec.text).toBe("string");
+			expect(rec.placement).toBe("above");
+			expect(rec.staff).toBe("rightHand");
+			expect(rec.group).toBeDefined();
+		}
+	});
+
+	it("stores measure-relative X — a beat-0 note in a non-first measure sits at ~leadInset, not offset by measure.x", () => {
+		const song = {
+			metadata: { title: "T" },
+			defaults: {
+				tempo: { bpm: 120, beatUnit: "quarter" },
+				timeSignature: { beats: 4, beatType: 4 },
+				rightHand: { clef: "treble" },
+				leftHand: { clef: "bass" },
+			},
+			sections: [
+				{
+					measures: [
+						{
+							rightHand: [
+								{
+									type: "note",
+									duration: "whole",
+									pitches: [{ step: "C", octave: 5 }],
+								},
+							],
+							leftHand: [
+								{
+									type: "note",
+									duration: "whole",
+									pitches: [{ step: "C", octave: 3 }],
+								},
+							],
+						},
+						{
+							notes: [
+								{ text: "a", placement: "above", staff: "rightHand", beat: 0 },
+							],
+							rightHand: [
+								{
+									type: "note",
+									duration: "whole",
+									pitches: [{ step: "C", octave: 5 }],
+								},
+							],
+							leftHand: [
+								{
+									type: "note",
+									duration: "whole",
+									pitches: [{ step: "C", octave: 3 }],
+								},
+							],
+						},
+					],
+				},
+			],
+		};
+		const model = buildLayoutModel(song, 400);
+		const second = model.systems[0].measures[1];
+		const [note] = second.standaloneNotes;
+		// The non-first measure starts well into the system; a measure-relative beat-0
+		// X is a small leadInset (≥ 0, far below the absolute measure.x), NOT offset by
+		// the absolute measure.x.
+		expect(second.x).toBeGreaterThan(15);
+		expect(note.x).toBeGreaterThanOrEqual(0);
+		expect(note.x).toBeLessThan(5);
+		expect(note.x).toBeLessThan(second.x);
+	});
+
+	it("clamps an over-content beat to (measure-relative) scaledContent − NOTE_CLAMP_INSET in a non-first measure", () => {
+		const song = {
+			metadata: { title: "T" },
+			defaults: {
+				tempo: { bpm: 120, beatUnit: "quarter" },
+				timeSignature: { beats: 4, beatType: 4 },
+				rightHand: { clef: "treble" },
+				leftHand: { clef: "bass" },
+			},
+			sections: [
+				{
+					measures: [
+						{
+							rightHand: [
+								{
+									type: "note",
+									duration: "whole",
+									pitches: [{ step: "C", octave: 5 }],
+								},
+							],
+							leftHand: [
+								{
+									type: "note",
+									duration: "whole",
+									pitches: [{ step: "C", octave: 3 }],
+								},
+							],
+						},
+						{
+							notes: [
+								{
+									text: "far",
+									placement: "above",
+									staff: "rightHand",
+									beat: 99,
+								},
+							],
+							rightHand: [
+								{
+									type: "note",
+									duration: "whole",
+									pitches: [{ step: "C", octave: 5 }],
+								},
+							],
+							leftHand: [
+								{
+									type: "note",
+									duration: "whole",
+									pitches: [{ step: "C", octave: 3 }],
+								},
+							],
+						},
+					],
+				},
+			],
+		};
+		const model = buildLayoutModel(song, 400);
+		const second = model.systems[0].measures[1];
+		expect(second.x).toBeGreaterThan(0);
+		const [note] = second.standaloneNotes;
+		// Measure-relative clamp: one NOTE_CLAMP_INSET back from the relative right
+		// edge (`width` = scaledContent), strictly inside the content.
+		expect(note.x).toBeCloseTo(second.width - NOTE_CLAMP_INSET, 6);
+		expect(note.x).toBeLessThanOrEqual(second.width);
+		expect(note.x).toBeGreaterThan(0);
+	});
+
+	it("emits no record for an empty-string text at the measure level", () => {
+		const model = buildLayoutModel(
+			songWithNotes([
+				{ text: "", placement: "above", staff: "rightHand", beat: 0 },
+				{ text: "keep", placement: "above", staff: "rightHand", beat: 0 },
+			]),
+			200,
+		);
+		const sn = model.systems[0].measures[0].standaloneNotes;
+		expect(sn.map((n) => n.text)).toEqual(["keep"]);
 	});
 });
 
