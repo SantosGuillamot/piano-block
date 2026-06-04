@@ -112,11 +112,11 @@ export const BARLINE_THIN = 0.13;
 export const BARLINE_THICK = 0.5;
 
 /**
- * Whitespace after a barline before the next measure's first note, in sp. Must exceed
- * the notehead radius so the next measure's opening note clears the line on both sides
- * of the bar (review-2: notes were landing on the barline).
+ * Whitespace after a barline before the next measure's first note CENTER, in sp. Kept
+ * small so the opening note sits close to the left of the measure (review-4), but more
+ * than the notehead radius so the head still clears the line (review-2).
  */
-export const BARLINE_POST_PAD = 1.4;
+export const BARLINE_POST_PAD = 0.8;
 
 // ── Accidentals / ledger lines (design §5.2, §6.4) ─────────────────────────────
 
@@ -132,6 +132,14 @@ export const ACCIDENTAL_GAP = 1.2;
 
 /** Horizontal step pushing a chord accidental into a further-left column. */
 export const ACCIDENTAL_COL_STEP = 1.3;
+
+/**
+ * Extra leading room, in sp, reserved at a measure's start when its first note draws an
+ * accidental — enough for the accidental glyph to sit between the measure boundary and
+ * the notehead. With no accidental the opening note hugs the boundary; with one, the
+ * note shifts right by this much so the accidental occupies the freed space (review-4).
+ */
+export const ACCIDENTAL_LEAD_EXTRA = 1;
 
 /** Gap between the end of the key-signature cluster and the time signature (review F1). */
 export const KEYSIG_TIMESIG_GAP = 0.8;

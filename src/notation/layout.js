@@ -24,6 +24,7 @@ import {
 	ABOVE_STAFF_PAD,
 	ACCIDENTAL_COL_STEP,
 	ACCIDENTAL_GAP,
+	ACCIDENTAL_LEAD_EXTRA,
 	ADV_K,
 	BARLINE_POST_PAD,
 	BARLINE_THICK,
@@ -1609,14 +1610,21 @@ export function buildLayoutModel(song, availableWidthInSp) {
 	// signature prints there (system 1, or a section change). ─────────────────────
 	const packing = flat.map((m, idx) => {
 		const trailingPad = barlineTrailingPad(m.measure?.barlineEnd);
-		// Reserve a leading inset for a section change's cautionary glyphs (clef/key/time)
-		// so the section's notes start after them when it lands mid-system (review-2). The
-		// score's first measure uses the system reserve instead, so it gets none.
-		const leadInset = !m.isFirstOfScore && m.diff ? inlineReserveWidth(m) : 0;
 		const ml = measureLayout(m.measure?.rightHand, m.measure?.leftHand, {
-			leadingPad: leadInset,
 			trailingPad,
 		});
+		// Two independent leading insets, both folded into the intrinsic width:
+		// - sectionReserve: a mid-system section change's cautionary glyphs (clef/key/
+		//   time), so the section's notes start after them (review-2);
+		// - noteAccidentalLead: room for the opening note's accidental, when it has one,
+		//   so the note can otherwise hug the measure's left edge (review-4). A
+		//   whole-measure single note is centered, so it needs no accidental lead.
+		const sectionReserve =
+			!m.isFirstOfScore && m.diff ? inlineReserveWidth(m) : 0;
+		const noteAccidentalLead =
+			ml.columns.length !== 1 && firstColumnHasAccidental(m)
+				? ACCIDENTAL_LEAD_EXTRA
+				: 0;
 		// A time signature prints at the very first system and wherever it changes.
 		const withTimeSig = idx === 0 || (m.diff ? m.diff.timeSignature : false);
 		const reserve = leadingReserveFor(
@@ -1624,10 +1632,13 @@ export function buildLayoutModel(song, availableWidthInSp) {
 			m.ctx.leftHand,
 			withTimeSig,
 		);
-		m.leadInset = leadInset;
+		m.sectionReserve = sectionReserve;
+		m.noteAccidentalLead = noteAccidentalLead;
 		m.layout = ml;
-		m.contentWidth = ml.width;
-		return { contentWidth: ml.width, reserve };
+		// The full intrinsic width: the grid + trailing bar room (in ml.width) plus both
+		// leading insets, which the system walk turns into real left-edge space.
+		m.contentWidth = ml.width + sectionReserve + noteAccidentalLead;
+		return { contentWidth: m.contentWidth, reserve };
 	});
 
 	// Pack against the budget MINUS the two staff margins (review F9), so the reserve +
@@ -1748,11 +1759,12 @@ export function buildLayoutModel(song, availableWidthInSp) {
 			const ml = m.layout;
 			const ts = m.ctx.timeSignature;
 
-			// A mid-system section change restates cautionary clef/key/time glyphs at the
-			// measure head; reserve that fixed width as a leading inset so the section's
-			// notes start AFTER the time signature (review-2). At a system head the leading
-			// reserve already restates them, so no inset there (localIdx === 0).
-			const leadInset = localIdx > 0 ? (m.leadInset ?? 0) : 0;
+			// The leading inset before the first column: a mid-system section change's
+			// cautionary glyphs (review-2; at a system head the leading reserve restates
+			// them, so none there) plus room for the opening note's accidental (review-4).
+			const leadInset =
+				(localIdx > 0 ? (m.sectionReserve ?? 0) : 0) +
+				(m.noteAccidentalLead ?? 0);
 
 			// The scaled grid width (advances stretched by justify) and the measure's
 			// scaled content (the fixed leading inset, unscaled, plus the grid).
@@ -1761,13 +1773,13 @@ export function buildLayoutModel(song, availableWidthInSp) {
 			const scaledContent = leadInset + scaledGrid;
 
 			// A measure whose whole content is a single onset at beat 0 (e.g. a lone whole
-			// note or whole rest filling the bar) is CENTERED in its content, so it occupies
-			// the space it spans rather than hugging the left barline (review-3). Otherwise
-			// columns sit left-to-right from the leading inset.
+			// note or whole rest filling the bar) is CENTERED in its full content, so it
+			// occupies the space it spans rather than hugging the left barline (review-3).
+			// Otherwise columns sit left-to-right from the leading inset.
 			const centerFill = ml.columns.length === 1 && ml.columns[0].onset === 0;
 			const columnX = new Map();
 			if (centerFill) {
-				columnX.set(0, leadInset + scaledGrid / 2);
+				columnX.set(0, scaledContent / 2);
 			} else {
 				let cx = leadInset;
 				ml.columns.forEach((col) => {
@@ -1976,6 +1988,32 @@ function handStepsFor(events, clef) {
  * time-signature glyph — placed at the boundary measure's left X. (Tempo and ottava
  * changes surface as system texts / spans, not inline glyphs here.)
  *
+/**
+ * Whether either hand's FIRST event (the measure's opening onset) draws an accidental,
+ * so the measure must reserve a little extra leading room for it (review-4). A leading
+ * rest has no accidental; only an explicit `alter` or a key-sig default that resolves to
+ * a glyph counts.
+ *
+ * @param {object} member The flattened measure entry (carries `measure` + `ctx`).
+ * @return {boolean} True when the opening note of either hand shows an accidental.
+ */
+function firstColumnHasAccidental(member) {
+	const handOpens = (events, ctx) => {
+		const first = (events ?? [])[0];
+		if (first?.type !== "note") {
+			return false;
+		}
+		const normAlters = normalizeAlters(ctx.alters);
+		return (first.pitches ?? []).some(
+			(p) => resolveAccidental(p, normAlters).glyph !== null,
+		);
+	};
+	return (
+		handOpens(member.measure?.rightHand, member.ctx.rightHand) ||
+		handOpens(member.measure?.leftHand, member.ctx.leftHand)
+	);
+}
+
 /**
  * The horizontal room a mid-system section change consumes (clef + key sig + time
  * signature, only for the fields that changed) plus a trailing pad, in sp. Mirrors the

@@ -833,10 +833,11 @@ function renderSpan(span) {
  */
 function renderHandText(text, chordDy) {
 	if (text.kind === "dynamic") {
-		// Dynamics: bold-italic, below the hand's staff (positive Y is downward).
+		// Dynamics: bold-italic, set clearly BELOW the hand's staff bottom line (positive
+		// Y is downward) so the glyphs sit under the staff, not across it (review-4).
 		const node = el("text", {
 			x: text.x,
-			y: 2,
+			y: 3.5,
 			fill: INK,
 			"font-size": DYNAMIC_SIZE,
 			"font-style": "italic",

@@ -1623,4 +1623,29 @@ describe("review-1 layout fixes (F1, F4/F5, F6, F7, F9)", () => {
 		expect(m.x + m.right.notes[0].x).toBeCloseTo(m.x + m.width / 2, 6);
 		expect(m.x + m.left.notes[0].x).toBeCloseTo(m.x + m.width / 2, 6);
 	});
+
+	it("review-4 — an opening note hugs the measure start, but reserves room when it has an accidental", () => {
+		const q = (step, octave, alter) => ({
+			type: "note",
+			duration: "quarter",
+			pitches: [alter == null ? { step, octave } : { step, octave, alter }],
+		});
+		// Two songs identical but for the sharp opening the second measure.
+		const song = (alter) => ({
+			sections: [
+				{
+					measures: [
+						{ rightHand: [q("E", 5), q("D", 5), q("C", 5), q("D", 5)] },
+						{ rightHand: [q("F", 5, alter), q("E", 5), q("D", 5), q("C", 5)] },
+					],
+				},
+			],
+		});
+		const plain = buildLayoutModel(song(), 200).systems[0].measures[1];
+		const sharp = buildLayoutModel(song(1), 200).systems[0].measures[1];
+		// No accidental → the first note hugs the measure's left edge (no leading inset);
+		// with the sharp it is pushed right to make room for the accidental glyph.
+		expect(plain.right.notes[0].x).toBeLessThan(NOTEHEAD_RX);
+		expect(sharp.right.notes[0].x).toBeGreaterThan(plain.right.notes[0].x);
+	});
 });

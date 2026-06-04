@@ -187,6 +187,17 @@ describe("renderSvg — structure (design §2.3)", () => {
 		}
 	});
 
+	it("review-4 — dynamics are set clearly below the staff bottom line", () => {
+		const svg = renderSvg(modelFor());
+		const dynamics = [...svg.querySelectorAll('[data-text="dynamic"]')];
+		expect(dynamics.length).toBeGreaterThan(0);
+		for (const d of dynamics) {
+			// Positive Y is below the staff bottom (the hand <g> carries that origin); a
+			// value > 3 keeps the bold-italic glyphs under the staff, not across it.
+			expect(Number(d.getAttribute("y"))).toBeGreaterThan(3);
+		}
+	});
+
 	it("draws a chord's noteheads and a per-event dynamic", () => {
 		const svg = renderSvg(modelFor());
 		// The first RH event is a 2-note chord → two notehead ellipses on it.
