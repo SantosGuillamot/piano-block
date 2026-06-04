@@ -1496,16 +1496,28 @@ describe("review-1 layout fixes (F1, F4/F5, F6, F7, F9)", () => {
 		}
 	});
 
-	it("F6 — every barline leaves a gap before the next measure's first note", () => {
+	it("F6 — every barline leaves a gap wider than a notehead before the next measure", () => {
 		const measures = buildLayoutModel(COMPREHENSIVE_SONG, 200).systems[0]
 			.measures;
 		expect(measures.length).toBeGreaterThan(1);
 		for (let i = 1; i < measures.length; i++) {
-			// The next measure starts strictly past the previous measure's content end
-			// (the trailing barline room), so its first note never lands on the line.
-			expect(measures[i].x).toBeGreaterThan(
-				measures[i - 1].x + measures[i - 1].width,
-			);
+			// The bar sits at the previous measure's content end; the next measure starts
+			// far enough past it that its opening notehead clears the line (review-2).
+			const barX = measures[i - 1].x + measures[i - 1].width;
+			expect(measures[i].x - barX).toBeGreaterThan(NOTEHEAD_RX);
+		}
+	});
+
+	it("review-2 — a mid-system section change's notes start after the inline time signature", () => {
+		const model = buildLayoutModel(COMPREHENSIVE_SONG, 200);
+		const m3 = model.systems
+			.flatMap((s) => s.measures)
+			.find((m) => m.number === 3);
+		// At width 200 the whole song is one system, so the section-2 start is mid-system
+		// and carries inline cautionary glyphs; its first note must clear the time sig.
+		if (m3.inline) {
+			const firstNoteX = m3.x + m3.right.notes[0].x;
+			expect(firstNoteX).toBeGreaterThan(m3.inline.timeSignatureX);
 		}
 	});
 

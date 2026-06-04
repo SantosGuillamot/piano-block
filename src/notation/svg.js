@@ -136,11 +136,7 @@ function fontGlyph(
 	name,
 	x,
 	y,
-	{
-		size = GLYPH_FONT_SIZE_SP,
-		anchor = "middle",
-		baseline = "alphabetic",
-	} = {},
+	{ size = GLYPH_FONT_SIZE_SP, anchor = "middle" } = {},
 ) {
 	const record = glyphFor(name);
 	if (!record?.codepoint) {
@@ -153,7 +149,7 @@ function fontGlyph(
 		"font-family": MUSIC_FONT_FAMILY,
 		"font-size": size,
 		"text-anchor": anchor,
-		"dominant-baseline": baseline,
+		"dominant-baseline": "alphabetic",
 	});
 	return setText(node, record.codepoint);
 }
@@ -345,15 +341,17 @@ function renderReserve(reserve, band) {
 	// Every field's X comes from the layout model, which advances each by the previous
 	// field's real width (review F1) — the emit layer adds no spacing math of its own.
 
-	// Brace spanning from the RH staff top to the LH staff bottom, centered on the band
-	// via a centered baseline so the glyph straddles both staves rather than riding high
-	// off its alphabetic baseline (review F2).
-	const braceY = (band.rightStaffTopY + band.leftStaffBottomY) / 2;
+	// Brace spanning the whole grand staff (review F2 + review-2): the brace glyph's ink
+	// rises ~1 em from its alphabetic baseline with its bottom AT the baseline, so sizing
+	// it to the grand-staff height and anchoring it at the LH staff bottom makes it run
+	// from the top of the upper staff to the bottom of the lower staff.
 	const braceHeight = band.leftStaffBottomY - band.rightStaffTopY;
-	const brace = fontGlyph("brace", reserve.brace?.x ?? 0, braceY, {
-		size: braceHeight,
-		baseline: "central",
-	});
+	const brace = fontGlyph(
+		"brace",
+		reserve.brace?.x ?? 0,
+		band.leftStaffBottomY,
+		{ size: braceHeight },
+	);
 	if (brace) {
 		g.appendChild(brace);
 	}

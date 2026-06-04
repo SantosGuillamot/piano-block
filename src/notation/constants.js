@@ -114,6 +114,13 @@ export const BARLINE_THIN = 0.13;
 /** Thick barline stroke thickness (final bar / repeat heavy stroke). */
 export const BARLINE_THICK = 0.5;
 
+/**
+ * Whitespace after a barline before the next measure's first note, in sp. Must exceed
+ * the notehead radius so the next measure's opening note clears the line on both sides
+ * of the bar (review-2: notes were landing on the barline).
+ */
+export const BARLINE_POST_PAD = 1.4;
+
 // ── Accidentals / ledger lines (design §5.2, §6.4) ─────────────────────────────
 
 /** Ledger-line segment width, centered on the notehead. */

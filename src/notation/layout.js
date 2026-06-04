@@ -24,6 +24,7 @@ import {
 	ACCIDENTAL_COL_STEP,
 	ACCIDENTAL_GAP,
 	ADV_K,
+	BARLINE_POST_PAD,
 	BARLINE_THICK,
 	BARLINE_THIN,
 	BASE_DUR,
@@ -1252,14 +1253,14 @@ export function barlineSpec(type, x = 0) {
 
 /**
  * The trailing horizontal room a measure must reserve for its right barline
- * (design §6.2/§6.7): the barline group's own width plus a small pad so the last
- * notehead does not touch the bar.
+ * (design §6.2/§6.7): the barline group's own width plus `BARLINE_POST_PAD` of
+ * whitespace after it, so the NEXT measure's first note clears the line (review-2).
  *
  * @param {string} [barlineEnd] The measure's `barlineEnd` type (default regular).
  * @return {number} The trailing pad, in sp.
  */
 export function barlineTrailingPad(barlineEnd) {
-	return barlineSpec(barlineEnd ?? "regular").width + MIN_ADV * 0.5;
+	return barlineSpec(barlineEnd ?? "regular").width + BARLINE_POST_PAD;
 }
 
 // ── T6: leading reserve + system wrapping / justify (design §6.3) ───────────────
@@ -1605,7 +1606,12 @@ export function buildLayoutModel(song, availableWidthInSp) {
 	// signature prints there (system 1, or a section change). ─────────────────────
 	const packing = flat.map((m, idx) => {
 		const trailingPad = barlineTrailingPad(m.measure?.barlineEnd);
+		// Reserve a leading inset for a section change's cautionary glyphs (clef/key/time)
+		// so the section's notes start after them when it lands mid-system (review-2). The
+		// score's first measure uses the system reserve instead, so it gets none.
+		const leadInset = !m.isFirstOfScore && m.diff ? inlineReserveWidth(m) : 0;
 		const ml = measureLayout(m.measure?.rightHand, m.measure?.leftHand, {
+			leadingPad: leadInset,
 			trailingPad,
 		});
 		// A time signature prints at the very first system and wherever it changes.
@@ -1615,6 +1621,7 @@ export function buildLayoutModel(song, availableWidthInSp) {
 			m.ctx.leftHand,
 			withTimeSig,
 		);
+		m.leadInset = leadInset;
 		m.layout = ml;
 		m.contentWidth = ml.width;
 		return { contentWidth: ml.width, reserve };
@@ -1739,18 +1746,24 @@ export function buildLayoutModel(song, availableWidthInSp) {
 			const ml = m.layout;
 			const ts = m.ctx.timeSignature;
 
-			// Scale the grid advances (justify) → relative column X within the
-			// measure. The leading reserve already lives outside the measure, so the
-			// measure's own internal `leadingPad` is 0; the first column sits at 0.
+			// A mid-system section change restates cautionary clef/key/time glyphs at the
+			// measure head; reserve that fixed width as a leading inset so the section's
+			// notes start AFTER the time signature (review-2). At a system head the leading
+			// reserve already restates them, so no inset there (localIdx === 0).
+			const leadInset = localIdx > 0 ? (m.leadInset ?? 0) : 0;
+
+			// Scale the grid advances (justify) → relative column X within the measure.
+			// The first column sits at the leading inset (0 for a non-section measure).
 			const columnX = new Map();
-			let cx = 0;
+			let cx = leadInset;
 			ml.columns.forEach((col) => {
 				columnX.set(col.onset, cx);
 				cx += col.advance * advanceScale;
 			});
-			// The scaled measure content width (advances stretched, pads not).
+			// The scaled measure content width: the fixed leading inset (unscaled) plus the
+			// stretched grid advances (pads not).
 			const scaledContent =
-				(ml.contentWidth || EMPTY_MEASURE_WIDTH) * advanceScale;
+				leadInset + (ml.contentWidth || EMPTY_MEASURE_WIDTH) * advanceScale;
 
 			const right = layoutHand(
 				m.measure?.rightHand,
@@ -1767,18 +1780,17 @@ export function buildLayoutModel(song, availableWidthInSp) {
 				ts,
 			);
 
-			// The trailing room reserved for the right barline (its own width + a small
-			// pad). The bar sits centered in that room so there is whitespace BEFORE it,
-			// and the next measure starts past the room so there is whitespace AFTER it —
-			// otherwise the next bar's first note lands on the line (review F6). This room
-			// is already counted in the packing width (`ml.width`), so honoring it here
-			// just turns reserved budget into real space — no overflow.
+			// The bar sits at the measure's content end (the last note already has its
+			// natural advance of whitespace before it), and the next measure starts a full
+			// BARLINE_POST_PAD past the bar so its first note clears the line (review F6 +
+			// review-2). This trailing room is already counted in the packing width
+			// (`ml.width`), so honoring it here just turns reserved budget into real space.
 			const endType = m.measure?.barlineEnd ?? "regular";
 			const trailingPad = barlineTrailingPad(endType);
 
-			// Right barline (always) centered in the trailing room; a left barline only
-			// for repeat-start, and never on the score's very first measure.
-			const measureRightX = x + scaledContent + trailingPad * 0.5;
+			// Right barline (always) at the content end; a left barline only for
+			// repeat-start, and never on the score's very first measure.
+			const measureRightX = x + scaledContent;
 			const barlines = [];
 			const startType = m.measure?.barlineStart;
 			if (startType === "repeat-start" && !m.isFirstOfScore) {
@@ -1953,6 +1965,45 @@ function handStepsFor(events, clef) {
  * time-signature glyph — placed at the boundary measure's left X. (Tempo and ottava
  * changes surface as system texts / spans, not inline glyphs here.)
  *
+/**
+ * The horizontal room a mid-system section change consumes (clef + key sig + time
+ * signature, only for the fields that changed) plus a trailing pad, in sp. Mirrors the
+ * field advances of `inlineSectionChange` so the section's first note, inset by this
+ * width, lands clear of the cautionary glyphs (review-2). Returns 0 when nothing visible
+ * changes (e.g. a tempo-only change, which is drawn as a system text, not inline).
+ *
+ * @param {object} member The flattened measure entry (carries `ctx` + `diff`).
+ * @return {number} The inline reserve width, in sp.
+ */
+function inlineReserveWidth(member) {
+	const { ctx, diff } = member;
+	let width = 0;
+	if (diff.rightHand.clef || diff.leftHand.clef) {
+		width += CLEF_WIDTH;
+	}
+	let maxClusterWidth = 0;
+	if (diff.rightHand.alters) {
+		maxClusterWidth = Math.max(
+			maxClusterWidth,
+			keySignatureCluster(ctx.rightHand.alters, ctx.rightHand.clef).width,
+		);
+	}
+	if (diff.leftHand.alters) {
+		maxClusterWidth = Math.max(
+			maxClusterWidth,
+			keySignatureCluster(ctx.leftHand.alters, ctx.leftHand.clef).width,
+		);
+	}
+	if (maxClusterWidth > 0) {
+		width += maxClusterWidth + KEYSIG_TIMESIG_GAP;
+	}
+	if (diff.timeSignature) {
+		width += TIME_SIG_WIDTH;
+	}
+	return width > 0 ? width + RESERVE_PAD : 0;
+}
+
+/**
  * Each present field is positioned from the previous field's REAL width (clef →
  * key sig → time sig), so a multi-accidental change does not collide with the new
  * time signature (review F1) — mirroring the system-head reserve.

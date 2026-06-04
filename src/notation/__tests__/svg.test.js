@@ -130,6 +130,29 @@ describe("renderSvg — text safety (design §6.8)", () => {
 });
 
 describe("renderSvg — structure (design §2.3)", () => {
+	it("review-2 — the brace spans the full grand staff (top of RH to bottom of LH)", () => {
+		const model = modelFor();
+		const svg = renderSvg(model);
+		const band = model.systems[0].band;
+		// The brace is the tallest font glyph in the reserve (clefs are staff-height).
+		const reserveTexts = [...svg.querySelectorAll("[data-reserve] text")];
+		const brace = reserveTexts.reduce((a, b) =>
+			Number(b.getAttribute("font-size")) > Number(a.getAttribute("font-size"))
+				? b
+				: a,
+		);
+		// Sized to the grand-staff height and anchored (alphabetic) at the LH staff
+		// bottom, so its ~1-em ink rises to the RH staff top.
+		expect(Number(brace.getAttribute("font-size"))).toBeCloseTo(
+			band.leftStaffBottomY - band.rightStaffTopY,
+			6,
+		);
+		expect(Number(brace.getAttribute("y"))).toBeCloseTo(
+			band.leftStaffBottomY,
+			6,
+		);
+	});
+
 	it("emits one system group per model system, each with two staves", () => {
 		const model = modelFor();
 		const svg = renderSvg(model);
