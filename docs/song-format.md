@@ -197,6 +197,30 @@ event := {
 { "type": "rest", "duration": "quarter" }
 ```
 
+## Gradual dynamics (crescendo and decrescendo spans)
+
+The per-note `dynamic` is a **point dynamic** — a single fixed level on one note. A **gradual-dynamic span** is the other kind of loudness marking: a change that unfolds *across a run of notes*. A **crescendo** grows louder, a **decrescendo** grows softer.
+
+A span runs from a **start note** to a *later* **end note within a single hand** — the right-hand stream or the left-hand stream, never across the two. You author it with the `crescendo` / `decrescendo` markers from the [Events](#events) section: put `"start"` on the first note and `"stop"` on the last. Each hand is marked independently; a span in one hand has no bearing on the other.
+
+**The rendered form is a hairpin wedge** on the grand staff: an opening wedge `<` for a crescendo and a closing wedge `>` for a decrescendo. The wedge spans horizontally from the start note's position to the end note's position, so the two directions are drawn distinctly — `<` widens toward the louder end, `>` narrows toward the softer end. If a span crosses one or more barlines within a single line of music, it is drawn as **one continuous wedge** across them, the same way a tie or slur is.
+
+**Placement.** Each wedge is drawn **per hand, below that hand's own staff** — the same below-staff region where that hand's point dynamics already sit.
+
+**Notation only — no sound.** Like every marking in this format, a gradual-dynamic span is visual notation; it has **no effect on how the song sounds**. There is no audio engine in the block, and the marking carries no loudness behavior — it only draws the wedge.
+
+### What v1 does and does not do
+
+This is what the gradual-dynamic span renders today. Be aware of these limits so you do not expect more than is drawn:
+
+- **Hairpin form only.** Only the wedge (`<` / `>`) is drawn. The alternative `cresc.` / `dim.` text-with-a-dashed-line form is not part of this version.
+- **Per-hand, below each hand's staff.** The wedge sits below the marked hand's staff. Drawing a single wedge *between* the two staves (the strict grand-staff convention) is a possible future refinement, not what is drawn today.
+- **Cross-line spans draw only their first line.** If a span's start note and its end note fall on two different rendered lines (the start wraps onto one line and the end onto the next), only the portion on the **start line** is drawn; the continuation onto the next line is not drawn in this version. The marking is still accepted and never breaks the rest of the rendering — only the carried-over piece is omitted.
+- **Overlapping same-kind spans are undefined.** Opening a second crescendo (or a second decrescendo) in one hand before the first has stopped is tolerated — it will not break the render — but the result is not defined, so do not rely on it. At most one span of a given kind should be open per hand at a time.
+- **A single-note span is not expressible.** A span needs a start note and a *different, later* end note; a hairpin shows change *across* notes, and one note has no horizontal extent. There is no way to mark a one-note crescendo or decrescendo.
+
+For where the rendered wedge appears in the published sheet music, see [What the front end shows](../README.md#4-what-the-front-end-shows) in the README.
+
 ## Pitches
 
 A **pitch** is a single sounding note name with its octave and optional accidental:
