@@ -93,7 +93,11 @@ export const SYSTEM_BOTTOM_MARGIN = 5;
  */
 export const ABOVE_STAFF_PAD = 1;
 
-/** Vertical gap between two stacked above-staff text lanes (chord / ottava / tempo). */
+/**
+ * Vertical gap between two stacked above-staff text lanes (chord / ottava / tempo).
+ * Also reused as the per-note stack gap, so one stack step is
+ * `NOTE_SIZE + TEXT_LANE_GAP` = 3.4 sp.
+ */
 export const TEXT_LANE_GAP = 0.6;
 
 /**
@@ -154,8 +158,14 @@ export const TIE_NOTE_CLEARANCE = 0.9;
 /** Dynamics (bold-italic) text size. */
 export const DYNAMIC_SIZE = 2.8;
 
-/** Chord-symbol text size (free author text above the RH staff). */
-export const CHORD_SYMBOL_SIZE = 2.8;
+/** Note-annotation text size (free author text placed around the staves). */
+export const NOTE_SIZE = 2.8;
+
+/**
+ * Deprecated temporary alias of {@link NOTE_SIZE}; kept only so existing
+ * importers keep resolving during the rename. Removed in the clean-break task.
+ */
+export const CHORD_SYMBOL_SIZE = NOTE_SIZE;
 
 /** Tempo marking text size ("[note-glyph] = [bpm]"). */
 export const TEMPO_SIZE = 2.8;
@@ -165,6 +175,28 @@ export const MEASURE_NUMBER_SIZE = 2.2;
 
 /** Ottava-bracket label text size ("8va" / "8vb" / "15ma" / "15mb"). */
 export const OTTAVA_SIZE = 2.2;
+
+/** Clearance, in sp, between a staff line and the nearest note baseline. */
+export const NOTE_GAP_STAFF = 1;
+
+/**
+ * Clearance, in sp, between the below-RH and above-LH note sub-bands inside the
+ * inter-staff gap, applied only when both sub-bands are present.
+ */
+export const MID_GAP = 1.2;
+
+/**
+ * Dynamics-glyph-box depth, in sp, that a below-RH/below-LH note dodges when its
+ * hand carries dynamics. Serves as the `baseOffset` for a below band whose hand
+ * has dynamics, feeding BOTH the per-note baseline and the gap/bottom-margin flex.
+ */
+export const DYNAMICS_LANE_RESERVE = 4.5;
+
+/**
+ * Horizontal back-off, in sp, from the trailing barline used when clamping an
+ * over-content `beat`-anchored note so it stays inside the measure.
+ */
+export const NOTE_CLAMP_INSET = 1;
 
 // ── Duration tables ────────────────────────────────────────────────────────────
 
