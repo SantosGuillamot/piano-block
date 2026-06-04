@@ -140,6 +140,24 @@ describe("renderSvg — text safety (design §6.8)", () => {
 });
 
 describe("renderSvg — structure (design §2.3)", () => {
+	it("review-5 — each clef is anchored on its reference staff line", () => {
+		const model = modelFor();
+		const svg = renderSvg(model);
+		const band = model.systems[0].band;
+		// SONG is treble (RH) over bass (LH). The treble (G) clef sits 3 sp below the RH
+		// top line; the bass (F) clef sits 1 sp below the LH top line.
+		const treble = svg.querySelector('[data-reserve] [data-clef="treble"]');
+		const bass = svg.querySelector('[data-reserve] [data-clef="bass"]');
+		expect(Number(treble.getAttribute("y"))).toBeCloseTo(
+			band.rightStaffTopY + 3,
+			6,
+		);
+		expect(Number(bass.getAttribute("y"))).toBeCloseTo(
+			band.leftStaffTopY + 1,
+			6,
+		);
+	});
+
 	it("review-2 — the brace spans the full grand staff (top of RH to bottom of LH)", () => {
 		const model = modelFor();
 		const svg = renderSvg(model);

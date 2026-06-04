@@ -397,14 +397,27 @@ function appendClef(parent, clef, x, staffTopY) {
 	if (!clef?.glyph) {
 		return;
 	}
-	// Anchor the clef baseline near the staff bottom line (font glyph encodes its
-	// own reference); the staff spans 4 sp below the top.
-	const node = fontGlyph(clef.glyph, x, staffTopY + 3, { anchor: "start" });
+	// Anchor each clef's baseline on its SMuFL reference staff line (review-5): the
+	// G clef on the G line (2nd from the bottom), the F clef on the F line (2nd from the
+	// top), and the C clef on the line it centers (middle for alto, 4th for tenor). The
+	// staff's top line is `staffTopY`; each line below is +1 sp.
+	const refFromTop = CLEF_REF_LINE_FROM_TOP[clef.clef] ?? 3;
+	const node = fontGlyph(clef.glyph, x, staffTopY + refFromTop, {
+		anchor: "start",
+	});
 	if (node) {
 		node.setAttribute("data-clef", clef.clef);
 		parent.appendChild(node);
 	}
 }
+
+/**
+ * Each clef's reference staff line, as a distance in sp BELOW the staff's top line.
+ * Lines from the top: top 0, 1, middle 2, 3, bottom 4 — so the treble (G) clef sits on
+ * line 3, the bass (F) clef on line 1, the alto (C) clef on the middle line 2, and the
+ * tenor (C) clef on line 1.
+ */
+const CLEF_REF_LINE_FROM_TOP = { treble: 3, bass: 1, alto: 2, tenor: 1 };
 
 /** Place one hand's key-signature cluster (its glyphs carry band-coordinate Ys). */
 function appendKeySig(parent, cluster, baseX) {

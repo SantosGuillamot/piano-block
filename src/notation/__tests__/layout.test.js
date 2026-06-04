@@ -1594,7 +1594,7 @@ describe("review-1 layout fixes (F1, F4/F5, F6, F7, F9)", () => {
 		}
 	});
 
-	it("review-3 — a whole-measure note is centered in its measure", () => {
+	it("review-5 — a whole-measure note is left-aligned (not centered) near the bar", () => {
 		const song = {
 			sections: [
 				{
@@ -1620,8 +1620,24 @@ describe("review-1 layout fixes (F1, F4/F5, F6, F7, F9)", () => {
 			],
 		};
 		const m = buildLayoutModel(song, 200).systems[0].measures[0];
-		expect(m.x + m.right.notes[0].x).toBeCloseTo(m.x + m.width / 2, 6);
-		expect(m.x + m.left.notes[0].x).toBeCloseTo(m.x + m.width / 2, 6);
+		// The whole note hugs the measure's left edge (no accidental → no inset), well
+		// left of the measure center, rather than being centered.
+		expect(m.right.notes[0].x).toBeLessThan(NOTEHEAD_RX);
+		expect(m.right.notes[0].x).toBeLessThan(m.width / 2);
+	});
+
+	it("review-5 — measure 1 is not numbered; a later system numbers its first measure", () => {
+		const model = buildLayoutModel(COMPREHENSIVE_SONG, 30); // narrow → many systems
+		expect(model.systems.length).toBeGreaterThan(1);
+		// The system that opens the piece (measure 1) shows no measure number…
+		expect(model.systems[0].texts.measureNumber).toBeNull();
+		// …but at least one later system labels its first measure (number ≥ 2).
+		const later = model.systems
+			.slice(1)
+			.map((s) => s.texts.measureNumber)
+			.filter(Boolean);
+		expect(later.length).toBeGreaterThan(0);
+		expect(Number(later[0].text)).toBeGreaterThanOrEqual(2);
 	});
 
 	it("review-4 — an opening note hugs the measure start, but reserves room when it has an accidental", () => {

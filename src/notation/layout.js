@@ -1278,7 +1278,8 @@ export function barlineTrailingPad(barlineEnd) {
 
 /** Approximate widths of the leading-reserve glyphs, in sp (design §6.3). */
 const BRACE_WIDTH = 1.5;
-const CLEF_WIDTH = 3;
+/** The clef's horizontal slot, including trailing space before the alters (review-5). */
+const CLEF_WIDTH = 3.8;
 const TIME_SIG_WIDTH = 2.5;
 /** Pad after the reserve before the first notehead. */
 const RESERVE_PAD = 1;
@@ -1617,14 +1618,12 @@ export function buildLayoutModel(song, availableWidthInSp) {
 		// - sectionReserve: a mid-system section change's cautionary glyphs (clef/key/
 		//   time), so the section's notes start after them (review-2);
 		// - noteAccidentalLead: room for the opening note's accidental, when it has one,
-		//   so the note can otherwise hug the measure's left edge (review-4). A
-		//   whole-measure single note is centered, so it needs no accidental lead.
+		//   so the note can otherwise hug the measure's left edge (review-4).
 		const sectionReserve =
 			!m.isFirstOfScore && m.diff ? inlineReserveWidth(m) : 0;
-		const noteAccidentalLead =
-			ml.columns.length !== 1 && firstColumnHasAccidental(m)
-				? ACCIDENTAL_LEAD_EXTRA
-				: 0;
+		const noteAccidentalLead = firstColumnHasAccidental(m)
+			? ACCIDENTAL_LEAD_EXTRA
+			: 0;
 		// A time signature prints at the very first system and wherever it changes.
 		const withTimeSig = idx === 0 || (m.diff ? m.diff.timeSignature : false);
 		const reserve = leadingReserveFor(
@@ -1772,21 +1771,14 @@ export function buildLayoutModel(song, availableWidthInSp) {
 				(ml.contentWidth || EMPTY_MEASURE_WIDTH) * advanceScale;
 			const scaledContent = leadInset + scaledGrid;
 
-			// A measure whose whole content is a single onset at beat 0 (e.g. a lone whole
-			// note or whole rest filling the bar) is CENTERED in its full content, so it
-			// occupies the space it spans rather than hugging the left barline (review-3).
-			// Otherwise columns sit left-to-right from the leading inset.
-			const centerFill = ml.columns.length === 1 && ml.columns[0].onset === 0;
+			// Columns sit left-to-right from the leading inset, so every measure's opening
+			// note (a whole note included) starts near the left barline (review-5).
 			const columnX = new Map();
-			if (centerFill) {
-				columnX.set(0, scaledContent / 2);
-			} else {
-				let cx = leadInset;
-				ml.columns.forEach((col) => {
-					columnX.set(col.onset, cx);
-					cx += col.advance * advanceScale;
-				});
-			}
+			let cx = leadInset;
+			ml.columns.forEach((col) => {
+				columnX.set(col.onset, cx);
+				cx += col.advance * advanceScale;
+			});
 
 			const right = layoutHand(
 				m.measure?.rightHand,
@@ -2279,8 +2271,13 @@ function topMarginLayout(members, ledgerTop) {
 	// The innermost reserved zone above the staff top holds whatever already lives
 	// there: the high notes/ledgers AND the system's measure number (drawn just above
 	// the top line at the left). The stacked text lanes clear both so the tempo never
-	// drops onto the measure number when little else is above the staff.
-	const innerZone = Math.max(ledgerTop, MEASURE_NUMBER_SIZE + 1);
+	// drops onto the measure number when little else is above the staff. Measure 1 is
+	// never numbered (review-5), so a system that starts there reserves no number room.
+	const showsMeasureNumber = members[0]?.number !== 1;
+	const innerZone = Math.max(
+		ledgerTop,
+		showsMeasureNumber ? MEASURE_NUMBER_SIZE + 1 : 0,
+	);
 	// Distances ABOVE the staff top line (positive = up); each present lane stacks out.
 	let d = innerZone + ABOVE_STAFF_PAD;
 	let topExtent = innerZone;
@@ -2354,12 +2351,17 @@ function buildSystemTexts(members, measureModels, band) {
 		}
 	});
 
-	const measureNumber = {
-		text: String(head.number),
-		// Above-left of the first measure, never left of the staff margin.
-		x: Math.max(measureModels[0].x - 1, STAFF_MARGIN_X),
-		y: band.rightStaffTopY - 1,
-	};
+	// Measure 1 is conventionally left un-numbered (its number is obvious), so a system
+	// that opens the piece shows no number; every later system labels its first measure.
+	const measureNumber =
+		head.number === 1
+			? null
+			: {
+					text: String(head.number),
+					// Above-left of the first measure, never left of the staff margin.
+					x: Math.max(measureModels[0].x - 1, STAFF_MARGIN_X),
+					y: band.rightStaffTopY - 1,
+				};
 
 	// Ottava: per hand, one bracket per contiguous run sharing a non-zero shift.
 	const ottavas = [];
