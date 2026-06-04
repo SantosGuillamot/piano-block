@@ -1539,18 +1539,28 @@ function layoutHand(events, columnX, onsets, ctx, timeSignature) {
 }
 
 /**
- * Collect an event's per-event text primitives (a dynamic plus any author `notes`)
- * at X `x`. The dynamic renders below the hand's staff; each note's free text renders
- * above the RH staff in the single above-RH lane. The hand placement (RH vs LH
- * offset) is applied later by the band assembly; each note carries its `placement`
- * onto the primitive for later lane selection.
+ * Collect an event's per-event text primitives — a dynamic plus every author `note`
+ * — at the event's column X. This is the locked contract the band model and the emit
+ * layer route on; it computes NO Y and does NOT bucket by placement (that is done
+ * later from this flat list).
  *
- * @param {{ dynamic?: string, notes?: object[] }} event The event, whose optional
- *   `notes` is an array of `{ text, placement }` author annotations.
- * @param {number} x The event's relative X.
- * @param {object[]} out The list to push texts onto.
+ * The dynamic (when present) pushes one `{ kind: "dynamic", x, text }`. Then each
+ * element of `event.notes` whose `text` is a NON-EMPTY string pushes exactly one
+ * `{ kind: "note", x, text, placement }`, in array order — array order IS the
+ * stacking order the later layers consume. Elements with an empty or absent `text`
+ * push nothing; an absent or empty `notes` pushes no note primitives at all. The
+ * routine is identical for a `note` and a `rest` event (the caller invokes it on
+ * both), so a rest's `notes` are collected the same way at the rest's column X.
+ *
+ * @param {{ dynamic?: string, notes?: { text?: string, placement?: string }[] }}
+ *   event The event. `dynamic` is the optional dynamic marking; `notes` is the
+ *   optional array of author annotations, each `{ text, placement }`.
+ * @param {number} x The event's relative column X (shared by every primitive pushed
+ *   for this event), in sp.
+ * @param {{ kind: string, x: number, text: string, placement?: string }[]} out The
+ *   list this routine pushes primitives onto (mutated in place).
  */
-function collectEventTexts(event, x, out) {
+export function collectEventTexts(event, x, out) {
 	if (event?.dynamic) {
 		out.push({ kind: "dynamic", x, text: event.dynamic });
 	}

@@ -24,6 +24,7 @@ import {
 	beamGroups,
 	beatGroupLength,
 	buildLayoutModel,
+	collectEventTexts,
 	decodeDuration,
 	diatonicIndex,
 	diffContext,
@@ -1085,6 +1086,87 @@ describe("tempoMark", () => {
 	it("returns null when there is no tempo / bpm", () => {
 		expect(tempoMark()).toBeNull();
 		expect(tempoMark({ beatUnit: "quarter" })).toBeNull();
+	});
+});
+
+// ── Per-event note collection (placement-aware, band-independent) ─────────────────
+//
+// `collectEventTexts` is the contract the band model + emit later route on: one
+// `{ kind: "note", x, text, placement }` primitive per non-empty `event.notes`
+// element, in array order (= stacking order), for BOTH notes and rests. These tests
+// pin that contract WITHOUT any band geometry — no buckets, no Y, just the primitive
+// list at the event's column X.
+
+describe("collectEventTexts — per-event notes with placement", () => {
+	/** Pull only the `kind: "note"` primitives out of a collected list. */
+	const notesOnly = (out) => out.filter((t) => t.kind === "note");
+
+	it("emits one note primitive per element, carrying each element's placement", () => {
+		const out = [];
+		const event = {
+			notes: [
+				{ text: "C", placement: "above" },
+				{ text: "pedal", placement: "below" },
+			],
+		};
+		collectEventTexts(event, 7, out);
+		const notes = notesOnly(out);
+		expect(notes).toEqual([
+			{ kind: "note", x: 7, text: "C", placement: "above" },
+			{ kind: "note", x: 7, text: "pedal", placement: "below" },
+		]);
+	});
+
+	it("preserves array order (= stacking order) for same-placement notes, all at the column X", () => {
+		const out = [];
+		const event = {
+			notes: [
+				{ text: "one", placement: "above" },
+				{ text: "two", placement: "above" },
+				{ text: "three", placement: "above" },
+			],
+		};
+		collectEventTexts(event, 3.5, out);
+		const notes = notesOnly(out);
+		expect(notes.map((n) => n.text)).toEqual(["one", "two", "three"]);
+		expect(notes.every((n) => n.placement === "above")).toBe(true);
+		expect(notes.every((n) => n.x === 3.5)).toBe(true);
+	});
+
+	it("collects a rest event's notes identically (same routine, at the rest's X)", () => {
+		const out = [];
+		const event = {
+			type: "rest",
+			notes: [{ text: "pedal", placement: "below" }],
+		};
+		collectEventTexts(event, 12, out);
+		const notes = notesOnly(out);
+		expect(notes).toEqual([
+			{ kind: "note", x: 12, text: "pedal", placement: "below" },
+		]);
+	});
+
+	it("pushes nothing for an element whose text is empty or absent", () => {
+		const out = [];
+		const event = {
+			notes: [
+				{ text: "", placement: "above" },
+				{ placement: "below" },
+				{ text: "keep", placement: "above" },
+			],
+		};
+		collectEventTexts(event, 0, out);
+		const notes = notesOnly(out);
+		expect(notes.map((n) => n.text)).toEqual(["keep"]);
+	});
+
+	it("emits no note primitives for an event with no notes (absent or empty)", () => {
+		const absent = [];
+		collectEventTexts({ dynamic: "mf" }, 0, absent);
+		expect(notesOnly(absent)).toEqual([]);
+		const empty = [];
+		collectEventTexts({ notes: [] }, 0, empty);
+		expect(notesOnly(empty)).toEqual([]);
 	});
 });
 
