@@ -51,7 +51,7 @@ const COMPREHENSIVE_SONG = {
 							duration: "half",
 							dots: 1,
 							dynamic: "mf",
-							notes: [{ text: "C", placement: "above" }],
+							annotations: [{ text: "C", placement: "above" }],
 							slur: "start",
 							tie: "start",
 							pitches: [
@@ -507,7 +507,7 @@ describe("validateSong — per-event `notes`", () => {
 				eventSong({
 					type: "note",
 					duration: "quarter",
-					notes: [{ text: "C", placement: "above" }],
+					annotations: [{ text: "C", placement: "above" }],
 					pitches: [{ step: "C", octave: 4 }],
 				}),
 			),
@@ -520,7 +520,7 @@ describe("validateSong — per-event `notes`", () => {
 				eventSong({
 					type: "rest",
 					duration: "quarter",
-					notes: [{ text: "pedal", placement: "below" }],
+					annotations: [{ text: "pedal", placement: "below" }],
 				}),
 			),
 		).toEqual([]);
@@ -532,7 +532,7 @@ describe("validateSong — per-event `notes`", () => {
 
 	it("accepts an event with an empty `notes` array", () => {
 		expect(
-			check(eventSong({ type: "rest", duration: "quarter", notes: [] })),
+			check(eventSong({ type: "rest", duration: "quarter", annotations: [] })),
 		).toEqual([]);
 	});
 
@@ -542,7 +542,7 @@ describe("validateSong — per-event `notes`", () => {
 				eventSong({
 					type: "rest",
 					duration: "quarter",
-					notes: [{ text: "", placement: "above" }],
+					annotations: [{ text: "", placement: "above" }],
 				}),
 			),
 		).toEqual([]);
@@ -553,12 +553,12 @@ describe("validateSong — per-event `notes`", () => {
 			eventSong({
 				type: "rest",
 				duration: "quarter",
-				notes: [{ placement: "above" }],
+				annotations: [{ placement: "above" }],
 			}),
 		);
-		expect(result.some((e) => /notes\[0\]/.test(e) && /text/.test(e))).toBe(
-			true,
-		);
+		expect(
+			result.some((e) => /annotations\[0\]/.test(e) && /text/.test(e)),
+		).toBe(true);
 	});
 
 	it("flags a note annotation missing `placement`", () => {
@@ -566,7 +566,7 @@ describe("validateSong — per-event `notes`", () => {
 			eventSong({
 				type: "rest",
 				duration: "quarter",
-				notes: [{ text: "C" }],
+				annotations: [{ text: "C" }],
 			}),
 		);
 		expect(result.some((e) => /placement/.test(e))).toBe(true);
@@ -577,7 +577,7 @@ describe("validateSong — per-event `notes`", () => {
 			eventSong({
 				type: "rest",
 				duration: "quarter",
-				notes: [{ text: "C", placement: "middle" }],
+				annotations: [{ text: "C", placement: "middle" }],
 			}),
 		);
 		expect(result.some((e) => /placement/.test(e) && /middle/.test(e))).toBe(
@@ -591,7 +591,7 @@ describe("validateSong — per-event `notes`", () => {
 				eventSong({
 					type: "rest",
 					duration: "quarter",
-					notes: [
+					annotations: [
 						{ text: "C", placement: "above", staff: "rightHand", beat: 2 },
 					],
 				}),
@@ -604,20 +604,22 @@ describe("validateSong — per-event `notes`", () => {
 			eventSong({
 				type: "rest",
 				duration: "quarter",
-				notes: [
+				annotations: [
 					{ text: "C", placement: "above" },
 					{ text: "G", placement: "sideways" },
 				],
 			}),
 		);
-		expect(result.some((e) => /notes\[1\]\.placement/.test(e))).toBe(true);
+		expect(result.some((e) => /annotations\[1\]\.placement/.test(e))).toBe(
+			true,
+		);
 	});
 });
 
 describe("validateSong — standalone measure `notes`", () => {
 	// Wrap one standalone note into an otherwise-valid measure.
 	const measureNoteSong = (note) => ({
-		sections: [{ measures: [{ notes: [note] }] }],
+		sections: [{ measures: [{ annotations: [note] }] }],
 	});
 
 	it("accepts a standalone note with both required string fields and a staff", () => {
@@ -654,7 +656,9 @@ describe("validateSong — standalone measure `notes`", () => {
 	});
 
 	it("accepts a measure with an empty `notes` array", () => {
-		expect(check({ sections: [{ measures: [{ notes: [] }] }] })).toEqual([]);
+		expect(check({ sections: [{ measures: [{ annotations: [] }] }] })).toEqual(
+			[],
+		);
 	});
 
 	it("accepts a standalone note with empty text", () => {
@@ -669,9 +673,9 @@ describe("validateSong — standalone measure `notes`", () => {
 		const result = check(
 			measureNoteSong({ placement: "above", staff: "rightHand" }),
 		);
-		expect(result.some((e) => /notes\[0\]/.test(e) && /text/.test(e))).toBe(
-			true,
-		);
+		expect(
+			result.some((e) => /annotations\[0\]/.test(e) && /text/.test(e)),
+		).toBe(true);
 	});
 
 	it("flags a standalone note missing `staff`", () => {

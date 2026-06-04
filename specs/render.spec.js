@@ -70,7 +70,7 @@ const COMPREHENSIVE_SONG = JSON.stringify({
 							duration: "half",
 							dots: 1,
 							dynamic: "mf",
-							notes: [{ text: "C", placement: "above" }],
+							annotations: [{ text: "C", placement: "above" }],
 							slur: "start",
 							tie: "start",
 							pitches: [
@@ -227,7 +227,7 @@ const HOSTILE_SONG = JSON.stringify({
 						{
 							type: "note",
 							duration: "quarter",
-							notes: [{ text: HOSTILE_CHORD, placement: "above" }],
+							annotations: [{ text: HOSTILE_CHORD, placement: "above" }],
 							pitches: [{ step: "C", octave: 5 }],
 						},
 					],
@@ -243,10 +243,10 @@ const HOSTILE_SONG = JSON.stringify({
  * vocabulary of attributes the front-end stamps:
  *
  *   - a per-event note (`{ text, placement }` in an event's `notes` array) draws a
- *     `<text data-text="note" data-placement>` inside its hand's `<g data-hand>`;
+ *     `<text data-text="annotation" data-placement>` inside its hand's `<g data-hand>`;
  *     its staff is read from the enclosing `data-hand`, so it carries NO data-staff;
  *   - a standalone note (`{ text, placement, staff, beat? }` in a measure's `notes`
- *     array) draws a `<text data-text="note" data-staff data-placement>` directly in
+ *     array) draws a `<text data-text="annotation" data-staff data-placement>` directly in
  *     the `<g data-measure>` (NOT inside a `data-hand`), so its staff is read from
  *     `data-staff`.
  *
@@ -276,7 +276,7 @@ const NOTES_SONG = JSON.stringify({
 						{
 							type: "note",
 							duration: "whole",
-							notes: [
+							annotations: [
 								{ text: "rh-above", placement: "above" },
 								{ text: "rh-below", placement: "below" },
 							],
@@ -287,7 +287,7 @@ const NOTES_SONG = JSON.stringify({
 						{
 							type: "note",
 							duration: "whole",
-							notes: [
+							annotations: [
 								{ text: "lh-above", placement: "above" },
 								{ text: "lh-below", placement: "below" },
 							],
@@ -297,7 +297,7 @@ const NOTES_SONG = JSON.stringify({
 				},
 				// Measure 2 — standalone notes routed to all four bands.
 				{
-					notes: [
+					annotations: [
 						{ text: "sa-rh-above", placement: "above", staff: "rightHand" },
 						{ text: "sa-rh-below", placement: "below", staff: "rightHand" },
 						{ text: "sa-lh-above", placement: "above", staff: "leftHand" },
@@ -320,7 +320,7 @@ const NOTES_SONG = JSON.stringify({
 				},
 				// Measure 3 — beat ordering (0 < 2) plus an over-content beat (99).
 				{
-					notes: [
+					annotations: [
 						{ text: "beat-0", placement: "above", staff: "rightHand", beat: 0 },
 						{ text: "beat-2", placement: "above", staff: "rightHand", beat: 2 },
 						{
@@ -347,7 +347,7 @@ const NOTES_SONG = JSON.stringify({
 				},
 				// Measure 4 — a per-event note AND a standalone note coexist.
 				{
-					notes: [
+					annotations: [
 						{
 							text: "coexist-standalone",
 							placement: "below",
@@ -358,7 +358,7 @@ const NOTES_SONG = JSON.stringify({
 						{
 							type: "note",
 							duration: "whole",
-							notes: [{ text: "coexist-perevent", placement: "above" }],
+							annotations: [{ text: "coexist-perevent", placement: "above" }],
 							pitches: [{ step: "C", octave: 5 }],
 						},
 					],
@@ -391,7 +391,7 @@ const HOSTILE_FREE_TEXT_SONG = JSON.stringify({
 						{
 							type: "note",
 							duration: "whole",
-							notes: [{ text: HOSTILE_FREE_TEXT, placement: "above" }],
+							annotations: [{ text: HOSTILE_FREE_TEXT, placement: "above" }],
 							pitches: [{ step: "C", octave: 5 }],
 						},
 					],
@@ -429,7 +429,7 @@ function blockSvg(page) {
 }
 
 /**
- * The single note `<text data-text="note">` node whose verbatim `textContent`
+ * The single note `<text data-text="annotation">` node whose verbatim `textContent`
  * EXACTLY equals `text`, scoped to the block's SVG. An anchored regex is used so a
  * label that is a substring of another (e.g. `rh-above` inside `sa-rh-above`) does
  * not over-match.
@@ -441,7 +441,7 @@ function blockSvg(page) {
 function noteByText(page, text) {
 	const escaped = text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 	return blockSvg(page)
-		.locator('[data-text="note"]')
+		.locator('[data-text="annotation"]')
 		.filter({ hasText: new RegExp(`^${escaped}$`) });
 }
 
@@ -521,7 +521,7 @@ test.describe("Piano block — front-end render", () => {
 		// (AC2 spot-check) Recognizable notation primitives are present: noteheads,
 		// and the free-text note annotation "C" renders as inert SVG <text>.
 		await expect(svg.locator("[data-notehead]")).not.toHaveCount(0);
-		await expect(svg.locator('[data-text="note"]')).toContainText("C");
+		await expect(svg.locator('[data-text="annotation"]')).toContainText("C");
 
 		// (AC1) The raw JSON is NOT shown to the reader: no <pre>, and the visible
 		// text of the block is not the JSON document. (A successful render replaces
@@ -656,7 +656,7 @@ test.describe("Piano block — front-end render", () => {
 		// (c) The hostile text is inert: it appears ONLY as SVG <text> content
 		// (built via textContent, design §6.8), never parsed as markup. The note
 		// carries the hostile literal verbatim as text…
-		await expect(svg.locator('[data-text="note"]')).toContainText(
+		await expect(svg.locator('[data-text="annotation"]')).toContainText(
 			HOSTILE_CHORD,
 		);
 		// …and the accessible name (the SVG <title>) carries the hostile title
@@ -899,7 +899,7 @@ test.describe("Piano block — hostile free text in a note renders inert", () =>
 
 		// The hostile literal is drawn verbatim as inert SVG <text> content — the `&`,
 		// `<`, `>`, and quotes are characters, never parsed as markup.
-		const note = svg.locator('[data-text="note"]');
+		const note = svg.locator('[data-text="annotation"]');
 		await expect(note).toHaveCount(1);
 		expect(await note.textContent()).toBe(HOSTILE_FREE_TEXT);
 

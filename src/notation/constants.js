@@ -180,15 +180,20 @@ export const NOTE_GAP_STAFF = 1;
 export const MID_GAP = 1.2;
 
 /**
- * Below-staff dynamics-region depth, in sp, that a below-RH/below-LH note dodges
- * when its hand carries a below-staff dynamics occupant — a point dynamic glyph
- * AND/OR a gradual-dynamic hairpin lane (both live in this region). Serves as the
- * `baseOffset` for such a below band, feeding BOTH the per-note baseline and the
- * gap/bottom-margin flex. Chosen to clear the deeper of the two occupants: the
- * dynamics glyph box and the hairpin lane's lower edge (`HAIRPIN_LANE_DY +
- * HAIRPIN_APERTURE / 2`).
+ * Below-staff dynamics-region depth, in sp, that a below-RH/below-LH annotation
+ * dodges when its hand carries a below-staff dynamics occupant — a point dynamic
+ * glyph AND/OR a gradual-dynamic hairpin lane (both live in this region). Serves as
+ * the `baseOffset` for such a below band, feeding BOTH the per-annotation baseline
+ * and the gap/bottom-margin flex.
+ *
+ * Set to the dynamic baseline (3.5 sp below the staff) plus one full `STACK_STEP`
+ * (`NOTE_SIZE + TEXT_LANE_GAP` = 3.4 sp), so a dodged annotation sits a whole text
+ * lane below the dynamic — its TOP clears the dynamic glyph's BODY, not merely its
+ * baseline (the prior 4.5 separated only the baselines by 1 sp, so the ~2.8 sp
+ * glyphs still overlapped). 6.9 also clears the hairpin lane's lower edge
+ * (`HAIRPIN_LANE_DY + HAIRPIN_APERTURE / 2` = 3.5). Tunable.
  */
-export const DYNAMICS_LANE_RESERVE = 4.5;
+export const DYNAMICS_LANE_RESERVE = 6.9;
 
 /**
  * Horizontal back-off, in sp, from the trailing barline used when clamping an

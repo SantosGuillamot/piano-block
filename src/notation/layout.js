@@ -1555,8 +1555,8 @@ function layoutHand(events, columnX, onsets, ctx, timeSignature) {
  * later from this flat list).
  *
  * The dynamic (when present) pushes one `{ kind: "dynamic", x, text }`. Then each
- * element of `event.notes` whose `text` is a NON-EMPTY string pushes exactly one
- * `{ kind: "note", x, text, placement }`, in array order — array order IS the
+ * element of `event.annotations` whose `text` is a NON-EMPTY string pushes exactly one
+ * `{ kind: "annotation", x, text, placement }`, in array order — array order IS the
  * stacking order the later layers consume. Elements with an empty or absent `text`
  * push nothing; an absent or empty `notes` pushes no note primitives at all. The
  * routine is identical for a `note` and a `rest` event (the caller invokes it on
@@ -1574,9 +1574,14 @@ export function collectEventTexts(event, x, out) {
 	if (event?.dynamic) {
 		out.push({ kind: "dynamic", x, text: event.dynamic });
 	}
-	for (const el of event?.notes ?? []) {
+	for (const el of event?.annotations ?? []) {
 		if (typeof el?.text === "string" && el.text.length > 0) {
-			out.push({ kind: "note", x, text: el.text, placement: el.placement });
+			out.push({
+				kind: "annotation",
+				x,
+				text: el.text,
+				placement: el.placement,
+			});
 		}
 	}
 }
@@ -1624,11 +1629,11 @@ export function collectEventTexts(event, x, out) {
  *   the ascending onset list (the `columnX` keys in column order); `measureEnd` is
  *   the measure's content end in quarter-beats; `leadInset` is the content-left X;
  *   `scaledContent` is the relative right edge.
- * @return {{ kind: "note", x: number, text: string, placement?: string,
+ * @return {{ kind: "annotation", x: number, text: string, placement?: string,
  *   staff?: string, group: string }[]} One record per non-empty-text note, in
  *   array order (= stacking order within a group).
  */
-export function collectStandaloneNotes(measureNotes, ctx) {
+export function collectStandaloneAnnotations(measureNotes, ctx) {
 	const { columnX, gridOnsets, measureEnd, leadInset, scaledContent } = ctx;
 
 	// Interpolate a (measure-relative) X for a beat over the scaled column grid.
@@ -1671,7 +1676,7 @@ export function collectStandaloneNotes(measureNotes, ctx) {
 			scaledContent - NOTE_CLAMP_INSET,
 		);
 		out.push({
-			kind: "note",
+			kind: "annotation",
 			x,
 			text: el.text,
 			placement: el.placement,
@@ -1879,7 +1884,7 @@ export function buildLayoutModel(song, availableWidthInSp) {
 			// null when that element is absent from the system).
 			tempoLaneY: top.tempoLaneY,
 			ottavaAboveLaneY: top.ottavaAboveLaneY,
-			noteAboveRHLaneY: top.noteAboveRHLaneY,
+			annotationAboveRHLaneY: top.annotationAboveRHLaneY,
 			// The four placement bands. Each carries the note #0 baseline (`baseY`,
 			// hugging its staff at the band's base offset), the per-note `step`, and the
 			// `direction` notes stack — "up" (toward smaller Y) for above-* bands,
@@ -1887,7 +1892,7 @@ export function buildLayoutModel(song, availableWidthInSp) {
 			// `baseY + (direction === "up" ? −1 : 1) * k * step`.
 			bands: {
 				aboveRH: {
-					baseY: top.noteAboveRHLaneY,
+					baseY: top.annotationAboveRHLaneY,
 					step: STACK_STEP,
 					direction: "up",
 				},
@@ -2033,14 +2038,17 @@ export function buildLayoutModel(song, availableWidthInSp) {
 					: null;
 
 			// Measure-level standalone notes, X resolved by beat→column interpolation in
-			// the same measure-relative frame as `columnX` (see collectStandaloneNotes).
-			const standaloneNotes = collectStandaloneNotes(m.measure?.notes, {
-				columnX,
-				gridOnsets: ml.columns.map((col) => col.onset),
-				measureEnd: ml.measureEnd,
-				leadInset,
-				scaledContent,
-			});
+			// the same measure-relative frame as `columnX` (see collectStandaloneAnnotations).
+			const standaloneAnnotations = collectStandaloneAnnotations(
+				m.measure?.annotations,
+				{
+					columnX,
+					gridOnsets: ml.columns.map((col) => col.onset),
+					measureEnd: ml.measureEnd,
+					leadInset,
+					scaledContent,
+				},
+			);
 
 			// Record tie/slur markers + the laid-out note X for span resolution.
 			recordSpanMarkers(m.measure?.rightHand, right, {
@@ -2067,7 +2075,7 @@ export function buildLayoutModel(song, availableWidthInSp) {
 				left,
 				barlines,
 				inline,
-				standaloneNotes,
+				standaloneAnnotations,
 			});
 
 			// Advance past the full trailing room so the next measure clears the bar.
@@ -2662,7 +2670,7 @@ const STAFF_TO_HAND = { rightHand: "rightHand", leftHand: "leftHand" };
  * - A per-event note's anchor is `(event, placement)` — every drawable note in one
  *   event's `notes` array with the same placement stacks at that event's column.
  * - A standalone note's anchor is `(staff, placement, raw beat ?? "noBeat")` — the
- *   same key `collectStandaloneNotes` groups by, so two notes at the same raw beat,
+ *   same key `collectStandaloneAnnotations` groups by, so two notes at the same raw beat,
  *   staff, and placement stack together (and a `beat: 2` vs `beat: 2.0001` do not).
  *
  * @param {object[]} members The system's flattened measure entries (carry `measure`).
@@ -2688,7 +2696,7 @@ function bandOccupancy(members) {
 			for (const e of m.measure?.[hand] ?? []) {
 				let above = 0;
 				let below = 0;
-				for (const n of e?.notes ?? []) {
+				for (const n of e?.annotations ?? []) {
 					if (!noteHasText(n)) {
 						continue;
 					}
@@ -2708,7 +2716,7 @@ function bandOccupancy(members) {
 		}
 		// Standalone notes: one anchor per (staff, placement, raw beat ?? "noBeat").
 		const counts = new Map();
-		for (const n of m.measure?.notes ?? []) {
+		for (const n of m.measure?.annotations ?? []) {
 			if (!noteHasText(n)) {
 				continue;
 			}
@@ -2780,7 +2788,7 @@ function systemHandHasHairpin(members, hand) {
  * @param {number} ledgerTop The high-note/ledger extent above the staff top, in sp.
  * @param {number} aboveRHCount The system-wide MAX above-RH same-anchor note count,
  *   so the lane reserves `(n − 1)` extra stack steps above its baseline (0 ⇒ no lane).
- * @return {{ topMargin: number, noteAboveRHLaneY: ?number, ottavaAboveLaneY: ?number,
+ * @return {{ topMargin: number, annotationAboveRHLaneY: ?number, ottavaAboveLaneY: ?number,
  *   tempoLaneY: ?number }} The top margin and lane baselines.
  */
 function topMarginLayout(members, ledgerTop, aboveRHCount) {
@@ -2800,11 +2808,11 @@ function topMarginLayout(members, ledgerTop, aboveRHCount) {
 	// Distances ABOVE the staff top line (positive = up); each present lane stacks out.
 	let d = innerZone + ABOVE_STAFF_PAD;
 	let topExtent = innerZone;
-	let noteAboveRHD = null;
+	let annotationAboveRHD = null;
 	let ottavaD = null;
 	let tempoD = null;
 	if (aboveRHCount > 0) {
-		noteAboveRHD = d;
+		annotationAboveRHD = d;
 		// The lane's baseline is note #0; the stack grows UP, so the topmost note's
 		// glyph reaches `(n − 1)` steps higher plus its own ascent.
 		topExtent = d + (aboveRHCount - 1) * stackStep + NOTE_SIZE;
@@ -2824,7 +2832,7 @@ function topMarginLayout(members, ledgerTop, aboveRHCount) {
 	const at = (dist) => (dist === null ? null : topMargin - dist);
 	return {
 		topMargin,
-		noteAboveRHLaneY: at(noteAboveRHD),
+		annotationAboveRHLaneY: at(annotationAboveRHD),
 		ottavaAboveLaneY: at(ottavaD),
 		tempoLaneY: at(tempoD),
 	};

@@ -80,7 +80,10 @@ const songSchema = {
 				barlineEnd: {
 					enum: ["regular", "repeat-start", "repeat-end", "double", "final"],
 				},
-				notes: { type: "array", items: { $ref: "#/$defs/standaloneNote" } },
+				annotations: {
+					type: "array",
+					items: { $ref: "#/$defs/standaloneAnnotation" },
+				},
 			},
 		},
 
@@ -143,7 +146,10 @@ const songSchema = {
 				dots: { type: "integer", minimum: 0, maximum: 2 },
 				pitches: { type: "array", items: { $ref: "#/$defs/pitch" } },
 				dynamic: { enum: ["pp", "p", "mp", "mf", "f", "ff", "sf", "sfz"] },
-				notes: { type: "array", items: { $ref: "#/$defs/eventNote" } },
+				annotations: {
+					type: "array",
+					items: { $ref: "#/$defs/eventAnnotation" },
+				},
 				tie: { enum: ["start", "stop"] },
 				slur: { enum: ["start", "stop"] },
 				crescendo: { enum: ["start", "stop"] },
@@ -173,7 +179,7 @@ const songSchema = {
 		// `staff` or `beat`, because it is anchored to its host event's hand and
 		// horizontal position. A stray `staff`/`beat` is therefore an unknown key,
 		// permissively ignored — never an error.
-		eventNote: {
+		eventAnnotation: {
 			type: "object",
 			required: ["text", "placement"],
 			properties: {
@@ -186,7 +192,7 @@ const songSchema = {
 		// (e.g. a tempo word like "rit."). Unanchored to any event, it must say
 		// which `staff` it belongs to, and may give an optional `beat` (≥ 0) for
 		// its horizontal position within the measure.
-		standaloneNote: {
+		standaloneAnnotation: {
 			type: "object",
 			required: ["text", "placement", "staff"],
 			properties: {

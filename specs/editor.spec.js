@@ -63,7 +63,7 @@ const ROUND_TRIP_SONG = JSON.stringify(
 							{
 								type: "note",
 								duration: "half",
-								notes: [{ text: 'C7 & <alt> "sus"', placement: "above" }],
+								annotations: [{ text: 'C7 & <alt> "sus"', placement: "above" }],
 								pitches: [{ step: "C", octave: 4 }],
 							},
 						],

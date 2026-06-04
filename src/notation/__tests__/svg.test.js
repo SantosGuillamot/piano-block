@@ -26,7 +26,7 @@ const SONG = {
 							type: "note",
 							duration: "quarter",
 							dynamic: "mf",
-							notes: [{ text: "C", placement: "above" }],
+							annotations: [{ text: "C", placement: "above" }],
 							tie: "start",
 							pitches: [
 								{ step: "C", octave: 5 },
@@ -115,7 +115,7 @@ const songWithNotes = (notes) => ({
 						{
 							type: "note",
 							duration: "quarter",
-							notes,
+							annotations: notes,
 							pitches: [{ step: "C", octave: 5 }],
 						},
 					],
@@ -126,14 +126,14 @@ const songWithNotes = (notes) => ({
 });
 
 describe("renderSvg — per-event note text", () => {
-	it('renders a note as <text data-text="note"> with verbatim textContent', () => {
+	it('renders a note as <text data-text="annotation"> with verbatim textContent', () => {
 		const svg = renderSvg(
 			buildLayoutModel(
 				songWithNotes([{ text: "Gm7", placement: "above" }]),
 				120,
 			),
 		);
-		const note = svg.querySelector('[data-text="note"]');
+		const note = svg.querySelector('[data-text="annotation"]');
 		expect(note).not.toBeNull();
 		expect(note.tagName.toLowerCase()).toBe("text");
 		expect(note.textContent).toBe("Gm7");
@@ -143,7 +143,7 @@ describe("renderSvg — per-event note text", () => {
 		const svg = renderSvg(
 			buildLayoutModel(songWithNotes([{ text: "", placement: "above" }]), 120),
 		);
-		expect(svg.querySelector('[data-text="note"]')).toBeNull();
+		expect(svg.querySelector('[data-text="annotation"]')).toBeNull();
 	});
 
 	it("renders no annotation from a legacy chord-annotation key", () => {
@@ -162,7 +162,7 @@ describe("renderSvg — per-event note text", () => {
 			sections: [{ measures: [{ rightHand: [event] }] }],
 		};
 		const svg = renderSvg(buildLayoutModel(legacy, 120));
-		expect(svg.querySelector('[data-text="note"]')).toBeNull();
+		expect(svg.querySelector('[data-text="annotation"]')).toBeNull();
 	});
 });
 
@@ -177,7 +177,7 @@ const songWithHandNotes = ({ right, left } = {}) => {
 			{
 				type: "note",
 				duration: "quarter",
-				notes: right,
+				annotations: right,
 				pitches: [{ step: "C", octave: 5 }],
 			},
 		];
@@ -187,7 +187,7 @@ const songWithHandNotes = ({ right, left } = {}) => {
 			{
 				type: "note",
 				duration: "quarter",
-				notes: left,
+				annotations: left,
 				pitches: [{ step: "C", octave: 3 }],
 			},
 		];
@@ -216,7 +216,7 @@ describe("renderSvg — per-event notes routed to the four bands", () => {
 		const svg = renderSvg(model);
 		const band = model.systems[0].band;
 		const note = svg.querySelector(
-			'[data-hand="rightHand"] [data-text="note"]',
+			'[data-hand="rightHand"] [data-text="annotation"]',
 		);
 		expect(note).not.toBeNull();
 		expect(note.getAttribute("data-placement")).toBe("above");
@@ -232,7 +232,7 @@ describe("renderSvg — per-event notes routed to the four bands", () => {
 		const svg = renderSvg(model);
 		const band = model.systems[0].band;
 		const note = svg.querySelector(
-			'[data-hand="rightHand"] [data-text="note"]',
+			'[data-hand="rightHand"] [data-text="annotation"]',
 		);
 		expect(note.getAttribute("data-placement")).toBe("below");
 		const y = systemNoteY(note, band);
@@ -248,7 +248,9 @@ describe("renderSvg — per-event notes routed to the four bands", () => {
 		);
 		const svg = renderSvg(model);
 		const band = model.systems[0].band;
-		const note = svg.querySelector('[data-hand="leftHand"] [data-text="note"]');
+		const note = svg.querySelector(
+			'[data-hand="leftHand"] [data-text="annotation"]',
+		);
 		expect(note).not.toBeNull();
 		expect(note.getAttribute("data-placement")).toBe("above");
 		const y = systemNoteY(note, band);
@@ -264,7 +266,9 @@ describe("renderSvg — per-event notes routed to the four bands", () => {
 		);
 		const svg = renderSvg(model);
 		const band = model.systems[0].band;
-		const note = svg.querySelector('[data-hand="leftHand"] [data-text="note"]');
+		const note = svg.querySelector(
+			'[data-hand="leftHand"] [data-text="annotation"]',
+		);
 		expect(note.getAttribute("data-placement")).toBe("below");
 		expect(systemNoteY(note, band)).toBeGreaterThan(band.leftStaffBottomY);
 	});
@@ -278,8 +282,12 @@ describe("renderSvg — per-event notes routed to the four bands", () => {
 			120,
 		);
 		const svg = renderSvg(model);
-		const rh = svg.querySelector('[data-hand="rightHand"] [data-text="note"]');
-		const lh = svg.querySelector('[data-hand="leftHand"] [data-text="note"]');
+		const rh = svg.querySelector(
+			'[data-hand="rightHand"] [data-text="annotation"]',
+		);
+		const lh = svg.querySelector(
+			'[data-hand="leftHand"] [data-text="annotation"]',
+		);
 		expect(rh.getAttribute("data-placement")).toBe("above");
 		expect(lh.getAttribute("data-placement")).toBe("below");
 		// Staff is read from the enclosing data-hand, never a data-staff on the note.
@@ -304,7 +312,7 @@ describe("renderSvg — per-event notes routed to the four bands", () => {
 		const head = noteHead.querySelector("[data-notehead]");
 		const columnX = Number(head.getAttribute("cx"));
 		const text = svg.querySelector(
-			'[data-hand="rightHand"] [data-text="note"]',
+			'[data-hand="rightHand"] [data-text="annotation"]',
 		);
 		expect(Number(text.getAttribute("x"))).toBeCloseTo(columnX, 6);
 	});
@@ -322,7 +330,9 @@ describe("renderSvg — per-event notes routed to the four bands", () => {
 		const svg = renderSvg(model);
 		const band = model.systems[0].band;
 		const notes = [
-			...svg.querySelectorAll('[data-hand="rightHand"] [data-text="note"]'),
+			...svg.querySelectorAll(
+				'[data-hand="rightHand"] [data-text="annotation"]',
+			),
 		];
 		expect(notes).toHaveLength(2);
 		const above = notes.find((n) => n.textContent === "above");
@@ -354,7 +364,9 @@ describe("renderSvg — per-event notes routed to the four bands", () => {
 		);
 		const svg = renderSvg(model);
 		const notes = [
-			...svg.querySelectorAll('[data-hand="rightHand"] [data-text="note"]'),
+			...svg.querySelectorAll(
+				'[data-hand="rightHand"] [data-text="annotation"]',
+			),
 		];
 		expect(notes).toHaveLength(3);
 		const ys = notes.map((n) => Number(n.getAttribute("y")));
@@ -372,7 +384,7 @@ describe("renderSvg — per-event notes routed to the four bands", () => {
 								{
 									type: "rest",
 									duration: "quarter",
-									notes: [{ text: "pedal", placement: "below" }],
+									annotations: [{ text: "pedal", placement: "below" }],
 								},
 							],
 						},
@@ -384,7 +396,7 @@ describe("renderSvg — per-event notes routed to the four bands", () => {
 		const svg = renderSvg(model);
 		const band = model.systems[0].band;
 		const note = svg.querySelector(
-			'[data-hand="rightHand"] [data-text="note"]',
+			'[data-hand="rightHand"] [data-text="annotation"]',
 		);
 		expect(note).not.toBeNull();
 		expect(note.textContent).toBe("pedal");
@@ -407,13 +419,13 @@ describe("renderSvg — per-event notes routed to the four bands", () => {
  * grand staff and the column grid exist; either hand could be omitted but both are
  * kept for a stable inter-staff gap.
  */
-const songWithStandaloneNotes = (notes) => ({
+const songWithStandaloneAnnotations = (notes) => ({
 	metadata: {},
 	sections: [
 		{
 			measures: [
 				{
-					notes,
+					annotations: notes,
 					rightHand: [
 						{
 							type: "note",
@@ -435,25 +447,25 @@ const songWithStandaloneNotes = (notes) => ({
 });
 
 /** All standalone-note `<text>` nodes (direct children of `<g data-measure>`). */
-const standaloneNotes = (svg) => [
-	...svg.querySelectorAll('[data-text="note"][data-staff]'),
+const standaloneAnnotations = (svg) => [
+	...svg.querySelectorAll('[data-text="annotation"][data-staff]'),
 ];
 
 describe("renderSvg — standalone (measure-level) notes routed to the four bands", () => {
 	it("places a RH above standalone note above the RH staff top line, as a direct child of <g data-measure> (not in a <g data-hand>)", () => {
 		const model = buildLayoutModel(
-			songWithStandaloneNotes([
+			songWithStandaloneAnnotations([
 				{ text: "rit.", placement: "above", staff: "rightHand" },
 			]),
 			120,
 		);
 		const svg = renderSvg(model);
 		const band = model.systems[0].band;
-		const notes = standaloneNotes(svg);
+		const notes = standaloneAnnotations(svg);
 		expect(notes).toHaveLength(1);
 		const note = notes[0];
 		expect(note.tagName.toLowerCase()).toBe("text");
-		expect(note.getAttribute("data-text")).toBe("note");
+		expect(note.getAttribute("data-text")).toBe("annotation");
 		expect(note.getAttribute("data-staff")).toBe("rightHand");
 		expect(note.getAttribute("data-placement")).toBe("above");
 		expect(note.textContent).toBe("rit.");
@@ -472,14 +484,14 @@ describe("renderSvg — standalone (measure-level) notes routed to the four band
 
 	it("places a RH below standalone note in the inter-staff gap", () => {
 		const model = buildLayoutModel(
-			songWithStandaloneNotes([
+			songWithStandaloneAnnotations([
 				{ text: "ped.", placement: "below", staff: "rightHand" },
 			]),
 			120,
 		);
 		const svg = renderSvg(model);
 		const band = model.systems[0].band;
-		const [note] = standaloneNotes(svg);
+		const [note] = standaloneAnnotations(svg);
 		expect(note.getAttribute("data-staff")).toBe("rightHand");
 		expect(note.getAttribute("data-placement")).toBe("below");
 		const y = Number(note.getAttribute("y"));
@@ -491,14 +503,14 @@ describe("renderSvg — standalone (measure-level) notes routed to the four band
 
 	it("places a LH above standalone note in the inter-staff gap", () => {
 		const model = buildLayoutModel(
-			songWithStandaloneNotes([
+			songWithStandaloneAnnotations([
 				{ text: "sost.", placement: "above", staff: "leftHand" },
 			]),
 			120,
 		);
 		const svg = renderSvg(model);
 		const band = model.systems[0].band;
-		const [note] = standaloneNotes(svg);
+		const [note] = standaloneAnnotations(svg);
 		expect(note.getAttribute("data-staff")).toBe("leftHand");
 		expect(note.getAttribute("data-placement")).toBe("above");
 		const y = Number(note.getAttribute("y"));
@@ -510,14 +522,14 @@ describe("renderSvg — standalone (measure-level) notes routed to the four band
 
 	it("places a LH below standalone note below the LH bottom line", () => {
 		const model = buildLayoutModel(
-			songWithStandaloneNotes([
+			songWithStandaloneAnnotations([
 				{ text: "loco", placement: "below", staff: "leftHand" },
 			]),
 			120,
 		);
 		const svg = renderSvg(model);
 		const band = model.systems[0].band;
-		const [note] = standaloneNotes(svg);
+		const [note] = standaloneAnnotations(svg);
 		expect(note.getAttribute("data-staff")).toBe("leftHand");
 		expect(note.getAttribute("data-placement")).toBe("below");
 		const y = Number(note.getAttribute("y"));
@@ -527,14 +539,14 @@ describe("renderSvg — standalone (measure-level) notes routed to the four band
 
 	it("makes both data-staff and data-placement observable on the node", () => {
 		const model = buildLayoutModel(
-			songWithStandaloneNotes([
+			songWithStandaloneAnnotations([
 				{ text: "a", placement: "above", staff: "rightHand" },
 				{ text: "b", placement: "below", staff: "leftHand" },
 			]),
 			120,
 		);
 		const svg = renderSvg(model);
-		const notes = standaloneNotes(svg);
+		const notes = standaloneAnnotations(svg);
 		expect(notes).toHaveLength(2);
 		const a = notes.find((n) => n.textContent === "a");
 		const b = notes.find((n) => n.textContent === "b");
@@ -551,14 +563,14 @@ describe("renderSvg — standalone (measure-level) notes routed to the four band
 				{
 					measures: [
 						{
-							notes: [
+							annotations: [
 								{ text: "standalone", placement: "above", staff: "leftHand" },
 							],
 							rightHand: [
 								{
 									type: "note",
 									duration: "whole",
-									notes: [{ text: "perEvent", placement: "below" }],
+									annotations: [{ text: "perEvent", placement: "below" }],
 									pitches: [{ step: "C", octave: 5 }],
 								},
 							],
@@ -578,13 +590,17 @@ describe("renderSvg — standalone (measure-level) notes routed to the four band
 		const svg = renderSvg(model);
 		const band = model.systems[0].band;
 		// The per-event note carries NO data-staff and lives inside a <g data-hand>.
-		const perEvent = svg.querySelector('[data-text="note"]:not([data-staff])');
+		const perEvent = svg.querySelector(
+			'[data-text="annotation"]:not([data-staff])',
+		);
 		expect(perEvent.textContent).toBe("perEvent");
 		expect(perEvent.closest("[data-hand]").getAttribute("data-hand")).toBe(
 			"rightHand",
 		);
 		// The standalone note carries data-staff and is NOT inside a <g data-hand>.
-		const standalone = svg.querySelector('[data-text="note"][data-staff]');
+		const standalone = svg.querySelector(
+			'[data-text="annotation"][data-staff]',
+		);
 		expect(standalone.textContent).toBe("standalone");
 		expect(standalone.getAttribute("data-staff")).toBe("leftHand");
 		expect(standalone.closest("[data-hand]")).toBeNull();
@@ -602,14 +618,14 @@ describe("renderSvg — standalone (measure-level) notes routed to the four band
 
 	it("emits two standalone notes at beat 0 and beat 2 with the beat-2 node further right", () => {
 		const model = buildLayoutModel(
-			songWithStandaloneNotes([
+			songWithStandaloneAnnotations([
 				{ text: "zero", placement: "above", staff: "rightHand", beat: 0 },
 				{ text: "two", placement: "above", staff: "rightHand", beat: 2 },
 			]),
 			120,
 		);
 		const svg = renderSvg(model);
-		const notes = standaloneNotes(svg);
+		const notes = standaloneAnnotations(svg);
 		expect(notes).toHaveLength(2);
 		const zero = notes.find((n) => n.textContent === "zero");
 		const two = notes.find((n) => n.textContent === "two");
@@ -641,7 +657,7 @@ describe("renderSvg — standalone (measure-level) notes routed to the four band
 							],
 						},
 						{
-							notes: [
+							annotations: [
 								{
 									text: "zero",
 									placement: "above",
@@ -683,7 +699,7 @@ describe("renderSvg — standalone (measure-level) notes routed to the four band
 			/translate\(([-\d.]+)/.exec(second.getAttribute("transform"))[1],
 		);
 		const notes = [
-			...second.querySelectorAll('[data-text="note"][data-staff]'),
+			...second.querySelectorAll('[data-text="annotation"][data-staff]'),
 		];
 		expect(notes).toHaveLength(2);
 		const zero = notes.find((n) => n.textContent === "zero");
@@ -700,7 +716,7 @@ describe("renderSvg — standalone (measure-level) notes routed to the four band
 
 	it("clamps an over-content standalone note (beat 99) inside the measure's trailing barline (absolute X)", () => {
 		const model = buildLayoutModel(
-			songWithStandaloneNotes([
+			songWithStandaloneAnnotations([
 				{ text: "far", placement: "above", staff: "rightHand", beat: 99 },
 			]),
 			120,
@@ -710,7 +726,7 @@ describe("renderSvg — standalone (measure-level) notes routed to the four band
 		const measureX = Number(
 			/translate\(([-\d.]+)/.exec(measureGroup.getAttribute("transform"))[1],
 		);
-		const [note] = standaloneNotes(svg);
+		const [note] = standaloneAnnotations(svg);
 		const absoluteX = measureX + Number(note.getAttribute("x"));
 		// The trailing barline's absolute X is the rightmost stroke's left edge plus the
 		// measure translate. The clamped note stays at or inside it.
@@ -729,14 +745,14 @@ describe("renderSvg — standalone (measure-level) notes routed to the four band
 				{
 					measures: [
 						{
-							notes: [
+							annotations: [
 								{ text: "standalone", placement: "above", staff: "rightHand" },
 							],
 							rightHand: [
 								{
 									type: "note",
 									duration: "whole",
-									notes: [{ text: "perEvent", placement: "above" }],
+									annotations: [{ text: "perEvent", placement: "above" }],
 									pitches: [{ step: "C", octave: 5 }],
 								},
 							],
@@ -753,22 +769,22 @@ describe("renderSvg — standalone (measure-level) notes routed to the four band
 			],
 		};
 		const svg = renderSvg(buildLayoutModel(song, 120));
-		const all = [...svg.querySelectorAll('[data-text="note"]')];
+		const all = [...svg.querySelectorAll('[data-text="annotation"]')];
 		const texts = all.map((n) => n.textContent);
 		expect(texts).toContain("perEvent");
 		expect(texts).toContain("standalone");
 		// One has data-staff (standalone), one does not (per-event).
-		expect(svg.querySelectorAll('[data-text="note"][data-staff]')).toHaveLength(
-			1,
-		);
 		expect(
-			svg.querySelectorAll('[data-text="note"]:not([data-staff])'),
+			svg.querySelectorAll('[data-text="annotation"][data-staff]'),
+		).toHaveLength(1);
+		expect(
+			svg.querySelectorAll('[data-text="annotation"]:not([data-staff])'),
 		).toHaveLength(1);
 	});
 
 	it("stacks N same-(staff,placement,raw beat) standalone notes at N distinct Ys in array order, grouped via the stored group key", () => {
 		const model = buildLayoutModel(
-			songWithStandaloneNotes([
+			songWithStandaloneAnnotations([
 				{ text: "one", placement: "above", staff: "rightHand", beat: 1 },
 				{ text: "two", placement: "above", staff: "rightHand", beat: 1 },
 				{ text: "three", placement: "above", staff: "rightHand", beat: 1 },
@@ -777,7 +793,7 @@ describe("renderSvg — standalone (measure-level) notes routed to the four band
 		);
 		const svg = renderSvg(model);
 		const band = model.systems[0].band;
-		const notes = standaloneNotes(svg);
+		const notes = standaloneAnnotations(svg);
 		expect(notes).toHaveLength(3);
 		const ys = notes.map((n) => Number(n.getAttribute("y")));
 		// Three distinct Ys (none lost, none coincident).
@@ -794,7 +810,7 @@ describe("renderSvg — standalone (measure-level) notes routed to the four band
 
 	it("treats two over-content standalone notes that clamp to the same X but carry different raw beats as different groups (both at note #0)", () => {
 		const model = buildLayoutModel(
-			songWithStandaloneNotes([
+			songWithStandaloneAnnotations([
 				{ text: "fifty", placement: "above", staff: "rightHand", beat: 50 },
 				{
 					text: "ninetyNine",
@@ -807,7 +823,7 @@ describe("renderSvg — standalone (measure-level) notes routed to the four band
 		);
 		const svg = renderSvg(model);
 		const band = model.systems[0].band;
-		const notes = standaloneNotes(svg);
+		const notes = standaloneAnnotations(svg);
 		expect(notes).toHaveLength(2);
 		// Both clamp to the SAME X (over-content → scaledContent − NOTE_CLAMP_INSET).
 		const xs = notes.map((n) => Number(n.getAttribute("x")));
@@ -833,7 +849,7 @@ describe("renderSvg — text safety", () => {
 								{
 									type: "note",
 									duration: "quarter",
-									notes: [
+									annotations: [
 										{
 											text: "<script>alert(1)</script>",
 											placement: "above",
@@ -853,7 +869,7 @@ describe("renderSvg — text safety", () => {
 		expect(svg.querySelector("script")).toBeNull();
 		expect(svg.querySelector("foreignObject")).toBeNull();
 		// The malicious string survives only as inert text content, never markup.
-		const note = svg.querySelector('[data-text="note"]');
+		const note = svg.querySelector('[data-text="annotation"]');
 		expect(note.textContent).toBe("<script>alert(1)</script>");
 		expect(note.children).toHaveLength(0);
 		// The accessible name is likewise inert text in the <title>.

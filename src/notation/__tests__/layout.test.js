@@ -38,7 +38,7 @@ import {
 	buildLayoutModel,
 	clipSpanToStartSystem,
 	collectEventTexts,
-	collectStandaloneNotes,
+	collectStandaloneAnnotations,
 	decodeDuration,
 	diatonicIndex,
 	diffContext,
@@ -860,7 +860,7 @@ const COMPREHENSIVE_SONG = {
 							duration: "half",
 							dots: 1,
 							dynamic: "mf",
-							notes: [{ text: "C", placement: "above" }],
+							annotations: [{ text: "C", placement: "above" }],
 							slur: "start",
 							tie: "start",
 							pitches: [
@@ -1110,42 +1110,42 @@ describe("tempoMark", () => {
 // ── Per-event note collection (placement-aware, band-independent) ─────────────────
 //
 // `collectEventTexts` is the contract the band model + emit later route on: one
-// `{ kind: "note", x, text, placement }` primitive per non-empty `event.notes`
+// `{ kind: "annotation", x, text, placement }` primitive per non-empty `event.annotations`
 // element, in array order (= stacking order), for BOTH notes and rests. These tests
 // pin that contract WITHOUT any band geometry — no buckets, no Y, just the primitive
 // list at the event's column X.
 
 describe("collectEventTexts — per-event notes with placement", () => {
-	/** Pull only the `kind: "note"` primitives out of a collected list. */
-	const notesOnly = (out) => out.filter((t) => t.kind === "note");
+	/** Pull only the `kind: "annotation"` primitives out of a collected list. */
+	const annotationsOnly = (out) => out.filter((t) => t.kind === "annotation");
 
 	it("emits one note primitive per element, carrying each element's placement", () => {
 		const out = [];
 		const event = {
-			notes: [
+			annotations: [
 				{ text: "C", placement: "above" },
 				{ text: "pedal", placement: "below" },
 			],
 		};
 		collectEventTexts(event, 7, out);
-		const notes = notesOnly(out);
+		const notes = annotationsOnly(out);
 		expect(notes).toEqual([
-			{ kind: "note", x: 7, text: "C", placement: "above" },
-			{ kind: "note", x: 7, text: "pedal", placement: "below" },
+			{ kind: "annotation", x: 7, text: "C", placement: "above" },
+			{ kind: "annotation", x: 7, text: "pedal", placement: "below" },
 		]);
 	});
 
 	it("preserves array order (= stacking order) for same-placement notes, all at the column X", () => {
 		const out = [];
 		const event = {
-			notes: [
+			annotations: [
 				{ text: "one", placement: "above" },
 				{ text: "two", placement: "above" },
 				{ text: "three", placement: "above" },
 			],
 		};
 		collectEventTexts(event, 3.5, out);
-		const notes = notesOnly(out);
+		const notes = annotationsOnly(out);
 		expect(notes.map((n) => n.text)).toEqual(["one", "two", "three"]);
 		expect(notes.every((n) => n.placement === "above")).toBe(true);
 		expect(notes.every((n) => n.x === 3.5)).toBe(true);
@@ -1155,49 +1155,49 @@ describe("collectEventTexts — per-event notes with placement", () => {
 		const out = [];
 		const event = {
 			type: "rest",
-			notes: [{ text: "pedal", placement: "below" }],
+			annotations: [{ text: "pedal", placement: "below" }],
 		};
 		collectEventTexts(event, 12, out);
-		const notes = notesOnly(out);
+		const notes = annotationsOnly(out);
 		expect(notes).toEqual([
-			{ kind: "note", x: 12, text: "pedal", placement: "below" },
+			{ kind: "annotation", x: 12, text: "pedal", placement: "below" },
 		]);
 	});
 
 	it("pushes nothing for an element whose text is empty or absent", () => {
 		const out = [];
 		const event = {
-			notes: [
+			annotations: [
 				{ text: "", placement: "above" },
 				{ placement: "below" },
 				{ text: "keep", placement: "above" },
 			],
 		};
 		collectEventTexts(event, 0, out);
-		const notes = notesOnly(out);
+		const notes = annotationsOnly(out);
 		expect(notes.map((n) => n.text)).toEqual(["keep"]);
 	});
 
 	it("emits no note primitives for an event with no notes (absent or empty)", () => {
 		const absent = [];
 		collectEventTexts({ dynamic: "mf" }, 0, absent);
-		expect(notesOnly(absent)).toEqual([]);
+		expect(annotationsOnly(absent)).toEqual([]);
 		const empty = [];
-		collectEventTexts({ notes: [] }, 0, empty);
-		expect(notesOnly(empty)).toEqual([]);
+		collectEventTexts({ annotations: [] }, 0, empty);
+		expect(annotationsOnly(empty)).toEqual([]);
 	});
 });
 
-// ── Standalone (measure-level) notes — collectStandaloneNotes ────────────────────
+// ── Standalone (measure-level) notes — collectStandaloneAnnotations ────────────────────
 //
-// `collectStandaloneNotes` resolves `measure.notes` into measure-level primitives,
+// `collectStandaloneAnnotations` resolves `measure.annotations` into measure-level primitives,
 // computing each note's horizontal X by interpolating its `beat` onset over the
 // SCALED relative column grid (the same `columnX` frame the per-event notes use),
 // with an over-content clamp. It computes NO Y (the band model does that) and
 // carries a RAW-`beat` group key so later stacking groups by the raw beat, never
 // the resolved X. Every X it stores is measure-relative (the `columnX` frame).
 
-describe("collectStandaloneNotes — measure-level notes with beat→X interpolation", () => {
+describe("collectStandaloneAnnotations — measure-level notes with beat→X interpolation", () => {
 	// A two-column measure: onsets 0 and 2 over a 4-beat span. `leadInset` is the
 	// content-left edge; the grid is justified, so column X positions are scaled
 	// and the last column's segment [2, measureEnd] runs to `scaledContent`.
@@ -1216,7 +1216,7 @@ describe("collectStandaloneNotes — measure-level notes with beat→X interpola
 	});
 
 	it("resolves beat 0 and beat 2 to ascending X, both carrying kind/text/placement/staff", () => {
-		const out = collectStandaloneNotes(
+		const out = collectStandaloneAnnotations(
 			[
 				{ text: "a", placement: "above", staff: "rightHand", beat: 0 },
 				{ text: "b", placement: "above", staff: "rightHand", beat: 2 },
@@ -1225,13 +1225,13 @@ describe("collectStandaloneNotes — measure-level notes with beat→X interpola
 		);
 		expect(out).toHaveLength(2);
 		expect(out[0]).toMatchObject({
-			kind: "note",
+			kind: "annotation",
 			text: "a",
 			placement: "above",
 			staff: "rightHand",
 		});
 		expect(out[1]).toMatchObject({
-			kind: "note",
+			kind: "annotation",
 			text: "b",
 			placement: "above",
 			staff: "rightHand",
@@ -1240,7 +1240,7 @@ describe("collectStandaloneNotes — measure-level notes with beat→X interpola
 	});
 
 	it("places a beat-0 note at the content-left edge (leadInset)", () => {
-		const [note] = collectStandaloneNotes(
+		const [note] = collectStandaloneAnnotations(
 			[{ text: "a", placement: "above", staff: "rightHand", beat: 0 }],
 			baseCtx(),
 		);
@@ -1248,7 +1248,7 @@ describe("collectStandaloneNotes — measure-level notes with beat→X interpola
 	});
 
 	it("treats a no-`beat` note as beat 0 — same X as an explicit beat 0, both left of beat 2", () => {
-		const out = collectStandaloneNotes(
+		const out = collectStandaloneAnnotations(
 			[
 				{ text: "none", placement: "above", staff: "rightHand" },
 				{ text: "zero", placement: "above", staff: "rightHand", beat: 0 },
@@ -1264,7 +1264,7 @@ describe("collectStandaloneNotes — measure-level notes with beat→X interpola
 	});
 
 	it("lands a beat coinciding with an event column at that column's X", () => {
-		const [note] = collectStandaloneNotes(
+		const [note] = collectStandaloneAnnotations(
 			[{ text: "b", placement: "above", staff: "rightHand", beat: 2 }],
 			baseCtx(),
 		);
@@ -1273,7 +1273,7 @@ describe("collectStandaloneNotes — measure-level notes with beat→X interpola
 
 	it("interpolates a mid-segment beat linearly between bracketing columns", () => {
 		// beat 1 is halfway between onset 0 (X=LEAD) and onset 2 (X=COL2).
-		const [note] = collectStandaloneNotes(
+		const [note] = collectStandaloneAnnotations(
 			[{ text: "mid", placement: "above", staff: "rightHand", beat: 1 }],
 			baseCtx(),
 		);
@@ -1281,7 +1281,7 @@ describe("collectStandaloneNotes — measure-level notes with beat→X interpola
 	});
 
 	it("clamps an over-content beat to scaledContent − NOTE_CLAMP_INSET (inside the content)", () => {
-		const [note] = collectStandaloneNotes(
+		const [note] = collectStandaloneAnnotations(
 			[{ text: "far", placement: "above", staff: "rightHand", beat: 99 }],
 			baseCtx(),
 		);
@@ -1291,7 +1291,7 @@ describe("collectStandaloneNotes — measure-level notes with beat→X interpola
 	});
 
 	it("clamps two DIFFERENT over-content beats to the same resolved X yet keeps them distinct groups", () => {
-		const out = collectStandaloneNotes(
+		const out = collectStandaloneAnnotations(
 			[
 				{ text: "fifty", placement: "above", staff: "rightHand", beat: 50 },
 				{
@@ -1308,7 +1308,7 @@ describe("collectStandaloneNotes — measure-level notes with beat→X interpola
 	});
 
 	it("groups by the RAW (staff, placement, beat) key — beat 2 and beat 2.0001 differ", () => {
-		const out = collectStandaloneNotes(
+		const out = collectStandaloneAnnotations(
 			[
 				{ text: "x", placement: "above", staff: "rightHand", beat: 2 },
 				{ text: "y", placement: "above", staff: "rightHand", beat: 2.0001 },
@@ -1319,7 +1319,7 @@ describe("collectStandaloneNotes — measure-level notes with beat→X interpola
 	});
 
 	it("shares a group for two notes with the same (staff, placement, raw beat)", () => {
-		const out = collectStandaloneNotes(
+		const out = collectStandaloneAnnotations(
 			[
 				{ text: "x", placement: "above", staff: "rightHand", beat: 2 },
 				{ text: "y", placement: "above", staff: "rightHand", beat: 2 },
@@ -1330,7 +1330,7 @@ describe("collectStandaloneNotes — measure-level notes with beat→X interpola
 	});
 
 	it("separates groups that differ only in staff or placement at the same raw beat", () => {
-		const out = collectStandaloneNotes(
+		const out = collectStandaloneAnnotations(
 			[
 				{ text: "a", placement: "above", staff: "rightHand", beat: 0 },
 				{ text: "b", placement: "below", staff: "rightHand", beat: 0 },
@@ -1343,7 +1343,7 @@ describe("collectStandaloneNotes — measure-level notes with beat→X interpola
 	});
 
 	it("uses a no-beat group key distinct from an explicit beat-0 group", () => {
-		const out = collectStandaloneNotes(
+		const out = collectStandaloneAnnotations(
 			[
 				{ text: "none", placement: "above", staff: "rightHand" },
 				{ text: "zero", placement: "above", staff: "rightHand", beat: 0 },
@@ -1354,7 +1354,7 @@ describe("collectStandaloneNotes — measure-level notes with beat→X interpola
 	});
 
 	it("produces no record for an empty-string text", () => {
-		const out = collectStandaloneNotes(
+		const out = collectStandaloneAnnotations(
 			[
 				{ text: "", placement: "above", staff: "rightHand", beat: 0 },
 				{ placement: "above", staff: "rightHand", beat: 0 },
@@ -1366,12 +1366,12 @@ describe("collectStandaloneNotes — measure-level notes with beat→X interpola
 	});
 
 	it("returns an empty array for an absent or empty notes input", () => {
-		expect(collectStandaloneNotes(undefined, baseCtx())).toEqual([]);
-		expect(collectStandaloneNotes([], baseCtx())).toEqual([]);
+		expect(collectStandaloneAnnotations(undefined, baseCtx())).toEqual([]);
+		expect(collectStandaloneAnnotations([], baseCtx())).toEqual([]);
 	});
 });
 
-describe("buildLayoutModel — standalone notes on measureModel.standaloneNotes", () => {
+describe("buildLayoutModel — standalone notes on measureModel.standaloneAnnotations", () => {
 	/** A minimal one-section song with a single measure carrying `notes`. */
 	const songWithNotes = (notes) => ({
 		metadata: { title: "T" },
@@ -1385,7 +1385,7 @@ describe("buildLayoutModel — standalone notes on measureModel.standaloneNotes"
 			{
 				measures: [
 					{
-						notes,
+						annotations: notes,
 						rightHand: [
 							{
 								type: "note",
@@ -1411,11 +1411,11 @@ describe("buildLayoutModel — standalone notes on measureModel.standaloneNotes"
 		],
 	});
 
-	it("attaches a standaloneNotes array to each measure model (parallel to barlines)", () => {
+	it("attaches a standaloneAnnotations array to each measure model (parallel to barlines)", () => {
 		const model = buildLayoutModel(songWithNotes([]), 200);
 		const measure = model.systems[0].measures[0];
-		expect(Array.isArray(measure.standaloneNotes)).toBe(true);
-		expect(measure.standaloneNotes).toHaveLength(0);
+		expect(Array.isArray(measure.standaloneAnnotations)).toBe(true);
+		expect(measure.standaloneAnnotations).toHaveLength(0);
 	});
 
 	it("resolves beat 0 left of beat 2, both as kind:note with text/placement/staff/group", () => {
@@ -1426,11 +1426,11 @@ describe("buildLayoutModel — standalone notes on measureModel.standaloneNotes"
 			]),
 			200,
 		);
-		const sn = model.systems[0].measures[0].standaloneNotes;
+		const sn = model.systems[0].measures[0].standaloneAnnotations;
 		expect(sn).toHaveLength(2);
 		expect(sn[1].x).toBeGreaterThan(sn[0].x);
 		for (const rec of sn) {
-			expect(rec.kind).toBe("note");
+			expect(rec.kind).toBe("annotation");
 			expect(typeof rec.text).toBe("string");
 			expect(rec.placement).toBe("above");
 			expect(rec.staff).toBe("rightHand");
@@ -1467,7 +1467,7 @@ describe("buildLayoutModel — standalone notes on measureModel.standaloneNotes"
 							],
 						},
 						{
-							notes: [
+							annotations: [
 								{ text: "a", placement: "above", staff: "rightHand", beat: 0 },
 							],
 							rightHand: [
@@ -1491,7 +1491,7 @@ describe("buildLayoutModel — standalone notes on measureModel.standaloneNotes"
 		};
 		const model = buildLayoutModel(song, 400);
 		const second = model.systems[0].measures[1];
-		const [note] = second.standaloneNotes;
+		const [note] = second.standaloneAnnotations;
 		// The non-first measure starts well into the system; a measure-relative beat-0
 		// X is a small leadInset (≥ 0, far below the absolute measure.x), NOT offset by
 		// the absolute measure.x.
@@ -1530,7 +1530,7 @@ describe("buildLayoutModel — standalone notes on measureModel.standaloneNotes"
 							],
 						},
 						{
-							notes: [
+							annotations: [
 								{
 									text: "far",
 									placement: "above",
@@ -1560,7 +1560,7 @@ describe("buildLayoutModel — standalone notes on measureModel.standaloneNotes"
 		const model = buildLayoutModel(song, 400);
 		const second = model.systems[0].measures[1];
 		expect(second.x).toBeGreaterThan(0);
-		const [note] = second.standaloneNotes;
+		const [note] = second.standaloneAnnotations;
 		// Measure-relative clamp: one NOTE_CLAMP_INSET back from the relative right
 		// edge (`width` = scaledContent), strictly inside the content.
 		expect(note.x).toBeCloseTo(second.width - NOTE_CLAMP_INSET, 6);
@@ -1576,7 +1576,7 @@ describe("buildLayoutModel — standalone notes on measureModel.standaloneNotes"
 			]),
 			200,
 		);
-		const sn = model.systems[0].measures[0].standaloneNotes;
+		const sn = model.systems[0].measures[0].standaloneAnnotations;
 		expect(sn.map((n) => n.text)).toEqual(["keep"]);
 	});
 });
@@ -1803,9 +1803,9 @@ describe("buildLayoutModel — the full positioned-primitive model", () => {
 		expect(
 			allRightTexts.some((t) => t.kind === "dynamic" && t.text === "mf"),
 		).toBe(true);
-		expect(allRightTexts.some((t) => t.kind === "note" && t.text === "C")).toBe(
-			true,
-		);
+		expect(
+			allRightTexts.some((t) => t.kind === "annotation" && t.text === "C"),
+		).toBe(true);
 		const allBarlines = model.systems.flatMap((s) =>
 			s.measures.flatMap((m) => m.barlines.map((b) => `${b.side}/${b.type}`)),
 		);
@@ -1977,8 +1977,12 @@ describe("layout-polish fixes", () => {
 		// Stacked top→bottom: tempo above the ottava above the above-RH note lane, all
 		// above the staff top (smaller Y is higher).
 		expect(sys.band.tempoLaneY).toBeLessThan(sys.band.ottavaAboveLaneY);
-		expect(sys.band.ottavaAboveLaneY).toBeLessThan(sys.band.noteAboveRHLaneY);
-		expect(sys.band.noteAboveRHLaneY).toBeLessThan(sys.band.rightStaffTopY);
+		expect(sys.band.ottavaAboveLaneY).toBeLessThan(
+			sys.band.annotationAboveRHLaneY,
+		);
+		expect(sys.band.annotationAboveRHLaneY).toBeLessThan(
+			sys.band.rightStaffTopY,
+		);
 		for (const t of sys.texts.tempos) {
 			expect(t.y).toBeCloseTo(sys.band.tempoLaneY, 10);
 		}
@@ -2020,7 +2024,7 @@ describe("layout-polish fixes", () => {
 		// (and everything above) sits higher than in the text-rich system.
 		expect(plain.band.topMargin).toBeLessThan(rich.band.topMargin);
 		expect(plain.band.tempoLaneY).toBeNull();
-		expect(plain.band.noteAboveRHLaneY).toBeNull();
+		expect(plain.band.annotationAboveRHLaneY).toBeNull();
 	});
 
 	it("every barline leaves a gap wider than a notehead before the next measure", () => {
@@ -2162,7 +2166,7 @@ describe("buildLayoutModel — placement bands, inter-staff flex, and dynamics d
 	// One stack step (baseline-to-baseline) and the descent of the lowest glyph box.
 	const STACK_STEP = NOTE_SIZE + TEXT_LANE_GAP;
 	const DESCENT = 0.22 * NOTE_SIZE;
-	const DYNAMICS_LANE_RESERVE = 4.5;
+	const DYNAMICS_LANE_RESERVE = 6.9;
 	const MID_GAP = 1.2;
 
 	// A bare grand-staff measure with one note on each hand and no annotations.
@@ -2209,7 +2213,7 @@ describe("buildLayoutModel — placement bands, inter-staff flex, and dynamics d
 				type: "note",
 				duration: "quarter",
 				...(dynamic ? { dynamic } : {}),
-				...(notes ? { notes } : {}),
+				...(notes ? { annotations: notes } : {}),
 				...(hairpin ? { [hairpin]: "start" } : {}),
 				pitches: [{ step, octave: step === "C" ? 3 : 4 }],
 			};
@@ -2232,7 +2236,7 @@ describe("buildLayoutModel — placement bands, inter-staff flex, and dynamics d
 				{
 					measures: [
 						{
-							notes: measureNotes,
+							annotations: measureNotes,
 							rightHand: handEvents(rhDynamic, rhNotes, rhHairpin, "G"),
 							leftHand: handEvents(lhDynamic, lhNotes, lhHairpin, "C"),
 						},
@@ -2457,29 +2461,40 @@ describe("buildLayoutModel — placement bands, inter-staff flex, and dynamics d
 		expect(bands.belowLH.direction).toBe("down");
 		// note #k = baseY + dir * k * step. Verify note #0 hugs the staff and note #1
 		// lands exactly one step further outward, per band.
-		const noteY = (b, k) =>
+		const annotationY = (b, k) =>
 			b.baseY + (b.direction === "up" ? -1 : 1) * k * b.step;
 		// above-RH base = the above-RH lane just above the RH staff top.
-		expect(bands.aboveRH.baseY).toBeCloseTo(sys.band.noteAboveRHLaneY, 10);
-		expect(noteY(bands.aboveRH, 1)).toBeLessThan(noteY(bands.aboveRH, 0));
+		expect(bands.aboveRH.baseY).toBeCloseTo(
+			sys.band.annotationAboveRHLaneY,
+			10,
+		);
+		expect(annotationY(bands.aboveRH, 1)).toBeLessThan(
+			annotationY(bands.aboveRH, 0),
+		);
 		// below-RH base hugs the RH staff bottom by the plain gap (no dynamics here).
 		expect(bands.belowRH.baseY).toBeCloseTo(
 			sys.band.rightStaffBottomY + NOTE_GAP_STAFF,
 			10,
 		);
-		expect(noteY(bands.belowRH, 1)).toBeGreaterThan(noteY(bands.belowRH, 0));
+		expect(annotationY(bands.belowRH, 1)).toBeGreaterThan(
+			annotationY(bands.belowRH, 0),
+		);
 		// above-LH base hugs the LH staff top by the plain gap; grows up.
 		expect(bands.aboveLH.baseY).toBeCloseTo(
 			sys.band.leftStaffTopY - NOTE_GAP_STAFF,
 			10,
 		);
-		expect(noteY(bands.aboveLH, 1)).toBeLessThan(noteY(bands.aboveLH, 0));
+		expect(annotationY(bands.aboveLH, 1)).toBeLessThan(
+			annotationY(bands.aboveLH, 0),
+		);
 		// below-LH base hugs the LH staff bottom by the plain gap; grows down.
 		expect(bands.belowLH.baseY).toBeCloseTo(
 			sys.band.leftStaffBottomY + NOTE_GAP_STAFF,
 			10,
 		);
-		expect(noteY(bands.belowLH, 1)).toBeGreaterThan(noteY(bands.belowLH, 0));
+		expect(annotationY(bands.belowLH, 1)).toBeGreaterThan(
+			annotationY(bands.belowLH, 0),
+		);
 	});
 
 	it("reserves the above-RH lane height for the WHOLE stack, not just one line", () => {
@@ -2510,7 +2525,7 @@ describe("buildLayoutModel — placement bands, inter-staff flex, and dynamics d
 				{
 					type: "note",
 					duration: "quarter",
-					notes: [
+					annotations: [
 						{ text: "a", placement: "below" },
 						{ text: "b", placement: "below" },
 						{ text: "c", placement: "below" },
@@ -2533,7 +2548,7 @@ describe("buildLayoutModel — placement bands, inter-staff flex, and dynamics d
 									{
 										type: "note",
 										duration: "quarter",
-										notes: [{ text: "a", placement: "below" }],
+										annotations: [{ text: "a", placement: "below" }],
 										pitches: [{ step: "G", octave: 4 }],
 									},
 								],

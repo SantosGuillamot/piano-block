@@ -552,14 +552,14 @@ function renderMeasure(measure, band) {
 	// Measure-level standalone notes: direct children of THIS measure group (no hand
 	// group). Each routes to a band by `(staff, placement)` and stacks within its
 	// stored `(staff, placement, raw beat)` group; the group key is the layout
-	// record's precomputed `group`, never re-derived from `measure.notes` or the
+	// record's precomputed `group`, never re-derived from `measure.annotations` or the
 	// resolved X. The Y is the band's RAW system-coordinate anchor — this group has
 	// NO Y translate, so the `bandY − staffBottomY` conversion is NOT applied here.
 	const standaloneStackCount = new Map();
-	for (const standalone of measure.standaloneNotes ?? []) {
+	for (const standalone of measure.standaloneAnnotations ?? []) {
 		const k = standaloneStackCount.get(standalone.group) ?? 0;
 		standaloneStackCount.set(standalone.group, k + 1);
-		g.appendChild(renderStandaloneNote(standalone, band.bands, k));
+		g.appendChild(renderStandaloneAnnotation(standalone, band.bands, k));
 	}
 
 	if (measure.inline) {
@@ -587,7 +587,7 @@ function bandKeyFor(staff, placement) {
 }
 
 /**
- * Render one measure-level standalone note as a `<text data-text="note">` carrying
+ * Render one measure-level standalone note as a `<text data-text="annotation">` carrying
  * `data-staff` (its observability discriminator — standalone notes are NOT inside a
  * `<g data-hand>`, so the staff cannot be read from an enclosing group) and
  * `data-placement`. The node is a direct child of the `<g data-measure>` group; that
@@ -615,7 +615,7 @@ function bandKeyFor(staff, placement) {
  *   group (0 for the first), supplied by the caller from the stored `group` key.
  * @return {SVGTextElement} The `<text>` node.
  */
-function renderStandaloneNote(note, bands, k) {
+function renderStandaloneAnnotation(note, bands, k) {
 	const band = bands?.[bandKeyFor(note.staff, note.placement)];
 	let y;
 	if (!band || band.baseY == null) {
@@ -631,7 +631,7 @@ function renderStandaloneNote(note, bands, k) {
 		fill: INK,
 		"font-size": NOTE_SIZE,
 		"text-anchor": "middle",
-		"data-text": "note",
+		"data-text": "annotation",
 		"data-staff": note.staff,
 		"data-placement": note.placement,
 	});
@@ -683,7 +683,7 @@ function renderHand(hand, handKey, staffBottomY, resolveNoteY) {
 	const noteStackCount = new Map();
 	for (const text of hand.texts ?? []) {
 		let y;
-		if (text.kind === "note") {
+		if (text.kind === "annotation") {
 			const stackKey = `${text.x}|${text.placement}`;
 			const k = noteStackCount.get(stackKey) ?? 0;
 			noteStackCount.set(stackKey, k + 1);
@@ -1045,17 +1045,17 @@ function renderHairpin(span) {
  *
  * A per-event note carries `data-placement` (its observability discriminator); its
  * staff is observable from the enclosing `<g data-hand>`, so it carries NO
- * `data-staff`. `noteY` is the band-routed local-frame baseline Y the caller
+ * `data-staff`. `annotationY` is the band-routed local-frame baseline Y the caller
  * resolved for this note (above the RH top line for above-RH, in the inter-staff gap
  * for below-RH / above-LH, below the LH bottom line for below-LH); without it, the
  * note falls back to just above the staff.
  *
  * @param {{ kind: string, x: number, text: string, placement?: string }} text The
  *   per-event text. `placement` is `"above"`/`"below"` for a note.
- * @param {number} [noteY] A note's resolved local-frame baseline Y, in sp.
+ * @param {number} [annotationY] A note's resolved local-frame baseline Y, in sp.
  * @return {SVGTextElement} The `<text>` node.
  */
-function renderHandText(text, noteY) {
+function renderHandText(text, annotationY) {
 	if (text.kind === "dynamic") {
 		// Dynamics: bold-italic, set clearly BELOW the hand's staff bottom line (positive
 		// Y is downward) so the glyphs sit under the staff, not across it.
@@ -1076,11 +1076,11 @@ function renderHandText(text, noteY) {
 	// is observable from the enclosing data-hand (no data-staff here).
 	const node = el("text", {
 		x: text.x,
-		y: noteY ?? -5,
+		y: annotationY ?? -5,
 		fill: INK,
 		"font-size": NOTE_SIZE,
 		"text-anchor": "middle",
-		"data-text": "note",
+		"data-text": "annotation",
 		"data-placement": text.placement,
 	});
 	return setText(node, text.text);

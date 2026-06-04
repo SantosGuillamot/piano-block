@@ -74,13 +74,13 @@ measure := {
   leftHand?,      // array of event objects — the left-hand part for this bar
   barlineStart?,  // enum (see "Barlines and repeats") — absent means a regular barline
   barlineEnd?,    // enum (see "Barlines and repeats") — absent means a regular barline
-  notes?          // array of standalone note objects (see "Notes (annotations)") — measure-level text
+  annotations?          // array of standalone annotation objects (see "Notes (annotations)") — measure-level text
 }
 ```
 
 `rightHand` and `leftHand` are arrays of **events** (see below) — the two hands sounding over the same bar. Both are optional, so a measure may carry only one hand, or even none.
 
-`notes` is an optional array of **standalone notes** — free-text annotations placed directly on the bar rather than tied to a single event (for example a tempo word like `"rit."`). It is the standalone half of the `notes` capability described in [Notes (annotations)](#notes-annotations); a standalone note names its own `staff` and may carry an optional `beat` anchor. Absent, or `notes: []`, means the measure has no measure-level annotations.
+`annotations` is an optional array of **standalone annotations** — free-text annotations placed directly on the bar rather than tied to a single event (for example a tempo word like `"rit."`). It is the standalone half of the `annotations` capability described in [Notes (annotations)](#annotations); a standalone annotation names its own `staff` and may carry an optional `beat` anchor. Absent, or `annotations: []`, means the measure has no measure-level annotations.
 
 **Timing is your responsibility.** The two hands need **not** be time-aligned, and a measure's events need **not** add up to its time signature. There is no musical-timing validation: a bar where the events do not "add up," or where the hands have different total lengths, is still accepted. The format checks structure and field values, not rhythm.
 
@@ -167,7 +167,7 @@ event := {
   dots?,          // integer 0..2  (un-dotted | single dot | double dot)
   pitches?,       // array of pitch objects — required & non-empty for a note; omitted for a rest
   dynamic?,       // enum: pp | p | mp | mf | f | ff | sf | sfz
-  notes?,         // array of per-event note objects (see "Notes (annotations)") — { text, placement }
+  annotations?,         // array of per-event annotation objects (see "Notes (annotations)") — { text, placement }
   tie?,           // enum: start | stop
   slur?,          // enum: start | stop
   crescendo?,     // enum: start | stop
@@ -180,7 +180,7 @@ event := {
 - **`dots`** — an integer **0..2**: `0`/absent for un-dotted, `1` for a single dot, `2` for a double dot.
 - **`pitches`** — an array of pitch objects. This is **the one conditional in the format**: a `note` **must** carry a non-empty `pitches` array; a `rest` omits it. A **chord** is simply several pitches in one event; a single note is a one-element `pitches`.
 - **`dynamic`** — one of `pp | p | mp | mf | f | ff | sf | sfz`.
-- **`notes`** — an optional array of **per-event notes**: free-text annotations attached to this event, each `{ "text": …, "placement": "above" | "below" }`. They render in the same horizontal column as this event, on the staff of the hand whose array this event lives in. See [Notes (annotations)](#notes-annotations) for the full field reference; per-event notes are the per-event half of the `notes` capability. Both a note event and a rest event may carry `notes`. Absent, or `notes: []`, means the event has no annotations.
+- **`annotations`** — an optional array of **per-event annotations**: free-text annotations attached to this event, each `{ "text": …, "placement": "above" | "below" }`. They render in the same horizontal column as this event, on the staff of the hand whose array this event lives in. See [Notes (annotations)](#annotations) for the full field reference; per-event annotations are the per-event half of the `annotations` capability. Both a note event and a rest event may carry `annotations`. Absent, or `annotations: []`, means the event has no annotations.
 - **`tie`** and **`slur`** — event-level `start | stop` markers.
 - **`crescendo`** and **`decrescendo`** — event-level `start | stop` markers for a gradual-dynamic span (a crescendo grows louder, a decrescendo grows softer). You put `"start"` on the note where the span begins and `"stop"` on the note where it ends. **The direction is intrinsic to which field you use:** a crescendo and a decrescendo are two distinct markings, and the direction is never inferred from the surrounding `dynamic` values — to write a decrescendo you mark `decrescendo`, regardless of whether any point dynamics happen to fall around it.
   - **A span is independent of, and additive to, the per-note `dynamic`.** The `dynamic` field places a fixed point dynamic on a single note; a crescendo/decrescendo span describes a gradual change over a run of notes. The two are unrelated mechanisms: a point dynamic may sit at a span's start, at its end, at both, or at neither, and **no point dynamic is required** for a span. For example, a span may begin at a `"p"` note and end at an `"f"` note, or carry no point dynamics at all.
@@ -188,7 +188,7 @@ event := {
 
 ```json
 { "type": "note", "duration": "half", "dots": 1, "dynamic": "mf",
-  "notes": [{ "text": "C", "placement": "above" }], "slur": "start", "tie": "start",
+  "annotations": [{ "text": "C", "placement": "above" }], "slur": "start", "tie": "start",
   "pitches": [
     { "step": "C", "octave": 5 },
     { "step": "E", "octave": 5 },
@@ -200,21 +200,21 @@ event := {
 { "type": "rest", "duration": "quarter" }
 ```
 
-A rest may carry `notes` too — for example a `"pedal"` annotation below the staff:
+A rest may carry `annotations` too — for example a `"pedal"` annotation below the staff:
 
 ```json
 { "type": "rest", "duration": "quarter",
-  "notes": [{ "text": "pedal", "placement": "below" }] }
+  "annotations": [{ "text": "pedal", "placement": "below" }] }
 ```
 
-## Notes (annotations)
+## Annotations
 
-A **note** is a free-text annotation drawn around the staves — a chord symbol like `"Gm7"`, the word `"pedal"`, a tempo word like `"rit."`, a rehearsal label, a fingering hint. It is the format's one piece of **open vocabulary**: every other enumerated field is a closed set, but a note's `text` is whatever you type, rendered **verbatim**.
+An **annotation** is free text drawn around the staves — a chord symbol like `"Gm7"`, the word `"pedal"`, a tempo word like `"rit."`, a rehearsal label, a fingering hint. It is the format's one piece of **open vocabulary**: every other enumerated field is a closed set, but an annotation's `text` is whatever you type, rendered **verbatim**.
 
-`notes` is **one concept with two attachment modes** — they share the `notes` key and the `text` + `placement` fields, and differ only in where they attach and what extra fields they carry:
+`annotations` is **one concept with two attachment modes** — they share the `annotations` key and the `text` + `placement` fields, and differ only in where they attach and what extra fields they carry:
 
-- **Per-event notes** live on an **event** (`event.notes`, in a measure's `rightHand`/`leftHand` array). The note inherits its event's staff (the hand whose array the event lives in) and its horizontal column, so it lines up directly above or below that event's notehead. A per-event note carries only `text` and `placement` — there is no `staff` or `beat` field, because both are implied by the host event.
-- **Standalone notes** live on a **measure** (`measure.notes`). They are not tied to any single event, so they must name their own `staff`, and may carry an optional `beat` to set their horizontal position within the bar.
+- **Per-event annotations** live on an **event** (`event.annotations`, in a measure's `rightHand`/`leftHand` array). The annotation inherits its event's staff (the hand whose array the event lives in) and its horizontal column, so it lines up directly above or below that event's notehead. A per-event annotation carries only `text` and `placement` — there is no `staff` or `beat` field, because both are implied by the host event.
+- **Standalone annotations** live on a **measure** (`measure.annotations`). They are not tied to any single event, so they must name their own `staff`, and may carry an optional `beat` to set their horizontal position within the bar.
 
 Together the two modes can reach all **four grand-staff positions** — above and below each of the two staves:
 
@@ -227,10 +227,10 @@ Together the two modes can reach all **four grand-staff positions** — above an
 
 The two middle rows both land in the gap **between** the staves — below the right hand and above the left hand share that band — but they remain distinct because each note keeps its own staff. There is no separate "between staves" / centered placement value; you reach the gap with `rightHand` + `below` or `leftHand` + `above`.
 
-### Per-event note shape
+### Per-event annotation shape
 
 ```
-eventNote := {
+eventAnnotation := {
   text,        // required — free text (any string; "" is valid and renders nothing)
   placement    // required — enum: above | below   (no default)
 }
@@ -238,24 +238,24 @@ eventNote := {
 
 - **`text`** (required) — any string. An **empty string `""` is valid**; it simply renders nothing. The text renders **verbatim** — `"Gm7"` draws the literal characters `Gm7`. There is no default; the field must be present.
 - **`placement`** (required) — `"above"` or `"below"`, a closed enum. There is **no default**: omitting `placement`, or using any other value, is a conformance error.
-- The note's **staff is implicit** — it is the hand whose array the event lives in (an event in `rightHand` annotates the right-hand staff, an event in `leftHand` the left). Do not add a `staff` field to a per-event note; if you do, it is silently ignored (an unknown key), not honored.
+- The note's **staff is implicit** — it is the hand whose array the event lives in (an event in `rightHand` annotates the right-hand staff, an event in `leftHand` the left). Do not add a `staff` field to a per-event annotation; if you do, it is silently ignored (an unknown key), not honored.
 - The note aligns **horizontally** with its event — it sits in the same column as that event's notehead.
 
 ```json
 { "type": "note", "duration": "quarter",
   "pitches": [ { "step": "C", "octave": 4 } ],
-  "notes": [
+  "annotations": [
     { "text": "Cmaj7", "placement": "above" },
     { "text": "1",     "placement": "below" }
   ] }
 ```
 
-That event carries two per-event notes: a chord symbol above its staff and a fingering below it, both aligned to the same notehead.
+That event carries two per-event annotations: a chord symbol above its staff and a fingering below it, both aligned to the same notehead.
 
-### Standalone note shape
+### Standalone annotation shape
 
 ```
-standaloneNote := {
+standaloneAnnotation := {
   text,        // required — free text (any string; "" is valid and renders nothing)
   placement,   // required — enum: above | below   (no default)
   staff,       // required — enum: rightHand | leftHand   (no default)
@@ -264,7 +264,7 @@ standaloneNote := {
 ```
 
 - **`text`** and **`placement`** behave exactly as in the per-event shape above (required; `""` valid; verbatim; `placement` is `above | below` with no default).
-- **`staff`** (required) — `"rightHand"` or `"leftHand"`, a closed enum. Because a standalone note is not tied to an event, it has no hand to inherit from, so it **must** say which staff it belongs to. There is no default: omitting `staff`, or using any other value, is a conformance error.
+- **`staff`** (required) — `"rightHand"` or `"leftHand"`, a closed enum. Because a standalone annotation is not tied to an event, it has no hand to inherit from, so it **must** say which staff it belongs to. There is no default: omitting `staff`, or using any other value, is a conformance error.
 - **`beat`** (optional) — a number **≥ 0** giving the note's horizontal anchor within the bar, measured in **quarter-beats** (a quarter note = `1`, an eighth = `0.5`; a quarter-beat is the same unit the format uses for event durations). Fractional values such as `0.5` are allowed. A **negative `beat` is a conformance error**. When `beat` is **absent**, the note anchors **near the measure's left edge** (equivalent to `beat: 0`); a **larger `beat` moves it rightward**. There is no musical-timing check: a `beat` larger than the bar's actual content (for example `99`) is still valid and is drawn best-effort near the bar's right edge.
 
 ```json
@@ -273,22 +273,22 @@ standaloneNote := {
   "rightHand": [
     { "type": "note", "duration": "whole", "pitches": [ { "step": "G", "octave": 4 } ] }
   ],
-  "notes": [
+  "annotations": [
     { "text": "rit.", "placement": "above", "staff": "rightHand" },
     { "text": "ped.", "placement": "below", "staff": "leftHand", "beat": 2 }
   ]
 }
 ```
 
-That measure carries two standalone notes: `"rit."` above the right-hand staff anchored at the bar's left edge (no `beat`), and `"ped."` below the left-hand staff anchored two quarter-beats in.
+That measure carries two standalone annotations: `"rit."` above the right-hand staff anchored at the bar's left edge (no `beat`), and `"ped."` below the left-hand staff anchored two quarter-beats in.
 
 ### Optional on both, empty arrays allowed
 
-`notes` is **optional** on both events and measures. Both an **absent** `notes` and an explicit **empty array `notes: []`** are valid and mean "no annotations here." You can mix the two modes freely: a single measure may carry both per-event notes (on its events) and standalone notes (on the measure), and they all render.
+`annotations` is **optional** on both events and measures. Both an **absent** `annotations` and an explicit **empty array `annotations: []`** are valid and mean "no annotations here." You can mix the two modes freely: a single measure may carry both per-event annotations (on its events) and standalone annotations (on the measure), and they all render.
 
 ### Migrating a legacy `chordSymbol`
 
-Older songs used a per-event `chordSymbol` string for the chord-symbol-above-the-staff case; that field is gone, replaced by `notes`. Rewrite each `"chordSymbol": "C"` as a per-event note `"notes": [{ "text": "C", "placement": "above" }]`. A leftover `chordSymbol` is still **valid** — it is an unknown key, so it is silently ignored — but it **no longer renders**, and nothing rewrites it for you: the migration is manual.
+Older songs used a per-event `chordSymbol` string for the chord-symbol-above-the-staff case; that field is gone, replaced by `annotations`. Rewrite each `"chordSymbol": "C"` as a per-event annotation `"annotations": [{ "text": "C", "placement": "above" }]`. A leftover `chordSymbol` is still **valid** — it is an unknown key, so it is silently ignored — but it **no longer renders**, and nothing rewrites it for you: the migration is manual.
 
 ## Gradual dynamics (crescendo and decrescendo spans)
 
@@ -392,7 +392,7 @@ Three consequences you can observe as an author:
 
 The following is a **complete, copy-pasteable example** — valid song JSON (no comments) you can paste straight into the block's song field and adapt.
 
-It exercises a broad spread of elements: notes and rests in both hands, a three-pitch chord, a dotted duration, a per-note accidental, mixed English and Spanish note names, per-hand clef / default accidentals / octave shift, a Section 2 mid-song tempo / time-signature / clef / accidental change, dynamics, free-text note annotations (a per-event chord symbol above and a fingering below, plus a standalone `"rit."` on a measure), a tie, a crescendo span and a separate decrescendo span that meet on a shared messa-di-voce hinge note (carrying both `crescendo: "stop"` and `decrescendo: "start"`), repeat and final barlines, and title/composer metadata.
+It exercises a broad spread of elements: notes and rests in both hands, a three-pitch chord, a dotted duration, a per-note accidental, mixed English and Spanish note names, per-hand clef / default accidentals / octave shift, a Section 2 mid-song tempo / time-signature / clef / accidental change, dynamics, free-text annotations (a per-event chord symbol above and a fingering below, plus a standalone `"rit."` on a measure), a tie, a crescendo span and a separate decrescendo span that meet on a shared messa-di-voce hinge note (carrying both `crescendo: "stop"` and `decrescendo: "start"`), repeat and final barlines, and title/composer metadata.
 
 ```json
 {
@@ -418,7 +418,7 @@ It exercises a broad spread of elements: notes and rests in both hands, a three-
               "duration": "half",
               "dots": 1,
               "dynamic": "mf",
-              "notes": [
+              "annotations": [
                 { "text": "C", "placement": "above" },
                 { "text": "1", "placement": "below" }
               ],
@@ -467,7 +467,7 @@ It exercises a broad spread of elements: notes and rests in both hands, a three-
       "measures": [
         {
           "barlineEnd": "final",
-          "notes": [
+          "annotations": [
             { "text": "rit.", "placement": "above", "staff": "rightHand" }
           ],
           "rightHand": [

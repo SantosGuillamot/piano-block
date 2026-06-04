@@ -39,7 +39,7 @@ describe("notation constants — note-annotation geometry", () => {
 	});
 
 	it("exports DYNAMICS_LANE_RESERVE as a number with the recommended value", () => {
-		expect(DYNAMICS_LANE_RESERVE).toBe(4.5);
+		expect(DYNAMICS_LANE_RESERVE).toBe(6.9);
 		expect(typeof DYNAMICS_LANE_RESERVE).toBe("number");
 	});
 
