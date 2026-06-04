@@ -166,6 +166,23 @@ export const MEASURE_NUMBER_SIZE = 2.2;
 /** Ottava-bracket label text size ("8va" / "8vb" / "15ma" / "15mb"). */
 export const OTTAVA_SIZE = 2.2;
 
+// ── Hairpins (crescendo / decrescendo wedges) ───────────────────────────────────
+
+/**
+ * Hairpin wedge open-mouth height: the vertical distance between the two stroke
+ * ends at the wedge's open side. A FIXED constant — never derived from the span's
+ * width — so a degenerate (near-zero-width) two-note span stays finite instead of
+ * dividing by `(x2 - x1)`.
+ */
+export const HAIRPIN_APERTURE = 1.0;
+
+/**
+ * Hairpin lane center offset below a hand's staff BOTTOM line (positive Y is
+ * downward). Places the wedge in the same below-staff dynamic band where point
+ * dynamics already sit.
+ */
+export const HAIRPIN_LANE_DY = 3.0;
+
 // ── Duration tables ────────────────────────────────────────────────────────────
 
 /**
