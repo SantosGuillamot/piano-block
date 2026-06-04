@@ -461,6 +461,52 @@ function appendDigits(parent, digits, x, y) {
 // ── Measure assembly ─────────────────────────────────────────────────────────────
 
 /**
+ * Build a per-hand resolver that maps a per-event note's `placement` and its stack
+ * index `k` (its position among same-placement notes at the same event/anchor) to
+ * the note baseline Y in this hand's LOCAL frame.
+ *
+ * A per-event note routes to one of the four placement bands by `(handKey,
+ * placement)`: a right hand's above/below note to the `aboveRH`/`belowRH` band, a
+ * left hand's to `aboveLH`/`belowLH`. Each band carries a system-coordinate `baseY`
+ * (note #0 baseline), a per-note `step`, and a stack `direction` ("up" toward
+ * smaller Y for above bands, "down" toward larger Y for below bands); note #k's
+ * baseline is `baseY + (direction === "up" ? −1 : 1) * k * step`. Per-event notes
+ * live inside `<g data-hand transform="translate(0 staffBottomY)">`, so that system
+ * Y is converted to the hand's local frame as `bandY − staffBottomY`.
+ *
+ * @param {{ aboveRH: object, belowRH: object, aboveLH: object, belowLH: object }}
+ *   [bands] The system's four placement bands, each `{ baseY, step, direction }` in
+ *   system coordinates.
+ * @param {string} handKey The hand the notes belong to (`rightHand` | `leftHand`).
+ * @param {number} staffBottomY This hand's staff bottom-line Y (the local-frame
+ *   origin), in sp.
+ * @return {(placement: string, k: number) => number} A resolver from a note's
+ *   `placement` + stack index `k` to its local-frame baseline Y, in sp.
+ */
+function noteBandResolver(bands, handKey, staffBottomY) {
+	const isLeft = handKey === "leftHand";
+	return (placement, k) => {
+		const key =
+			placement === "below"
+				? isLeft
+					? "belowLH"
+					: "belowRH"
+				: isLeft
+					? "aboveLH"
+					: "aboveRH";
+		const band = bands?.[key];
+		if (!band || band.baseY == null) {
+			// No band anchor (a note-free system never reserved one): fall back to just
+			// above the staff so the note still draws.
+			return -5;
+		}
+		const sign = band.direction === "up" ? -1 : 1;
+		const bandY = band.baseY + sign * k * band.step;
+		return bandY - staffBottomY;
+	};
+}
+
+/**
  * Render one measure: both hands' per-event primitives (translated to the hand's
  * staff bottom line), the barlines spanning the grand staff, and any inline
  * mid-system section-change cautionary glyphs. The measure's own X is the group's
@@ -473,23 +519,26 @@ function renderMeasure(measure, band) {
 	});
 
 	// Each hand's primitives are placed relative to that staff's BOTTOM line (the sp
-	// Y origin the layout layer used). A nested <g> carries that staff offset. Author
-	// notes sit in the system's flexible above-RH lane (band.noteAboveRHLaneY, a
-	// system-local Y); convert it to each hand's local frame so the emit adds no layout
-	// math.
-	const noteDyR =
-		band.noteAboveRHLaneY == null
-			? undefined
-			: band.noteAboveRHLaneY - band.rightStaffBottomY;
-	const noteDyL =
-		band.noteAboveRHLaneY == null
-			? undefined
-			: band.noteAboveRHLaneY - band.leftStaffBottomY;
+	// Y origin the layout layer used). A nested <g> carries that staff offset. The
+	// four placement bands (`band.bands`) carry system-coordinate anchors; per-event
+	// notes route to the band keyed by `(handKey, text.placement)`, and each hand
+	// converts the chosen band's system Y to its local frame (`bandY −
+	// staffBottomY`) so the emit adds no layout math of its own.
 	g.appendChild(
-		renderHand(measure.right, "rightHand", band.rightStaffBottomY, noteDyR),
+		renderHand(
+			measure.right,
+			"rightHand",
+			band.rightStaffBottomY,
+			noteBandResolver(band.bands, "rightHand", band.rightStaffBottomY),
+		),
 	);
 	g.appendChild(
-		renderHand(measure.left, "leftHand", band.leftStaffBottomY, noteDyL),
+		renderHand(
+			measure.left,
+			"leftHand",
+			band.leftStaffBottomY,
+			noteBandResolver(band.bands, "leftHand", band.leftStaffBottomY),
+		),
 	);
 
 	// Barlines span from the RH staff top to the LH staff bottom. The model gives
@@ -511,8 +560,23 @@ function renderMeasure(measure, band) {
  * hand's staff bottom-line Y (the sp origin the layout layer measured Ys from).
  * Draws beams, then notes (noteheads + stems + flags + accidentals + ledgers +
  * dots), then rests, then per-event texts (dynamics / author notes).
+ *
+ * For each per-event author note the hand resolves its band-routed local-frame Y
+ * via `resolveNoteY`: a note's stack index `k` is its position among same-placement
+ * notes sharing its event/anchor — i.e. its column X and `placement` (the
+ * `collectEventTexts` array order is preserved here, so the running per-`(x,
+ * placement)` counter yields k in that order).
+ *
+ * @param {{ beams?: object[], notes?: object[], rests?: object[],
+ *   texts?: object[] }} [hand] The hand's positioned primitives.
+ * @param {string} handKey The hand key (`rightHand` | `leftHand`).
+ * @param {number} staffBottomY This hand's staff bottom-line Y, in sp.
+ * @param {(placement: string, k: number) => number} resolveNoteY The band resolver
+ *   from `noteBandResolver`: a per-event note's `placement` + stack index `k` to its
+ *   local-frame baseline Y.
+ * @return {SVGGElement} The hand's `<g data-hand>` group.
  */
-function renderHand(hand, handKey, staffBottomY, noteDy) {
+function renderHand(hand, handKey, staffBottomY, resolveNoteY) {
 	const g = el("g", {
 		transform: `translate(0 ${staffBottomY})`,
 		"data-hand": handKey,
@@ -530,8 +594,19 @@ function renderHand(hand, handKey, staffBottomY, noteDy) {
 	for (const rest of hand.rests ?? []) {
 		g.appendChild(renderRest(rest, handKey));
 	}
+	// Per-event notes stack within their `(event, placement)` group; the group is
+	// keyed by the note's column X + placement (events have distinct columns), and the
+	// running count is the note's stack index k in `collectEventTexts` array order.
+	const noteStackCount = new Map();
 	for (const text of hand.texts ?? []) {
-		g.appendChild(renderHandText(text, noteDy));
+		let y;
+		if (text.kind === "note") {
+			const stackKey = `${text.x}|${text.placement}`;
+			const k = noteStackCount.get(stackKey) ?? 0;
+			noteStackCount.set(stackKey, k + 1);
+			y = resolveNoteY(text.placement, k);
+		}
+		g.appendChild(renderHandText(text, y));
 	}
 
 	return g;
@@ -834,16 +909,24 @@ function renderSpan(span) {
 }
 
 /**
- * Render one hand's per-event text (a dynamic below the staff, an author note above
- * it). Y is relative to the hand's staff bottom line (the enclosing `<g>` already
- * carries that translate), so positive Y is below the staff and negative is above.
- * `noteDy` is the above-RH note lane's Y in this hand's local frame (the flex lane);
- * without it, the note falls back to just above the staff.
+ * Render one hand's per-event text (a dynamic below the staff, an author note routed
+ * to one of the four placement bands). Y is relative to the hand's staff bottom line
+ * (the enclosing `<g data-hand>` already carries that translate), so positive Y is
+ * below the staff and negative is above.
  *
- * @param {{ kind: string, x: number, text: string }} text The per-event text.
- * @param {number} [noteDy] The note baseline Y in the hand's local frame.
+ * A per-event note carries `data-placement` (its observability discriminator); its
+ * staff is observable from the enclosing `<g data-hand>`, so it carries NO
+ * `data-staff`. `noteY` is the band-routed local-frame baseline Y the caller
+ * resolved for this note (above the RH top line for above-RH, in the inter-staff gap
+ * for below-RH / above-LH, below the LH bottom line for below-LH); without it, the
+ * note falls back to just above the staff.
+ *
+ * @param {{ kind: string, x: number, text: string, placement?: string }} text The
+ *   per-event text. `placement` is `"above"`/`"below"` for a note.
+ * @param {number} [noteY] A note's resolved local-frame baseline Y, in sp.
+ * @return {SVGTextElement} The `<text>` node.
  */
-function renderHandText(text, noteDy) {
+function renderHandText(text, noteY) {
 	if (text.kind === "dynamic") {
 		// Dynamics: bold-italic, set clearly BELOW the hand's staff bottom line (positive
 		// Y is downward) so the glyphs sit under the staff, not across it.
@@ -859,15 +942,17 @@ function renderHandText(text, noteDy) {
 		});
 		return setText(node, text.text);
 	}
-	// Note: author free text, in the system's flexible above-RH lane above the
-	// staff (or just above the top line when no lane Y is supplied).
+	// Note: author free text at its band-routed baseline (or just above the top line
+	// when no band Y is supplied). The placement is observable on the node; the staff
+	// is observable from the enclosing data-hand (no data-staff here).
 	const node = el("text", {
 		x: text.x,
-		y: noteDy ?? -5,
+		y: noteY ?? -5,
 		fill: INK,
 		"font-size": NOTE_SIZE,
 		"text-anchor": "middle",
 		"data-text": "note",
+		"data-placement": text.placement,
 	});
 	return setText(node, text.text);
 }

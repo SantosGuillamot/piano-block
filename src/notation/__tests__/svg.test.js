@@ -166,6 +166,241 @@ describe("renderSvg — per-event note text", () => {
 	});
 });
 
+/**
+ * Build a one-measure song whose right and left hands carry the given per-event
+ * `notes` arrays (each hand a single note event). Either hand may be omitted.
+ */
+const songWithHandNotes = ({ right, left } = {}) => {
+	const measure = {};
+	if (right) {
+		measure.rightHand = [
+			{
+				type: "note",
+				duration: "quarter",
+				notes: right,
+				pitches: [{ step: "C", octave: 5 }],
+			},
+		];
+	}
+	if (left) {
+		measure.leftHand = [
+			{
+				type: "note",
+				duration: "quarter",
+				notes: left,
+				pitches: [{ step: "C", octave: 3 }],
+			},
+		];
+	}
+	return { metadata: {}, sections: [{ measures: [measure] }] };
+};
+
+/**
+ * The SYSTEM-coordinate Y of a per-event note `<text>`: its local `y` plus the
+ * staff-bottom offset its enclosing `<g data-hand transform="translate(0 …)">`
+ * carries (local y + staffBottomY = system y).
+ */
+const systemNoteY = (note, band) => {
+	const handKey = note.closest("[data-hand]").getAttribute("data-hand");
+	const offset =
+		handKey === "rightHand" ? band.rightStaffBottomY : band.leftStaffBottomY;
+	return Number(note.getAttribute("y")) + offset;
+};
+
+describe("renderSvg — per-event notes routed to the four bands", () => {
+	it("places a RH above note above the RH staff top line (system coordinates)", () => {
+		const model = buildLayoutModel(
+			songWithHandNotes({ right: [{ text: "C", placement: "above" }] }),
+			120,
+		);
+		const svg = renderSvg(model);
+		const band = model.systems[0].band;
+		const note = svg.querySelector(
+			'[data-hand="rightHand"] [data-text="note"]',
+		);
+		expect(note).not.toBeNull();
+		expect(note.getAttribute("data-placement")).toBe("above");
+		// Above the RH staff top line ⇒ a smaller system Y than the top line.
+		expect(systemNoteY(note, band)).toBeLessThan(band.rightStaffTopY);
+	});
+
+	it("places a RH below note in the inter-staff gap (system coordinates)", () => {
+		const model = buildLayoutModel(
+			songWithHandNotes({ right: [{ text: "C", placement: "below" }] }),
+			120,
+		);
+		const svg = renderSvg(model);
+		const band = model.systems[0].band;
+		const note = svg.querySelector(
+			'[data-hand="rightHand"] [data-text="note"]',
+		);
+		expect(note.getAttribute("data-placement")).toBe("below");
+		const y = systemNoteY(note, band);
+		// Below the RH bottom line, above the LH top line ⇒ the inter-staff gap.
+		expect(y).toBeGreaterThan(band.rightStaffBottomY);
+		expect(y).toBeLessThan(band.leftStaffTopY);
+	});
+
+	it("places a LH above note in the inter-staff gap inside <g data-hand='leftHand'>", () => {
+		const model = buildLayoutModel(
+			songWithHandNotes({ left: [{ text: "C", placement: "above" }] }),
+			120,
+		);
+		const svg = renderSvg(model);
+		const band = model.systems[0].band;
+		const note = svg.querySelector('[data-hand="leftHand"] [data-text="note"]');
+		expect(note).not.toBeNull();
+		expect(note.getAttribute("data-placement")).toBe("above");
+		const y = systemNoteY(note, band);
+		// Below the RH bottom line, above the LH top line ⇒ the inter-staff gap.
+		expect(y).toBeGreaterThan(band.rightStaffBottomY);
+		expect(y).toBeLessThan(band.leftStaffTopY);
+	});
+
+	it("places a LH below note below the LH bottom line (system coordinates)", () => {
+		const model = buildLayoutModel(
+			songWithHandNotes({ left: [{ text: "C", placement: "below" }] }),
+			120,
+		);
+		const svg = renderSvg(model);
+		const band = model.systems[0].band;
+		const note = svg.querySelector('[data-hand="leftHand"] [data-text="note"]');
+		expect(note.getAttribute("data-placement")).toBe("below");
+		expect(systemNoteY(note, band)).toBeGreaterThan(band.leftStaffBottomY);
+	});
+
+	it("makes placement observable on the node and staff observable from data-hand", () => {
+		const model = buildLayoutModel(
+			songWithHandNotes({
+				right: [{ text: "C", placement: "above" }],
+				left: [{ text: "F", placement: "below" }],
+			}),
+			120,
+		);
+		const svg = renderSvg(model);
+		const rh = svg.querySelector('[data-hand="rightHand"] [data-text="note"]');
+		const lh = svg.querySelector('[data-hand="leftHand"] [data-text="note"]');
+		expect(rh.getAttribute("data-placement")).toBe("above");
+		expect(lh.getAttribute("data-placement")).toBe("below");
+		// Staff is read from the enclosing data-hand, never a data-staff on the note.
+		expect(rh.hasAttribute("data-staff")).toBe(false);
+		expect(lh.hasAttribute("data-staff")).toBe(false);
+		expect(rh.closest("[data-hand]").getAttribute("data-hand")).toBe(
+			"rightHand",
+		);
+		expect(lh.closest("[data-hand]").getAttribute("data-hand")).toBe(
+			"leftHand",
+		);
+	});
+
+	it("places a per-event note's X at its event's notehead column X", () => {
+		const model = buildLayoutModel(
+			songWithHandNotes({ right: [{ text: "C", placement: "above" }] }),
+			120,
+		);
+		const svg = renderSvg(model);
+		const noteHead = svg.querySelector("#rightHand-note-0");
+		// The note event's column X is the data-event-index group's notehead center.
+		const head = noteHead.querySelector("[data-notehead]");
+		const columnX = Number(head.getAttribute("cx"));
+		const text = svg.querySelector(
+			'[data-hand="rightHand"] [data-text="note"]',
+		);
+		expect(Number(text.getAttribute("x"))).toBeCloseTo(columnX, 6);
+	});
+
+	it("emits an above note and a below note on one event in distinct bands at the same X", () => {
+		const model = buildLayoutModel(
+			songWithHandNotes({
+				right: [
+					{ text: "above", placement: "above" },
+					{ text: "below", placement: "below" },
+				],
+			}),
+			120,
+		);
+		const svg = renderSvg(model);
+		const band = model.systems[0].band;
+		const notes = [
+			...svg.querySelectorAll('[data-hand="rightHand"] [data-text="note"]'),
+		];
+		expect(notes).toHaveLength(2);
+		const above = notes.find((n) => n.textContent === "above");
+		const below = notes.find((n) => n.textContent === "below");
+		expect(above.getAttribute("data-placement")).toBe("above");
+		expect(below.getAttribute("data-placement")).toBe("below");
+		// Same column X for both.
+		expect(Number(above.getAttribute("x"))).toBeCloseTo(
+			Number(below.getAttribute("x")),
+			6,
+		);
+		// One above the staff top, one in the inter-staff gap.
+		expect(systemNoteY(above, band)).toBeLessThan(band.rightStaffTopY);
+		const belowY = systemNoteY(below, band);
+		expect(belowY).toBeGreaterThan(band.rightStaffBottomY);
+		expect(belowY).toBeLessThan(band.leftStaffTopY);
+	});
+
+	it("stacks N same-placement notes at N distinct Ys (none lost, none coincident)", () => {
+		const model = buildLayoutModel(
+			songWithHandNotes({
+				right: [
+					{ text: "one", placement: "above" },
+					{ text: "two", placement: "above" },
+					{ text: "three", placement: "above" },
+				],
+			}),
+			120,
+		);
+		const svg = renderSvg(model);
+		const notes = [
+			...svg.querySelectorAll('[data-hand="rightHand"] [data-text="note"]'),
+		];
+		expect(notes).toHaveLength(3);
+		const ys = notes.map((n) => Number(n.getAttribute("y")));
+		expect(new Set(ys).size).toBe(3);
+	});
+
+	it("emits a rest's below pedal note in the below band at the rest's column X", () => {
+		const song = {
+			metadata: {},
+			sections: [
+				{
+					measures: [
+						{
+							rightHand: [
+								{
+									type: "rest",
+									duration: "quarter",
+									notes: [{ text: "pedal", placement: "below" }],
+								},
+							],
+						},
+					],
+				},
+			],
+		};
+		const model = buildLayoutModel(song, 120);
+		const svg = renderSvg(model);
+		const band = model.systems[0].band;
+		const note = svg.querySelector(
+			'[data-hand="rightHand"] [data-text="note"]',
+		);
+		expect(note).not.toBeNull();
+		expect(note.textContent).toBe("pedal");
+		expect(note.getAttribute("data-placement")).toBe("below");
+		// In the below-RH band (the inter-staff gap below the RH bottom line).
+		expect(systemNoteY(note, band)).toBeGreaterThan(band.rightStaffBottomY);
+		// At the rest's column X.
+		const rest = svg.querySelector("#rightHand-rest-0");
+		const restGlyph = rest.querySelector("text, rect, circle");
+		const restX = Number(
+			restGlyph.getAttribute("x") ?? restGlyph.getAttribute("cx"),
+		);
+		expect(Number(note.getAttribute("x"))).toBeCloseTo(restX, 1);
+	});
+});
+
 describe("renderSvg — text safety", () => {
 	it("keeps author free text inert: no <script> / <foreignObject>", () => {
 		const xss = {
