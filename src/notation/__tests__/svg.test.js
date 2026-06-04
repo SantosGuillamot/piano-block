@@ -401,6 +401,426 @@ describe("renderSvg — per-event notes routed to the four bands", () => {
 	});
 });
 
+/**
+ * Build a one-measure song carrying measure-level standalone `notes` (each a
+ * `{ text, placement, staff, beat? }`). Both hands carry a single whole note so the
+ * grand staff and the column grid exist; either hand could be omitted but both are
+ * kept for a stable inter-staff gap.
+ */
+const songWithStandaloneNotes = (notes) => ({
+	metadata: {},
+	sections: [
+		{
+			measures: [
+				{
+					notes,
+					rightHand: [
+						{
+							type: "note",
+							duration: "whole",
+							pitches: [{ step: "C", octave: 5 }],
+						},
+					],
+					leftHand: [
+						{
+							type: "note",
+							duration: "whole",
+							pitches: [{ step: "C", octave: 3 }],
+						},
+					],
+				},
+			],
+		},
+	],
+});
+
+/** All standalone-note `<text>` nodes (direct children of `<g data-measure>`). */
+const standaloneNotes = (svg) => [
+	...svg.querySelectorAll('[data-text="note"][data-staff]'),
+];
+
+describe("renderSvg — standalone (measure-level) notes routed to the four bands", () => {
+	it("places a RH above standalone note above the RH staff top line, as a direct child of <g data-measure> (not in a <g data-hand>)", () => {
+		const model = buildLayoutModel(
+			songWithStandaloneNotes([
+				{ text: "rit.", placement: "above", staff: "rightHand" },
+			]),
+			120,
+		);
+		const svg = renderSvg(model);
+		const band = model.systems[0].band;
+		const notes = standaloneNotes(svg);
+		expect(notes).toHaveLength(1);
+		const note = notes[0];
+		expect(note.tagName.toLowerCase()).toBe("text");
+		expect(note.getAttribute("data-text")).toBe("note");
+		expect(note.getAttribute("data-staff")).toBe("rightHand");
+		expect(note.getAttribute("data-placement")).toBe("above");
+		expect(note.textContent).toBe("rit.");
+		// A direct child of the measure group, NOT nested in any per-event hand group.
+		expect(note.parentElement.hasAttribute("data-measure")).toBe(true);
+		expect(note.closest("[data-hand]")).toBeNull();
+		// Above the RH staff top line ⇒ a smaller system Y than the top line. The Y is
+		// the raw band anchor in SYSTEM coordinates (no local-frame subtraction), so it
+		// reads directly off the node.
+		expect(Number(note.getAttribute("y"))).toBeLessThan(band.rightStaffTopY);
+		expect(Number(note.getAttribute("y"))).toBeCloseTo(
+			band.bands.aboveRH.baseY,
+			6,
+		);
+	});
+
+	it("places a RH below standalone note in the inter-staff gap", () => {
+		const model = buildLayoutModel(
+			songWithStandaloneNotes([
+				{ text: "ped.", placement: "below", staff: "rightHand" },
+			]),
+			120,
+		);
+		const svg = renderSvg(model);
+		const band = model.systems[0].band;
+		const [note] = standaloneNotes(svg);
+		expect(note.getAttribute("data-staff")).toBe("rightHand");
+		expect(note.getAttribute("data-placement")).toBe("below");
+		const y = Number(note.getAttribute("y"));
+		// Below the RH bottom line, above the LH top line ⇒ the inter-staff gap.
+		expect(y).toBeGreaterThan(band.rightStaffBottomY);
+		expect(y).toBeLessThan(band.leftStaffTopY);
+		expect(y).toBeCloseTo(band.bands.belowRH.baseY, 6);
+	});
+
+	it("places a LH above standalone note in the inter-staff gap", () => {
+		const model = buildLayoutModel(
+			songWithStandaloneNotes([
+				{ text: "sost.", placement: "above", staff: "leftHand" },
+			]),
+			120,
+		);
+		const svg = renderSvg(model);
+		const band = model.systems[0].band;
+		const [note] = standaloneNotes(svg);
+		expect(note.getAttribute("data-staff")).toBe("leftHand");
+		expect(note.getAttribute("data-placement")).toBe("above");
+		const y = Number(note.getAttribute("y"));
+		// Above the LH top line, below the RH bottom line ⇒ the inter-staff gap.
+		expect(y).toBeGreaterThan(band.rightStaffBottomY);
+		expect(y).toBeLessThan(band.leftStaffTopY);
+		expect(y).toBeCloseTo(band.bands.aboveLH.baseY, 6);
+	});
+
+	it("places a LH below standalone note below the LH bottom line", () => {
+		const model = buildLayoutModel(
+			songWithStandaloneNotes([
+				{ text: "loco", placement: "below", staff: "leftHand" },
+			]),
+			120,
+		);
+		const svg = renderSvg(model);
+		const band = model.systems[0].band;
+		const [note] = standaloneNotes(svg);
+		expect(note.getAttribute("data-staff")).toBe("leftHand");
+		expect(note.getAttribute("data-placement")).toBe("below");
+		const y = Number(note.getAttribute("y"));
+		expect(y).toBeGreaterThan(band.leftStaffBottomY);
+		expect(y).toBeCloseTo(band.bands.belowLH.baseY, 6);
+	});
+
+	it("makes both data-staff and data-placement observable on the node", () => {
+		const model = buildLayoutModel(
+			songWithStandaloneNotes([
+				{ text: "a", placement: "above", staff: "rightHand" },
+				{ text: "b", placement: "below", staff: "leftHand" },
+			]),
+			120,
+		);
+		const svg = renderSvg(model);
+		const notes = standaloneNotes(svg);
+		expect(notes).toHaveLength(2);
+		const a = notes.find((n) => n.textContent === "a");
+		const b = notes.find((n) => n.textContent === "b");
+		expect(a.getAttribute("data-staff")).toBe("rightHand");
+		expect(a.getAttribute("data-placement")).toBe("above");
+		expect(b.getAttribute("data-staff")).toBe("leftHand");
+		expect(b.getAttribute("data-placement")).toBe("below");
+	});
+
+	it("keeps a below-RH per-event note and an above-LH standalone note distinguishable by staff discriminator despite sharing the inter-staff band", () => {
+		const song = {
+			metadata: {},
+			sections: [
+				{
+					measures: [
+						{
+							notes: [
+								{ text: "standalone", placement: "above", staff: "leftHand" },
+							],
+							rightHand: [
+								{
+									type: "note",
+									duration: "whole",
+									notes: [{ text: "perEvent", placement: "below" }],
+									pitches: [{ step: "C", octave: 5 }],
+								},
+							],
+							leftHand: [
+								{
+									type: "note",
+									duration: "whole",
+									pitches: [{ step: "C", octave: 3 }],
+								},
+							],
+						},
+					],
+				},
+			],
+		};
+		const model = buildLayoutModel(song, 120);
+		const svg = renderSvg(model);
+		const band = model.systems[0].band;
+		// The per-event note carries NO data-staff and lives inside a <g data-hand>.
+		const perEvent = svg.querySelector('[data-text="note"]:not([data-staff])');
+		expect(perEvent.textContent).toBe("perEvent");
+		expect(perEvent.closest("[data-hand]").getAttribute("data-hand")).toBe(
+			"rightHand",
+		);
+		// The standalone note carries data-staff and is NOT inside a <g data-hand>.
+		const standalone = svg.querySelector('[data-text="note"][data-staff]');
+		expect(standalone.textContent).toBe("standalone");
+		expect(standalone.getAttribute("data-staff")).toBe("leftHand");
+		expect(standalone.closest("[data-hand]")).toBeNull();
+		// Both occupy the inter-staff gap but remain distinguishable (data-hand vs
+		// data-staff). The standalone's system Y reads directly; the per-event's adds
+		// its hand's staff-bottom offset.
+		const standaloneY = Number(standalone.getAttribute("y"));
+		const perEventY =
+			Number(perEvent.getAttribute("y")) + band.rightStaffBottomY;
+		expect(standaloneY).toBeGreaterThan(band.rightStaffBottomY);
+		expect(standaloneY).toBeLessThan(band.leftStaffTopY);
+		expect(perEventY).toBeGreaterThan(band.rightStaffBottomY);
+		expect(perEventY).toBeLessThan(band.leftStaffTopY);
+	});
+
+	it("emits two standalone notes at beat 0 and beat 2 with the beat-2 node further right", () => {
+		const model = buildLayoutModel(
+			songWithStandaloneNotes([
+				{ text: "zero", placement: "above", staff: "rightHand", beat: 0 },
+				{ text: "two", placement: "above", staff: "rightHand", beat: 2 },
+			]),
+			120,
+		);
+		const svg = renderSvg(model);
+		const notes = standaloneNotes(svg);
+		expect(notes).toHaveLength(2);
+		const zero = notes.find((n) => n.textContent === "zero");
+		const two = notes.find((n) => n.textContent === "two");
+		expect(Number(two.getAttribute("x"))).toBeGreaterThan(
+			Number(zero.getAttribute("x")),
+		);
+	});
+
+	it("keeps relative-X ordering of standalone notes in a NON-FIRST measure (survives the measure.x translate)", () => {
+		const song = {
+			metadata: {},
+			sections: [
+				{
+					measures: [
+						{
+							rightHand: [
+								{
+									type: "note",
+									duration: "whole",
+									pitches: [{ step: "C", octave: 5 }],
+								},
+							],
+							leftHand: [
+								{
+									type: "note",
+									duration: "whole",
+									pitches: [{ step: "C", octave: 3 }],
+								},
+							],
+						},
+						{
+							notes: [
+								{
+									text: "zero",
+									placement: "above",
+									staff: "rightHand",
+									beat: 0,
+								},
+								{
+									text: "two",
+									placement: "above",
+									staff: "rightHand",
+									beat: 2,
+								},
+							],
+							rightHand: [
+								{
+									type: "note",
+									duration: "whole",
+									pitches: [{ step: "C", octave: 5 }],
+								},
+							],
+							leftHand: [
+								{
+									type: "note",
+									duration: "whole",
+									pitches: [{ step: "C", octave: 3 }],
+								},
+							],
+						},
+					],
+				},
+			],
+		};
+		const model = buildLayoutModel(song, 400);
+		const svg = renderSvg(model);
+		// Resolve each note's ABSOLUTE X by adding its measure group's translate.
+		const measureGroups = [...svg.querySelectorAll("[data-measure]")];
+		const second = measureGroups[1];
+		const measureX = Number(
+			/translate\(([-\d.]+)/.exec(second.getAttribute("transform"))[1],
+		);
+		const notes = [
+			...second.querySelectorAll('[data-text="note"][data-staff]'),
+		];
+		expect(notes).toHaveLength(2);
+		const zero = notes.find((n) => n.textContent === "zero");
+		const two = notes.find((n) => n.textContent === "two");
+		// Relative-X ordering holds, and the absolute X (relative + measure.x) too.
+		expect(Number(two.getAttribute("x"))).toBeGreaterThan(
+			Number(zero.getAttribute("x")),
+		);
+		expect(measureX + Number(two.getAttribute("x"))).toBeGreaterThan(
+			measureX + Number(zero.getAttribute("x")),
+		);
+		expect(measureX).toBeGreaterThan(0);
+	});
+
+	it("clamps an over-content standalone note (beat 99) inside the measure's trailing barline (absolute X)", () => {
+		const model = buildLayoutModel(
+			songWithStandaloneNotes([
+				{ text: "far", placement: "above", staff: "rightHand", beat: 99 },
+			]),
+			120,
+		);
+		const svg = renderSvg(model);
+		const measureGroup = svg.querySelector("[data-measure]");
+		const measureX = Number(
+			/translate\(([-\d.]+)/.exec(measureGroup.getAttribute("transform"))[1],
+		);
+		const [note] = standaloneNotes(svg);
+		const absoluteX = measureX + Number(note.getAttribute("x"));
+		// The trailing barline's absolute X is the rightmost stroke's left edge plus the
+		// measure translate. The clamped note stays at or inside it.
+		const strokes = [
+			...measureGroup.querySelectorAll("[data-barline] rect"),
+		].filter((r) => r.getAttribute("data-side") !== "left");
+		const barlineX =
+			measureX + Math.max(...strokes.map((r) => Number(r.getAttribute("x"))));
+		expect(absoluteX).toBeLessThanOrEqual(barlineX);
+	});
+
+	it("emits both a per-event note and a standalone note in one measure", () => {
+		const song = {
+			metadata: {},
+			sections: [
+				{
+					measures: [
+						{
+							notes: [
+								{ text: "standalone", placement: "above", staff: "rightHand" },
+							],
+							rightHand: [
+								{
+									type: "note",
+									duration: "whole",
+									notes: [{ text: "perEvent", placement: "above" }],
+									pitches: [{ step: "C", octave: 5 }],
+								},
+							],
+							leftHand: [
+								{
+									type: "note",
+									duration: "whole",
+									pitches: [{ step: "C", octave: 3 }],
+								},
+							],
+						},
+					],
+				},
+			],
+		};
+		const svg = renderSvg(buildLayoutModel(song, 120));
+		const all = [...svg.querySelectorAll('[data-text="note"]')];
+		const texts = all.map((n) => n.textContent);
+		expect(texts).toContain("perEvent");
+		expect(texts).toContain("standalone");
+		// One has data-staff (standalone), one does not (per-event).
+		expect(svg.querySelectorAll('[data-text="note"][data-staff]')).toHaveLength(
+			1,
+		);
+		expect(
+			svg.querySelectorAll('[data-text="note"]:not([data-staff])'),
+		).toHaveLength(1);
+	});
+
+	it("stacks N same-(staff,placement,raw beat) standalone notes at N distinct Ys in array order, grouped via the stored group key", () => {
+		const model = buildLayoutModel(
+			songWithStandaloneNotes([
+				{ text: "one", placement: "above", staff: "rightHand", beat: 1 },
+				{ text: "two", placement: "above", staff: "rightHand", beat: 1 },
+				{ text: "three", placement: "above", staff: "rightHand", beat: 1 },
+			]),
+			120,
+		);
+		const svg = renderSvg(model);
+		const band = model.systems[0].band;
+		const notes = standaloneNotes(svg);
+		expect(notes).toHaveLength(3);
+		const ys = notes.map((n) => Number(n.getAttribute("y")));
+		// Three distinct Ys (none lost, none coincident).
+		expect(new Set(ys).size).toBe(3);
+		// Stacked in array order: note #k at baseY + (up ⇒ −1) * k * step.
+		const { baseY, step, direction } = band.bands.aboveRH;
+		const sign = direction === "up" ? -1 : 1;
+		const byText = (t) =>
+			Number(notes.find((n) => n.textContent === t).getAttribute("y"));
+		expect(byText("one")).toBeCloseTo(baseY + sign * 0 * step, 6);
+		expect(byText("two")).toBeCloseTo(baseY + sign * 1 * step, 6);
+		expect(byText("three")).toBeCloseTo(baseY + sign * 2 * step, 6);
+	});
+
+	it("treats two over-content standalone notes that clamp to the same X but carry different raw beats as different groups (both at note #0)", () => {
+		const model = buildLayoutModel(
+			songWithStandaloneNotes([
+				{ text: "fifty", placement: "above", staff: "rightHand", beat: 50 },
+				{
+					text: "ninetyNine",
+					placement: "above",
+					staff: "rightHand",
+					beat: 99,
+				},
+			]),
+			120,
+		);
+		const svg = renderSvg(model);
+		const band = model.systems[0].band;
+		const notes = standaloneNotes(svg);
+		expect(notes).toHaveLength(2);
+		// Both clamp to the SAME X (over-content → scaledContent − NOTE_CLAMP_INSET).
+		const xs = notes.map((n) => Number(n.getAttribute("x")));
+		expect(xs[0]).toBeCloseTo(xs[1], 6);
+		// But they are DIFFERENT groups (raw beat 50 vs 99), so each is note #0 of its
+		// group → both at the band's baseY (NOT stacked to k=1).
+		const { baseY } = band.bands.aboveRH;
+		for (const note of notes) {
+			expect(Number(note.getAttribute("y"))).toBeCloseTo(baseY, 6);
+		}
+	});
+});
+
 describe("renderSvg — text safety", () => {
 	it("keeps author free text inert: no <script> / <foreignObject>", () => {
 		const xss = {

@@ -548,11 +548,93 @@ function renderMeasure(measure, band) {
 		g.appendChild(renderBarline(barline, band, measure.x));
 	}
 
+	// Measure-level standalone notes: direct children of THIS measure group (no hand
+	// group). Each routes to a band by `(staff, placement)` and stacks within its
+	// stored `(staff, placement, raw beat)` group; the group key is the layout
+	// record's precomputed `group`, never re-derived from `measure.notes` or the
+	// resolved X. The Y is the band's RAW system-coordinate anchor — this group has
+	// NO Y translate, so the `bandY − staffBottomY` conversion is NOT applied here.
+	const standaloneStackCount = new Map();
+	for (const standalone of measure.standaloneNotes ?? []) {
+		const k = standaloneStackCount.get(standalone.group) ?? 0;
+		standaloneStackCount.set(standalone.group, k + 1);
+		g.appendChild(renderStandaloneNote(standalone, band.bands, k));
+	}
+
 	if (measure.inline) {
 		g.appendChild(renderInlineChange(measure.inline, band, measure.x));
 	}
 
 	return g;
+}
+
+/**
+ * Map a standalone note's `(staff, placement)` to one of the four placement bands,
+ * mirroring the per-event router: a right-hand above/below note routes to
+ * `aboveRH`/`belowRH`, a left-hand note to `aboveLH`/`belowLH`.
+ *
+ * @param {string} staff The note's staff (`rightHand` | `leftHand`).
+ * @param {string} placement The note's placement (`above` | `below`).
+ * @return {string} The band key (`aboveRH` | `belowRH` | `aboveLH` | `belowLH`).
+ */
+function bandKeyFor(staff, placement) {
+	const isLeft = staff === "leftHand";
+	if (placement === "below") {
+		return isLeft ? "belowLH" : "belowRH";
+	}
+	return isLeft ? "aboveLH" : "aboveRH";
+}
+
+/**
+ * Render one measure-level standalone note as a `<text data-text="note">` carrying
+ * `data-staff` (its observability discriminator — standalone notes are NOT inside a
+ * `<g data-hand>`, so the staff cannot be read from an enclosing group) and
+ * `data-placement`. The node is a direct child of the `<g data-measure>` group; that
+ * group carries `translate(measure.x 0)` (an X-only translate, no Y), so:
+ *
+ * - X is the note's already-measure-relative `x`, used AS-IS (the measure translate
+ *   supplies `measure.x`; nothing is subtracted here);
+ * - Y is the note's band anchor in SYSTEM coordinates — note #`k` of its stacking
+ *   group sits at `baseY + (direction === "up" ? −1 : 1) * k * step` (the same band
+ *   anchors the per-event router reads), WITHOUT the `bandY − staffBottomY`
+ *   local-frame conversion the per-event hand groups need, because this group has no
+ *   Y translate.
+ *
+ * A missing band anchor (a note-free system that reserved none) falls back to just
+ * above the RH staff so the note still draws.
+ *
+ * @param {{ x: number, text: string, staff: string, placement: string }} note The
+ *   standalone note's positioned record. `x` is measure-relative; `text` is the
+ *   annotation text; `staff` is `rightHand`/`leftHand`; `placement` is
+ *   `above`/`below`.
+ * @param {{ aboveRH: object, belowRH: object, aboveLH: object, belowLH: object }}
+ *   [bands] The system's four placement bands, each `{ baseY, step, direction }` in
+ *   system coordinates.
+ * @param {number} k The note's stack index within its `(staff, placement, raw beat)`
+ *   group (0 for the first), supplied by the caller from the stored `group` key.
+ * @return {SVGTextElement} The `<text>` node.
+ */
+function renderStandaloneNote(note, bands, k) {
+	const band = bands?.[bandKeyFor(note.staff, note.placement)];
+	let y;
+	if (!band || band.baseY == null) {
+		// No band anchor: fall back to just above the staff so the note still draws.
+		y = -5;
+	} else {
+		const sign = band.direction === "up" ? -1 : 1;
+		y = band.baseY + sign * k * band.step;
+	}
+	const node = el("text", {
+		x: note.x,
+		y,
+		fill: INK,
+		"font-size": NOTE_SIZE,
+		"text-anchor": "middle",
+		"data-text": "note",
+		"data-staff": note.staff,
+		"data-placement": note.placement,
+	});
+	return setText(node, note.text);
 }
 
 /**
