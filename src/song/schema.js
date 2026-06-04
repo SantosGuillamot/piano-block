@@ -1,17 +1,17 @@
 /**
  * The song format's schema-as-data definition — the single, machine-readable
- * source of truth for "what is a conformant song" (design §7).
+ * source of truth for "what is a conformant song".
  *
  * This is pure data with no logic: the zero-dependency validator/walker
- * interprets it (design §6.2 option ii). It uses only a small JSON-Schema
+ * interprets it. It uses only a small JSON-Schema
  * subset — `type`, `required`, `properties`, `items`, `enum`, `$ref`/`$defs`,
  * integer `minimum`/`maximum`, and one `if`/`then` (whose discriminant uses
  * `const`). `additionalProperties` is left **permissive** everywhere: unknown
  * object properties are ignored, not errors, so the format can grow additively
- * with no `version` field (design §5).
+ * with no `version` field.
  *
  * Three checks the keyword subset cannot fully express are delegated to the
- * walker (annotated inline below, matching design §7):
+ * walker (annotated inline below):
  *   1. note names (`pitch.step` and `alters` keys) — matched case-insensitively
  *      against the closed two-system vocabulary (English C D E F G A B +
  *      Spanish do re mi fa sol la si);
@@ -149,7 +149,7 @@ const songSchema = {
 			// The single data-model conditional: a note requires a non-empty pitches
 			// array (the non-empty part is enforced by the walker).
 			if: { properties: { type: { const: "note" } } },
-			// biome-ignore lint/suspicious/noThenProperty: `then` is the JSON-Schema keyword the walker reads, not a thenable — required by design §7.
+			// biome-ignore lint/suspicious/noThenProperty: `then` is the JSON-Schema keyword the walker reads, not a thenable.
 			then: { required: ["pitches"] },
 		},
 

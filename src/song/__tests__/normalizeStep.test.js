@@ -1,5 +1,5 @@
 /**
- * Unit tests for the shared note-name helper (design §6.5).
+ * Unit tests for the shared note-name helper.
  *
  * These pin the closed two-system vocabulary and the canonical
  * `step → English letter` mapping that both the validator and the renderer rely

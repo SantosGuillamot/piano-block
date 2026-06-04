@@ -1,13 +1,13 @@
 /**
- * Unit tests for the thin SVG EMIT layer (T7, design §2.3, §6.8, §7). These run in
+ * Unit tests for the thin SVG EMIT layer. These run in
  * the jsdom test env, so they assert the emitted DOM directly: the root
  * `<svg role="img">`, the single first-child `<title>` carrying the accessible name
  * via `textContent`, the text-safety guarantee (author free text stays inert — no
  * `<script>`/`<foreignObject>`, never `innerHTML`), and the stable ids / `data-*`
- * the future-interactivity hook (§2.3) stamps on per-event elements.
+ * the future-interactivity hook stamps on per-event elements.
  *
- * T7's full visual correctness is verified end-to-end by the Playwright e2e (T11);
- * these are the cheap structural invariants the emit layer must hold regardless.
+ * The emit layer's full visual correctness is verified end-to-end by the Playwright
+ * e2e; these are the cheap structural invariants the emit layer must hold regardless.
  */
 import { buildLayoutModel } from "../layout.js";
 import { renderInto, renderSvg } from "../svg.js";
@@ -66,7 +66,7 @@ const SONG = {
 
 const modelFor = (width = 120) => buildLayoutModel(SONG, width);
 
-describe("renderSvg — root + accessibility (design §7)", () => {
+describe("renderSvg — root + accessibility", () => {
 	it('produces an <svg role="img"> with a viewBox and pixel size', () => {
 		const svg = renderSvg(modelFor(), { accessibleName: "Hello by Ada" });
 		expect(svg.namespaceURI).toBe(SVG_NS);
@@ -77,7 +77,7 @@ describe("renderSvg — root + accessibility (design §7)", () => {
 		expect(Number(svg.getAttribute("height"))).toBeGreaterThan(0);
 	});
 
-	it("review-3 — constrains the SVG to its container so it cannot overflow the box", () => {
+	it("constrains the SVG to its container so it cannot overflow the box", () => {
 		const svg = renderSvg(modelFor());
 		// max-width:100% shrinks the SVG to the block's content box when the intrinsic
 		// px width is wider (padded wrapper / narrow-screen step-down), so the staff
@@ -92,7 +92,7 @@ describe("renderSvg — root + accessibility (design §7)", () => {
 		const title = svg.firstChild;
 		expect(title.tagName.toLowerCase()).toBe("title");
 		expect(title.textContent).toBe("Hello by Ada");
-		// One name source only — no aria-label (design §7).
+		// One name source only — no aria-label.
 		expect(svg.hasAttribute("aria-label")).toBe(false);
 		expect(svg.querySelectorAll("title")).toHaveLength(1);
 	});
@@ -104,7 +104,7 @@ describe("renderSvg — root + accessibility (design §7)", () => {
 	});
 });
 
-describe("renderSvg — text safety (design §6.8)", () => {
+describe("renderSvg — text safety", () => {
 	it("keeps author free text inert: no <script> / <foreignObject>", () => {
 		const xss = {
 			metadata: {},
@@ -139,8 +139,8 @@ describe("renderSvg — text safety (design §6.8)", () => {
 	});
 });
 
-describe("renderSvg — structure (design §2.3)", () => {
-	it("review-5 — each clef is anchored on its reference staff line", () => {
+describe("renderSvg — structure", () => {
+	it("each clef is anchored on its reference staff line", () => {
 		const model = modelFor();
 		const svg = renderSvg(model);
 		const band = model.systems[0].band;
@@ -158,7 +158,7 @@ describe("renderSvg — structure (design §2.3)", () => {
 		);
 	});
 
-	it("review-2 — the brace spans the full grand staff (top of RH to bottom of LH)", () => {
+	it("the brace spans the full grand staff (top of RH to bottom of LH)", () => {
 		const model = modelFor();
 		const svg = renderSvg(model);
 		const band = model.systems[0].band;
@@ -205,7 +205,7 @@ describe("renderSvg — structure (design §2.3)", () => {
 		}
 	});
 
-	it("review-4 — dynamics are set clearly below the staff bottom line", () => {
+	it("dynamics are set clearly below the staff bottom line", () => {
 		const svg = renderSvg(modelFor());
 		const dynamics = [...svg.querySelectorAll('[data-text="dynamic"]')];
 		expect(dynamics.length).toBeGreaterThan(0);

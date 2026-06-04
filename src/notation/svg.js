@@ -1,23 +1,22 @@
 /**
- * The thin SVG EMIT layer (design §2.3, §2.4, §6.8, §7): it walks the positioned
- * layout model `buildLayoutModel` produced (`layout.js`, T6) and turns it into an
- * `<svg role="img">` DOM tree. It is deliberately layout-math-FREE — every X/Y,
- * width, span control point, beam Y, etc. is already computed in staff-space (sp)
- * units by the layout layer; this module only:
+ * The thin SVG EMIT layer: it walks the positioned layout model `buildLayoutModel`
+ * produced (`layout.js`) and turns it into an `<svg role="img">` DOM tree. It is
+ * deliberately layout-math-FREE — every X/Y, width, span control point, beam Y, etc.
+ * is already computed in staff-space (sp) units by the layout layer; this module only:
  *
  * - builds DOM via `createElementNS` (never `innerHTML`), so author free text
- *   (`chordSymbol`, the accessible-name `<title>`) is inert (the §6.8 text-safety
+ *   (`chordSymbol`, the accessible-name `<title>`) is inert (the text-safety
  *   guarantee);
- * - applies the single sp→px scale (`SP_PX`, T2) through the root `viewBox` so the
+ * - applies the single sp→px scale (`SP_PX`) through the root `viewBox` so the
  *   layout numbers map to pixels without any arithmetic here beyond the scale;
  * - offsets each system by its model Y and applies the per-system downscale
  *   transform the model carries;
  * - draws hand-drawn primitives (staff lines, stems, beams, ties/slurs, ledgers,
  *   barlines, noteheads, dots) and font glyphs (clefs, rests, accidentals, flags,
  *   brace, time-sig digits, tempo note) so the skeleton never depends on the font
- *   (the §2.4 font-failure fallback); and
+ *   (the font-failure fallback); and
  * - stamps a stable id / `data-*` (the event index, hand, kind) on each per-event
- *   element so a later store can target it (the §2.3 interactivity hook) — no
+ *   element so a later store can target it (the interactivity hook) — no
  *   behaviour now.
  *
  * The ONE place a presentation detail is decided here (never geometry) is mapping a
@@ -49,7 +48,7 @@ import { glyphFor, MUSIC_FONT_FAMILY } from "./glyphs.js";
 /** The SVG namespace every element is created in. */
 const SVG_NS = "http://www.w3.org/2000/svg";
 
-/** The fixed notation color (spec req 15 — fixed, NOT theme-adaptive). */
+/** The fixed notation color (fixed, NOT theme-adaptive). */
 const INK = "#1a1a1a";
 
 /** Glyph point size, in sp, for the staff-anchored font glyphs (clefs/rests/etc.). */
@@ -93,7 +92,7 @@ function el(name, attrs = {}) {
 }
 
 /**
- * Set an element's text via `textContent` ONLY (never `innerHTML`) — the §6.8
+ * Set an element's text via `textContent` ONLY (never `innerHTML`) — the
  * text-safety rule that keeps author free text inert.
  */
 function setText(node, text) {
@@ -121,7 +120,7 @@ function rect(x, y, width, height) {
 /**
  * A staff-anchored music-font glyph as `<text>` (clef/rest/accidental/flag/brace/
  * time-sig/tempo). The codepoint comes ONLY from `glyphs.js`; the renamed font
- * family is applied so the subsetted Bravura (T9) is used. A glyph with no font
+ * family is applied so the subsetted Bravura is used. A glyph with no font
  * codepoint (a hand-drawn-only glyph) yields `null` — its `spec` is drawn instead.
  *
  * @param {string} name The symbolic glyph name (a key of the glyph map).
@@ -156,7 +155,7 @@ function fontGlyph(
 
 /**
  * Draw a glyph by NAME at (x, y) preferring its hand-drawn `spec` when present
- * (the §2.4 skeleton — noteheads / dots / whole+half rests render font-free) and
+ * (the skeleton — noteheads / dots / whole+half rests render font-free) and
  * otherwise its font codepoint. Returns the element, or `null` for an unknown glyph.
  *
  * @param {string} name The symbolic glyph name.
@@ -218,10 +217,10 @@ function drawSpec(spec, x, y, { filled } = {}) {
 // ── Public entry point ──────────────────────────────────────────────────────────
 
 /**
- * Render a layout model into an `<svg role="img">` element (design §2.3, §7). The
- * caller (the frontend `view.js`, T8) computes the accessible name from the song
- * `metadata` and passes it in; this layer stamps it onto the first-child `<title>`
- * via `textContent` (the single name source — no `aria-label`, design §7).
+ * Render a layout model into an `<svg role="img">` element. The caller (the frontend
+ * `view.js`) computes the accessible name from the song `metadata` and passes it in;
+ * this layer stamps it onto the first-child `<title>` via `textContent` (the single
+ * name source — no `aria-label`).
  *
  * The root carries a `viewBox` in sp units and an explicit pixel width/height
  * (`× SP_PX`) so the sp coordinate system maps to pixels with no per-element
@@ -246,14 +245,13 @@ export function renderSvg(model, { accessibleName = "" } = {}) {
 		preserveAspectRatio: "xMinYMin meet",
 		// Never exceed the block's content box: if the intrinsic px width is wider than
 		// the container (a padded wrapper, or the narrow-screen sp step-down), shrink to
-		// fit — the viewBox keeps the staff inset, so it can't bleed past the box
-		// (review-3: the staff still escaped the box on the page). `display:block` drops
-		// the inline-text descender gap below the SVG.
+		// fit — the viewBox keeps the staff inset, so it can't bleed past the box.
+		// `display:block` drops the inline-text descender gap below the SVG.
 		style: "display:block;max-width:100%;height:auto",
 	});
 
 	// FIRST child: the single accessible name, set via textContent (inert author
-	// text). Exactly one name source — no aria-label (design §7).
+	// text). Exactly one name source — no aria-label.
 	const title = setText(el("title"), accessibleName);
 	svg.appendChild(title);
 
@@ -267,7 +265,7 @@ export function renderSvg(model, { accessibleName = "" } = {}) {
 /**
  * `renderInto` convenience: replace `container`'s contents with the rendered SVG.
  * Clears via `replaceChildren` (no `innerHTML`) then appends the fresh tree, so a
- * resize-driven rebuild is one DOM swap (design §2.3 / §3 flow).
+ * resize-driven rebuild is one DOM swap.
  *
  * @param {Element} container The host element to render into.
  * @param {object} model The layout model.
@@ -285,8 +283,8 @@ export function renderInto(container, model, options = {}) {
 /**
  * Render one system into a `<g>` translated to the system's model Y and uniformly
  * scaled by its `downscaleFactor` (1 unless an over-wide single measure forced the
- * whole system to shrink — design §6.3). All inner coordinates are the system-local
- * sp values the model already computed.
+ * whole system to shrink). All inner coordinates are the system-local sp values the
+ * model already computed.
  */
 function renderSystem(system) {
 	const band = system.band;
@@ -298,7 +296,7 @@ function renderSystem(system) {
 
 	// Staff lines for both grand-staff staves, then the leading reserve, the
 	// measures, the resolved spans, and finally the system texts. The lines span the
-	// inset content area, not the full box, so the staff never bleeds out (review F9).
+	// inset content area, not the full box, so the staff never bleeds out.
 	const staffStartX = system.staffStartX ?? 0;
 	const staffEndX = system.staffEndX ?? system.width;
 	g.appendChild(staffLines(band.rightStaffTopY, staffStartX, staffEndX));
@@ -322,7 +320,7 @@ function renderSystem(system) {
 /**
  * The five staff lines of one staff, as a `<g>` of `<line>`s spanning `[startX, endX]`.
  * The top line is at `topY`; each subsequent line is one sp below (the staff spans 4
- * sp). Drawn as raw primitives — never font-dependent (design §2.4).
+ * sp). Drawn as raw primitives — never font-dependent.
  */
 function staffLines(topY, startX, endX) {
 	const g = el("g", { "data-staff-lines": "" });
@@ -345,9 +343,9 @@ function renderReserve(reserve, band) {
 	}
 
 	// Every field's X comes from the layout model, which advances each by the previous
-	// field's real width (review F1) — the emit layer adds no spacing math of its own.
+	// field's real width — the emit layer adds no spacing math of its own.
 
-	// Brace spanning the whole grand staff (review F2 + review-2): the brace glyph's ink
+	// Brace spanning the whole grand staff: the brace glyph's ink
 	// rises ~1 em from its alphabetic baseline with its bottom AT the baseline, so sizing
 	// it to the grand-staff height and anchoring it at the LH staff bottom makes it run
 	// from the top of the upper staff to the bottom of the lower staff.
@@ -397,7 +395,7 @@ function appendClef(parent, clef, x, staffTopY) {
 	if (!clef?.glyph) {
 		return;
 	}
-	// Anchor each clef's baseline on its SMuFL reference staff line (review-5): the
+	// Anchor each clef's baseline on its SMuFL reference staff line: the
 	// G clef on the G line (2nd from the bottom), the F clef on the F line (2nd from the
 	// top), and the C clef on the line it centers (middle for alto, 4th for tenor). The
 	// staff's top line is `staffTopY`; each line below is +1 sp.
@@ -436,8 +434,8 @@ function appendKeySig(parent, cluster, baseX) {
 
 /**
  * Stack the time signature's `beats` over `beatType` as two rows of digit glyphs on
- * a staff. Each number is composed from per-digit `timeSig*` glyphs (design §6.7);
- * the upper row sits in the staff's top half, the lower in the bottom half.
+ * a staff. Each number is composed from per-digit `timeSig*` glyphs; the upper row
+ * sits in the staff's top half, the lower in the bottom half.
  */
 function appendTimeSignature(parent, timeSignature, x, staffTopY) {
 	const beats = String(timeSignature.beats ?? "");
@@ -542,7 +540,7 @@ function renderHand(hand, handKey, staffBottomY, chordDy) {
  * Render one note event: its noteheads (each on the correct side of the stem), the
  * stem, a flag (when not beamed), accidentals, ledger lines, and augmentation dots.
  * The whole group is stamped with the event index + hand so a later store can target
- * it (the §2.3 interactivity hook). All Ys are notehead Ys in the staff frame.
+ * it (the interactivity hook). All Ys are notehead Ys in the staff frame.
  */
 function renderNote(note, handKey) {
 	const g = el("g", {
@@ -681,7 +679,7 @@ function renderBeam(beam) {
 
 /**
  * Render one rest: its glyph (a font rest, or a hand-drawn rectangle for whole/half
- * — the §2.4 skeleton), centered on the rest's column X at the staff middle, plus
+ * — the skeleton), centered on the rest's column X at the staff middle, plus
  * augmentation dots. Stamped with the event index for the interactivity hook.
  */
 function renderRest(rest, handKey) {
@@ -766,13 +764,13 @@ function renderBarline(barline, band, measureX) {
 }
 
 /**
- * Render mid-system inline cautionary section-change glyphs (design §6.6): a per-hand
- * clef, per-hand key-sig cluster, and a time signature, all at the boundary measure's
- * left edge. The model gives an absolute X; subtract the measure translate back.
+ * Render mid-system inline cautionary section-change glyphs: a per-hand clef, per-hand
+ * key-sig cluster, and a time signature, all at the boundary measure's left edge. The
+ * model gives an absolute X; subtract the measure translate back.
  */
 function renderInlineChange(inline, band, measureX) {
 	const g = el("g", { "data-inline-change": "" });
-	// Each field's absolute X comes from the model (width-aware, review F1); the measure
+	// Each field's absolute X comes from the model (width-aware); the measure
 	// group is already translated by measureX, so subtract it back to stay measure-local.
 	const fallbackX = inline.x ?? 0;
 	const clefRightX = (inline.clefs?.right?.x ?? fallbackX) - measureX;
@@ -838,7 +836,7 @@ function renderSpan(span) {
  * Render one hand's per-event text (a dynamic below the staff, a chord symbol above
  * it). Y is relative to the hand's staff bottom line (the enclosing `<g>` already
  * carries that translate), so positive Y is below the staff and negative is above.
- * `chordDy` is the chord lane's Y in this hand's local frame (review-3 flex lane);
+ * `chordDy` is the chord lane's Y in this hand's local frame (the flex lane);
  * without it, the chord falls back to just above the staff.
  *
  * @param {{ kind: string, x: number, text: string }} text The per-event text.
@@ -847,7 +845,7 @@ function renderSpan(span) {
 function renderHandText(text, chordDy) {
 	if (text.kind === "dynamic") {
 		// Dynamics: bold-italic, set clearly BELOW the hand's staff bottom line (positive
-		// Y is downward) so the glyphs sit under the staff, not across it (review-4).
+		// Y is downward) so the glyphs sit under the staff, not across it.
 		const node = el("text", {
 			x: text.x,
 			y: 3.5,
@@ -876,7 +874,7 @@ function renderHandText(text, chordDy) {
 /**
  * Render the system-level texts: the tempo marks (a metronome note glyph + " = bpm"
  * digits/text), the measure number, and the ottava brackets. Tempo + measure number
- * + ottava labels are plain font text (design §2.4); the tempo note is a font glyph.
+ * + ottava labels are plain font text; the tempo note is a font glyph.
  */
 function renderSystemTexts(texts) {
 	const g = el("g", { "data-system-texts": "" });

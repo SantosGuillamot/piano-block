@@ -1,8 +1,8 @@
 /**
- * Sanity checks for the song schema-as-data module (design §7).
+ * Sanity checks for the song schema-as-data module.
  *
- * The schema is fully exercised indirectly by the validator's unit tests
- * (Task 3), which consume it to accept/reject fixtures. These minimal
+ * The schema is fully exercised indirectly by the validator's unit tests,
+ * which consume it to accept/reject fixtures. These minimal
  * assertions just guard the load-bearing shape the walker relies on: the
  * root requirement and the single `note → pitches` conditional.
  */

@@ -1,25 +1,25 @@
 /**
  * The glyph map: the single swappable indirection layer between a symbolic glyph
  * name (what the layout layer thinks in) and how that glyph is actually drawn —
- * either a music-font codepoint OR a hand-drawn SVG primitive spec (design
- * §2.4/§3). The renderer stays agnostic to the font-vs-path choice: it only ever
- * asks `glyphFor(name)` and looks at what halves the record carries.
+ * either a music-font codepoint OR a hand-drawn SVG primitive spec. The renderer
+ * stays agnostic to the font-vs-path choice: it only ever asks `glyphFor(name)` and
+ * looks at what halves the record carries.
  *
  * Two halves per glyph (either or both may be present):
  *
  * - **Font half (`codepoint`)** — a JS string holding the glyph's SMuFL
  *   Unicode-PUA codepoint. SMuFL (the Standard Music Font Layout) is the
  *   conventional codepoint mapping used by Bravura, the SMuFL reference font.
- *   The font shipped with this plugin (T9) is a subsetted + RENAMED Bravura
+ *   The font shipped with this plugin is a subsetted + RENAMED Bravura
  *   (family "PB Music", SIL OFL 1.1) — renamed because "Bravura" is a Reserved
- *   Font Name. The codepoints below MUST match exactly what T9 subsets, so this
- *   module is the ONE place any codepoint appears.
+ *   Font Name. The codepoints below MUST match exactly what the subsetted font
+ *   contains, so this module is the ONE place any codepoint appears.
  *
  * - **Hand-drawn half (`spec`)** — a tiny declarative description of SVG
  *   primitives (ellipse / circle / rect, in staff-space units) the emit layer
- *   (T7) turns into `createElementNS` calls. The hand-drawn set covers the
+ *   turns into `createElementNS` calls. The hand-drawn set covers the
  *   trivial glyphs (noteheads, the augmentation dot, whole/half rests) and
- *   DOUBLES AS THE FONT-FAILURE SKELETON: per design §2.4 these always render
+ *   DOUBLES AS THE FONT-FAILURE SKELETON: these always render
  *   even if the music font 404s or is blocked, so the score's structure never
  *   depends on the font.
  *
@@ -55,7 +55,7 @@ const NOTEHEAD_SPEC = { rx: 0.6, ry: 0.5 };
  * @type {Record<string, { codepoint?: string, spec?: object }>}
  */
 export const GLYPHS = {
-	// ── Clefs (font; design §5.2). Alto and tenor SHARE the C-clef glyph and are
+	// ── Clefs (font). Alto and tenor SHARE the C-clef glyph and are
 	// placed at different staff positions by the layout layer, so there is one
 	// `cClef` glyph, not separate alto/tenor entries. ───────────────────────────
 	gClef: { codepoint: "" }, // SMuFL gClef (treble) U+E050
@@ -80,7 +80,7 @@ export const GLYPHS = {
 	 */
 	restHalf: { spec: { kind: "rect", width: 1, height: 0.5, hangs: false } },
 
-	// ── Accidentals (font; design §6.4). Indexable by `alter + 2` via the
+	// ── Accidentals (font). Indexable by `alter + 2` via the
 	// `ACCIDENTAL_GLYPHS` array below so the layout layer can map a numeric
 	// alteration straight to a glyph name. ──────────────────────────────────────
 	accDoubleFlat: { codepoint: "" }, // SMuFL accidentalDoubleFlat U+E264
@@ -89,7 +89,7 @@ export const GLYPHS = {
 	accSharp: { codepoint: "" }, // SMuFL accidentalSharp U+E262
 	accDoubleSharp: { codepoint: "" }, // SMuFL accidentalDoubleSharp U+E263
 
-	// ── Flags (font; design §6.1). Up/down variants per beamable note value;
+	// ── Flags (font). Up/down variants per beamable note value;
 	// only un-beamed flagged notes use these. ───────────────────────────────────
 	flagEighthUp: { codepoint: "" }, // SMuFL flag8thUp U+E240
 	flagEighthDown: { codepoint: "" }, // SMuFL flag8thDown U+E241
@@ -98,10 +98,10 @@ export const GLYPHS = {
 	flag32Up: { codepoint: "" }, // SMuFL flag32ndUp U+E244
 	flag32Down: { codepoint: "" }, // SMuFL flag32ndDown U+E245
 
-	// ── Grand-staff brace (font; design §6.3). Spans both staves at the left. ───
+	// ── Grand-staff brace (font). Spans both staves at the left. ────────────────
 	brace: { codepoint: "" }, // SMuFL brace U+E000
 
-	// ── Metronome note glyphs (font; design §6.7). The small note-value glyph in a
+	// ── Metronome note glyphs (font). The small note-value glyph in a
 	// tempo mark "[note-glyph] = [bpm]"; a missing beatUnit defaults to the quarter
 	// glyph. Keyed by note value via `TEMPO_NOTE_GLYPH` in the layout layer. ──────
 	metNoteWhole: { codepoint: "" }, // SMuFL metNoteWhole U+ECA2
@@ -111,7 +111,7 @@ export const GLYPHS = {
 	metNoteSixteenth: { codepoint: "" }, // SMuFL metNote16thUp U+ECA9
 	metNote32nd: { codepoint: "" }, // SMuFL metNote32ndUp U+ECAB
 
-	// ── Time-signature digits 0–9 (font; design §6.7). The layout layer composes
+	// ── Time-signature digits 0–9 (font). The layout layer composes
 	// `beats` / `beatType` from these per-digit glyphs. ─────────────────────────
 	timeSig0: { codepoint: "" }, // SMuFL timeSig0 U+E080
 	timeSig1: { codepoint: "" }, // SMuFL timeSig1 U+E081
@@ -124,7 +124,7 @@ export const GLYPHS = {
 	timeSig8: { codepoint: "" }, // SMuFL timeSig8 U+E088
 	timeSig9: { codepoint: "" }, // SMuFL timeSig9 U+E089
 
-	// ── Hand-drawn / trivial glyphs (specs; the font-failure skeleton, §2.4) ────
+	// ── Hand-drawn / trivial glyphs (specs; the font-failure skeleton) ──────────
 
 	/** Filled notehead (quarter and shorter) — a filled ellipse. */
 	noteheadFilled: { spec: { kind: "ellipse", ...NOTEHEAD_SPEC, filled: true } },
@@ -136,7 +136,7 @@ export const GLYPHS = {
 };
 
 /**
- * The five accidental glyph NAMES indexed by `alter + 2` (design §6.4): an
+ * The five accidental glyph NAMES indexed by `alter + 2`: an
  * alteration of −2..+2 maps to a glyph via `ACCIDENTAL_GLYPHS[alter + 2]`.
  *
  *     alter:  -2            -1        0             +1         +2

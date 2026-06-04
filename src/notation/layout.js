@@ -1,18 +1,17 @@
 /**
  * The PURE layout layer — the per-event musical geometry that turns a song's
- * notes into positioned plain data in staff-space (sp) units (design §5.2, §6.1,
- * §6.4). This module has NO DOM, NO sp→px scaling, and NO font logic: it only
- * computes numbers and plain-data records the thin emit layer (`svg.js`, T7)
- * later turns into SVG.
+ * notes into positioned plain data in staff-space (sp) units. This module has NO
+ * DOM, NO sp→px scaling, and NO font logic: it only computes numbers and
+ * plain-data records the thin emit layer (`svg.js`) later turns into SVG.
  *
- * This is part 1 of the layer (T4): pitch→staff position with ledger lines,
- * duration decoding (notehead / stem / flag / dots), best-effort beaming, chord
- * stacking, and stateless accidental resolution. It is extended in T5 (union-grid
- * alignment + compressive spacing) and T6 (section diff + system wrapping + the
- * full `buildLayoutModel` entry point), so it is structured as a set of small,
+ * This part covers pitch→staff position with ledger lines, duration decoding
+ * (notehead / stem / flag / dots), best-effort beaming, chord stacking, and
+ * stateless accidental resolution. It is extended with union-grid alignment +
+ * compressive spacing and with section diff + system wrapping + the full
+ * `buildLayoutModel` entry point, so it is structured as a set of small,
  * individually-exported pure functions the later parts can build on.
  *
- * Staff-step model (design §5.1): one staff-step = one line-or-space = 0.5 sp in
+ * Staff-step model: one staff-step = one line-or-space = 0.5 sp in
  * Y. `sFromBottom` numbers positions from the bottom staff line (0) up to the top
  * line (8): lines sit at even values (0/2/4/6/8), spaces at odd (1/3/5/7). Y
  * increases downward (SVG default), so higher pitch ⇒ smaller Y. The bottom line
@@ -56,17 +55,16 @@ import {
 } from "./constants.js";
 import { ACCIDENTAL_GLYPHS } from "./glyphs.js";
 
-// ── Pitch → staff position (design §5.2) ───────────────────────────────────────
+// ── Pitch → staff position ──────────────────────────────────────────────────────
 
 /**
- * Diatonic step index on the canonical letter: C=0 D=1 E=2 F=3 G=4 A=5 B=6
- * (design §5.2). Keyed by the canonical UPPERCASE English letter `normalizeStep`
- * returns.
+ * Diatonic step index on the canonical letter: C=0 D=1 E=2 F=3 G=4 A=5 B=6.
+ * Keyed by the canonical UPPERCASE English letter `normalizeStep` returns.
  */
 const STEP_INDEX = { C: 0, D: 1, E: 2, F: 3, G: 4, A: 5, B: 6 };
 
 /**
- * Per-clef reference pitch and its `sFromBottom` (design §5.2). Each entry pins
+ * Per-clef reference pitch and its `sFromBottom`. Each entry pins
  * one known pitch on the staff; every other pitch is placed relative to it on the
  * unified diatonic scale, so the same Y formula serves all four clefs.
  */
@@ -83,7 +81,7 @@ const DEFAULT_CLEF = "treble";
 /**
  * The diatonic step index (0..6) for a step token, normalized through the shared
  * `normalizeStep` helper so English and Spanish solfège (case-insensitive) map to
- * the same letter (design §5.2/§6.5). Returns `null` for an unrecognised token.
+ * the same letter. Returns `null` for an unrecognised token.
  *
  * @param {string} step The note-name token (English letter or Spanish solfège).
  * @return {?number} The diatonic step index 0..6, or `null` if unrecognised.
@@ -94,8 +92,8 @@ export function stepIndex(step) {
 }
 
 /**
- * The diatonic index on the unified scale: `octave * 7 + stepIndex` (design
- * §5.2). Middle C = C4 = 28. Placement uses ONLY step + octave, never `alter`.
+ * The diatonic index on the unified scale: `octave * 7 + stepIndex`.
+ * Middle C = C4 = 28. Placement uses ONLY step + octave, never `alter`.
  *
  * @param {{ step: string, octave: number }} pitch The pitch to index.
  * @return {?number} The diatonic index, or `null` if the step is unrecognised.
@@ -109,7 +107,7 @@ export function diatonicIndex(pitch) {
 }
 
 /**
- * The staff position of a pitch as `sFromBottom` (design §5.2):
+ * The staff position of a pitch as `sFromBottom`:
  * `ref.sFromBottom + diatonicIndex(p) − diatonicIndex(ref.pitch)`. Verified:
  * treble E4→0, G4→2, F5→8, C4→−2, C6→12; bass C4→+10. Placement ignores `alter`.
  *
@@ -129,7 +127,7 @@ export function pitchToStaffStep(pitch, clef = DEFAULT_CLEF) {
 
 /**
  * Convert an `sFromBottom` staff-step to a Y in sp, measured from the bottom
- * staff line (design §5.1/§5.2). One staff-step = 0.5 sp, Y grows downward, so a
+ * staff line. One staff-step = 0.5 sp, Y grows downward, so a
  * higher position (larger `sFromBottom`) yields a smaller Y. With
  * `bottomLineY = 0`, the top line (`sFromBottom = 8`) sits at Y = −4 sp.
  *
@@ -142,7 +140,7 @@ export function staffStepToY(sFromBottom, bottomLineY = 0) {
 }
 
 /**
- * The ledger-line specs for a notehead at `sFromBottom` (design §5.2). A ledger
+ * The ledger-line specs for a notehead at `sFromBottom`. A ledger
  * sits at every LINE position (even `sFromBottom`) between the staff and a note
  * outside `0..8`, inclusive of the note's own line when it lands on one. None for
  * `0 ≤ sFromBottom ≤ 8`. Above: even positions 10..(largest even ≤ sFromBottom);
@@ -180,13 +178,13 @@ export function ledgerLinesFor(sFromBottom, bottomLineY = 0) {
 	return ledgers;
 }
 
-// ── Durations → noteheads / stems / flags / dots (design §6.1) ──────────────────
+// ── Durations → noteheads / stems / flags / dots ────────────────────────────────
 
-/** The middle line of the staff in `sFromBottom` terms (design §6.1). */
+/** The middle line of the staff in `sFromBottom` terms. */
 const MIDDLE_LINE = 4;
 
 /**
- * Decode a duration string into its drawing primitives (design §6.1):
+ * Decode a duration string into its drawing primitives:
  *
  * - `whole` → open notehead, NO stem, no flags;
  * - `half` → open notehead, stem, no flags;
@@ -196,7 +194,7 @@ const MIDDLE_LINE = 4;
  *
  * @param {string} duration The note value.
  * @return {{ notehead: "open"|"filled", hasStem: boolean, flagCount: number,
- *   beamCount: number }} The decoded primitives. `beamCount` is the §6.1
+ *   beamCount: number }} The decoded primitives. `beamCount` is the
  *   `BEAM_COUNT` (0 for non-beamable values), shared by flags and beams.
  */
 export function decodeDuration(duration) {
@@ -210,8 +208,7 @@ export function decodeDuration(duration) {
 
 /**
  * Whether an event is a beamable note: a `note` (not a rest) whose duration is an
- * eighth or shorter (design §6.1). Rests and quarter-or-longer notes are never
- * beamed.
+ * eighth or shorter. Rests and quarter-or-longer notes are never beamed.
  *
  * @param {{ type?: string, duration?: string }} event The event to test.
  * @return {boolean} `true` when the event can join a beam.
@@ -224,7 +221,7 @@ export function isBeamable(event) {
 
 /**
  * The number of beams/flags for a duration (eighth 1, sixteenth 2,
- * thirty-second 3; 0 otherwise) — the §6.1 `beamCount`.
+ * thirty-second 3; 0 otherwise) — the `beamCount`.
  *
  * @param {string} duration The note value.
  * @return {number} The beam/flag count.
@@ -235,7 +232,7 @@ export function beamCountFor(duration) {
 
 /**
  * The stem direction for a single notehead: `sFromBottom < 4` → up, `≥ 4` → down
- * (a note ON the middle line stems down) (design §6.1).
+ * (a note ON the middle line stems down).
  *
  * @param {number} sFromBottom The notehead position.
  * @return {"up"|"down"} The stem direction.
@@ -246,8 +243,8 @@ export function stemDirectionForStep(sFromBottom) {
 
 /**
  * The stem direction for a set of chord positions: chosen by the note FARTHEST
- * from the middle line (`max |sFromBottom − 4|`); ties resolve to DOWN (design
- * §6.1). A single note is the one-element case of this rule.
+ * from the middle line (`max |sFromBottom − 4|`); ties resolve to DOWN.
+ * A single note is the one-element case of this rule.
  *
  * @param {number[]} positions The chord's `sFromBottom` values.
  * @return {"up"|"down"} The shared stem direction.
@@ -263,12 +260,12 @@ export function stemDirectionForChord(positions) {
 	const farthestAbove = positions.some((s) => s - MIDDLE_LINE === maxDist);
 	// Up only when the single extreme is below the middle and nothing matches it
 	// above; ties (equal distance above and below, or a note ON the middle line
-	// where maxDist may be 0) defer to DOWN per the §6.1 tie rule.
+	// where maxDist may be 0) defer to DOWN per the tie rule.
 	return farthestBelow && !farthestAbove ? "up" : "down";
 }
 
 /**
- * The augmentation-dot positions for a notehead (design §6.1). Dots sit to the
+ * The augmentation-dot positions for a notehead. Dots sit to the
  * RIGHT of the notehead, centred on a SPACE: a note in a space (odd `sFromBottom`)
  * keeps the notehead Y; a note on a line (even `sFromBottom`) nudges its dot up
  * into the adjacent space (the Y of `sFromBottom + 1`). A second dot is further
@@ -294,11 +291,11 @@ export function dotPositions(sFromBottom, dots, bottomLineY = 0) {
 	return specs;
 }
 
-// ── Chord stacking + the seconds rule (design §6.1) ─────────────────────────────
+// ── Chord stacking + the seconds rule ───────────────────────────────────────────
 
 /**
- * Lay out a chord's noteheads on a shared stem (design §6.1). Each notehead sits
- * at its §5.2 Y; the seconds rule displaces a note that is a diatonic second
+ * Lay out a chord's noteheads on a shared stem. Each notehead sits
+ * at its staff-position Y; the seconds rule displaces a note that is a diatonic second
  * (`Δ sFromBottom = 1`) from a neighbour to the OPPOSITE side of the stem so the
  * two do not overlap. In a cluster (e.g. C-D-E) the outer notes stay on the normal
  * side and the middle one flips.
@@ -340,11 +337,11 @@ export function stackChord(positions, direction, bottomLineY = 0) {
 	return heads;
 }
 
-// ── Best-effort beaming (design §6.1) ──────────────────────────────────────────
+// ── Best-effort beaming ─────────────────────────────────────────────────────────
 
 /**
  * The duration of an event in quarter-beats: `BASE_DUR[duration] × DOT_MUL[dots]`
- * (design §6.1/§6.2) — the same arithmetic the horizontal spacing reuses. Unknown
+ * — the same arithmetic the horizontal spacing reuses. Unknown
  * durations yield 0 so a malformed event never advances `pos` (kept NaN-safe).
  *
  * @param {{ duration?: string, dots?: number }} event The event.
@@ -358,7 +355,7 @@ export function eventDuration(event) {
 
 /**
  * The grouping beat length, in quarter-beats, derived from the time signature FOR
- * GROUPING ONLY (design §6.1). Compound (`beatType ∈ {8,16}` AND `beats % 3 == 0`,
+ * GROUPING ONLY. Compound (`beatType ∈ {8,16}` AND `beats % 3 == 0`,
  * e.g. 6/8, 9/8, 12/8) groups in dotted beats (three `beatType` units); simple
  * (everything else) is one `beatType` unit per beat (4/4 eighths beam in 2s).
  *
@@ -379,7 +376,7 @@ export function beatGroupLength(timeSignature) {
 }
 
 /**
- * Best-effort beaming of one hand's events in one measure (design §6.1). Walks
+ * Best-effort beaming of one hand's events in one measure. Walks
  * events tracking a running `pos` in quarter-beats (`eventDuration`), accumulating
  * consecutive beamable notes and breaking at a rest, a non-beamable note, the
  * measure end, or a beat-boundary crossing (`floor(pos / beatLen)` changes). The
@@ -460,7 +457,7 @@ export function beamGroups(events, timeSignature) {
 }
 
 /**
- * Beam geometry for one group of beamed notes (design §6.1). One stem direction
+ * Beam geometry for one group of beamed notes. One stem direction
  * per group, chosen by the group's most-extreme notehead (the extreme rule); the
  * beam is a FLAT horizontal line whose Y is the most-extreme stem end so no stem
  * is too short, and all stems run to that common Y. Secondary beams (16th/32nd)
@@ -553,11 +550,11 @@ export function beamGeometry(members, bottomLineY = 0) {
 	return { direction, beamY, stems, beams };
 }
 
-// ── Accidentals — stateless, data-faithful (design §6.4) ───────────────────────
+// ── Accidentals — stateless, data-faithful ──────────────────────────────────────
 
 /**
  * Build the per-letter default-alteration map for a hand from its `alters`,
- * keying every entry through `normalizeStep` (design §6.4). Unrecognised keys are
+ * keying every entry through `normalizeStep`. Unrecognised keys are
  * skipped (the validator would have rejected them, but this stays defensive so a
  * bad key never indexes `undefined`).
  *
@@ -580,8 +577,8 @@ export function normalizeAlters(alters) {
 }
 
 /**
- * Resolve a single pitch's accidental, statelessly and data-faithfully (design
- * §6.4). Computes `effectiveAlter = pitch.alter ?? normAlters[letter] ?? 0`, and
+ * Resolve a single pitch's accidental, statelessly and data-faithfully.
+ * Computes `effectiveAlter = pitch.alter ?? normAlters[letter] ?? 0`, and
  * the GLYPH by these stateless rules:
  *
  * - `pitch.alter` present and ≠ 0 → draw that accidental (even if redundant — a
@@ -610,7 +607,7 @@ export function resolveAccidental(pitch, normAlters = {}) {
 	let glyphAlter = null;
 	if (hasExplicit) {
 		if (pitch.alter !== 0) {
-			// Explicit non-zero override always shows (AC3).
+			// Explicit non-zero override always shows.
 			glyphAlter = pitch.alter;
 		} else if (keyDefault !== 0) {
 			// Explicit natural cancels a key-sig default (draw a natural).
@@ -625,7 +622,7 @@ export function resolveAccidental(pitch, normAlters = {}) {
 }
 
 /**
- * Best-effort accidental column-stacking for a chord (design §6.4). Accidentals
+ * Best-effort accidental column-stacking for a chord. Accidentals
  * default to one column ~`ACCIDENTAL_GAP` sp left of the noteheads; when two fall
  * within ~1.5 sp (3 staff-steps) vertically, the lower of the pair is pushed into
  * a further-left column (`+ACCIDENTAL_COL_STEP` per column), processed top-down.
@@ -668,20 +665,19 @@ export function stackAccidentals(accidentals, bottomLineY = 0) {
 	return placed;
 }
 
-// ── Union-grid alignment + compressive spacing + intrinsic widths (§6.2) ─────────
+// ── Union-grid alignment + compressive spacing + intrinsic widths ────────────────
 //
-// This is the most adversarially-tested requirement (AC5, robust under AC8/AC9).
 // Onsets, the shared grid, the per-column advances, and the intrinsic measure
 // width all come PURELY from event durations — `timeSignature` is NEVER consulted
-// for any X or width. That single rule makes AC8 (events don't sum to the time
-// signature) and AC9 (one-hand / empty-hand measures still draw both staves) fall
-// out structurally: the layout simply does not know or care what the bar "should"
-// total, and the staff geometry is driven by measure dimensions, not by events.
-// Everything is kept NaN-safe (`sqrt(max(Δ, 0))`, an empty-grid short-circuit, and
-// `measureEnd = max(handEnds, 0)`).
+// for any X or width. That single rule makes events that don't sum to the time
+// signature, and one-hand / empty-hand measures (which still draw both staves),
+// fall out structurally: the layout simply does not know or care what the bar
+// "should" total, and the staff geometry is driven by measure dimensions, not by
+// events. Everything is kept NaN-safe (`sqrt(max(Δ, 0))`, an empty-grid
+// short-circuit, and `measureEnd = max(handEnds, 0)`).
 
 /**
- * One hand's event onsets within a measure (design §6.2): the running sum from 0
+ * One hand's event onsets within a measure: the running sum from 0
  * of each event's `eventDuration`. Each event contributes one onset (its start),
  * so the i-th onset is the total duration of events 0..i−1. Rests are full grid
  * citizens — a rest advances the running onset just like a note. An absent or
@@ -702,7 +698,7 @@ export function handOnsets(events) {
 }
 
 /**
- * The end (total duration) of one hand's events in a measure (design §6.2): the
+ * The end (total duration) of one hand's events in a measure: the
  * running sum of every event's `eventDuration`. An absent or empty hand yields 0.
  *
  * @param {{ duration?: string, dots?: number }[]} [events] One hand's events.
@@ -717,7 +713,7 @@ export function handEnd(events) {
 }
 
 /**
- * The union grid for a measure (design §6.2): the sorted, de-duplicated union of
+ * The union grid for a measure: the sorted, de-duplicated union of
  * both hands' onsets. Each unique onset `t` maps to one X (computed by
  * `measureLayout`), so an event at `t` in EITHER hand draws at the same X →
  * automatic vertical alignment. Equal onsets collapse to one column; an off-beat
@@ -740,8 +736,8 @@ export function unionGrid(rightOnsets, leftOnsets) {
 }
 
 /**
- * The compressive horizontal advance for a gap between adjacent onsets (design
- * §6.2): `advance(Δ) = MIN_ADV + ADV_K · sqrt(max(Δ, 0))`. Real engraving spacing
+ * The compressive horizontal advance for a gap between adjacent onsets:
+ * `advance(Δ) = MIN_ADV + ADV_K · sqrt(max(Δ, 0))`. Real engraving spacing
  * is logarithmic (~1.5:1 per duration-doubling), not strictly proportional, so a
  * whole note advances ~2.5× a 32nd rather than 32×. `sqrt(max(Δ, 0))` keeps it
  * NaN-safe for a negative or zero gap (clamping to the `MIN_ADV` floor).
@@ -761,7 +757,7 @@ export function advanceFor(delta, { extra = 0 } = {}) {
 /**
  * Lay out one measure's two hands onto the shared union grid with content-driven
  * compressive spacing, yielding the per-column X positions and the measure's
- * intrinsic width — all purely from event durations (design §6.2). NEVER consults
+ * intrinsic width — all purely from event durations. NEVER consults
  * `timeSignature`: a `timeSignature` passed in `options` is ignored for every X
  * and width (it is accepted only so callers may pass a uniform options object).
  *
@@ -771,7 +767,7 @@ export function advanceFor(delta, { extra = 0 } = {}) {
  * column starts at `leadingPad`; `contentWidth = Σ advances` (or
  * `EMPTY_MEASURE_WIDTH` for an empty grid); `width = leadingPad + contentWidth +
  * trailingPad`. Both hands' onsets are always reported (`hands.right`/`hands.left`)
- * so the emit layer can draw BOTH staves even for a one-hand or empty measure (AC9).
+ * so the emit layer can draw BOTH staves even for a one-hand or empty measure.
  *
  * @param {{ duration?: string, dots?: number }[]} [rightEvents] The RH events.
  * @param {{ duration?: string, dots?: number }[]} [leftEvents] The LH events.
@@ -837,14 +833,14 @@ export function measureLayout(rightEvents, leftEvents, options = {}) {
 	};
 }
 
-// ── T6: section context resolution + diff (design §6.6) ─────────────────────────
+// ── Section context resolution + diff ────────────────────────────────────────────
 //
 // A single pre-pass resolves each section's EFFECTIVE musical context from the
 // inheritance model — every field inherits from `defaults` independently, `alters`
 // replaces wholesale, `octaveShift` defaults to 0 — then each section is diffed
 // against the previous so the renderer redraws ONLY what changed (the first section
-// draws everything). The diff drives mid-song changes (AC4); the per-system
-// restatement (§6.3) separately redraws the current clef + alters on every system.
+// draws everything). The diff drives mid-song changes; the per-system restatement
+// separately redraws the current clef + alters on every system.
 
 /** The two hands, in render order, keyed as they appear in the song format. */
 const HANDS = ["rightHand", "leftHand"];
@@ -854,7 +850,7 @@ const DEFAULT_HAND_CLEF = { rightHand: "treble", leftHand: "bass" };
 
 /**
  * Resolve one hand's effective `handConfig` for a section against the song-wide
- * `defaults` (design §6.6). Each field inherits independently: `clef` falls back
+ * `defaults`. Each field inherits independently: `clef` falls back
  * to the default hand clef, `alters` REPLACES wholesale (a present section `alters`
  * — even `{}` — wins; only an absent one inherits), and `octaveShift` defaults to 0.
  *
@@ -875,8 +871,8 @@ export function resolveHandContext(hand, sectionCfg, defaultsCfg) {
 }
 
 /**
- * Resolve every section's effective context via the inheritance model (design
- * §6.6): `tempo` and `timeSignature` inherit from `defaults` as whole objects; each
+ * Resolve every section's effective context via the inheritance model:
+ * `tempo` and `timeSignature` inherit from `defaults` as whole objects; each
  * hand's `clef`/`alters`/`octaveShift` resolves through `resolveHandContext`. The
  * result is one effective-context record per section, in order.
  *
@@ -920,7 +916,7 @@ function shallowEqual(a, b) {
 }
 
 /**
- * Diff one resolved section context against the previous one (design §6.6),
+ * Diff one resolved section context against the previous one,
  * marking ONLY what changed so the renderer redraws just those symbols. With no
  * previous context (the first section) EVERYTHING is marked changed — the first
  * section draws its full context.
@@ -951,7 +947,7 @@ export function diffContext(curr, prev = null) {
 	};
 }
 
-// ── T6: `alters` as a key-signature-like cluster (design §6.4) ──────────────────
+// ── `alters` as a key-signature-like cluster ────────────────────────────────────
 //
 // The hand's `alters` map renders as a key-signature cluster: one glyph per altered
 // note name at that letter's standard key-sig register for the active clef (a fixed
@@ -961,8 +957,8 @@ export function diffContext(curr, prev = null) {
 // `alters` is an arbitrary map, so odd/partial/double sets just draw faithfully.
 
 /**
- * Fixed per-clef key-signature registers as `sFromBottom` for each canonical letter
- * (design §6.4). These are the conventional engraved positions: the treble row is
+ * Fixed per-clef key-signature registers as `sFromBottom` for each canonical letter.
+ * These are the conventional engraved positions: the treble row is
  * the standard treble key-sig placement, and the others place each letter on the
  * register that keeps the cluster on/near that clef's staff.
  */
@@ -973,12 +969,12 @@ const KEY_SIG_REGISTER = {
 	tenor: { A: 4, B: 5, C: 6, D: 7, E: 8, F: 2, G: 3 },
 };
 
-/** Conventional accidental order for sharps and flats (design §6.4). */
+/** Conventional accidental order for sharps and flats. */
 const SHARP_ORDER = ["F", "C", "G", "D", "A", "E", "B"];
 const FLAT_ORDER = ["B", "E", "A", "D", "G", "C", "F"];
 
 /**
- * The conventional draw order for one altered letter (design §6.4): sharps (and
+ * The conventional draw order for one altered letter: sharps (and
  * double-sharps) rank by the sharp sequence, flats (and double-flats) by the flat
  * sequence; a letter outside the relevant order ranks last and falls back to
  * note-name (alphabetical) order. Sharps are grouped before flats.
@@ -993,7 +989,7 @@ function alterRank(letter, alter) {
 }
 
 /**
- * Build the key-signature-like cluster for a hand's `alters` (design §6.4). Each
+ * Build the key-signature-like cluster for a hand's `alters`. Each
  * altered note name becomes one accidental glyph at its standard key-sig register
  * for the active clef, ordered conventionally (sharps then flats, each in its
  * canonical sequence; unknowns appended in note-name order). Zero-alteration
@@ -1052,13 +1048,13 @@ export function keySignatureCluster(alters, clef, options = {}) {
 	return { glyphs, width: glyphs.length * step };
 }
 
-// ── T6: octaveShift → ottava bracket (design §5.3) ──────────────────────────────
+// ── octaveShift → ottava bracket ─────────────────────────────────────────────────
 
-/** Ottava labels keyed by `octaveShift` (design §5.3). */
+/** Ottava labels keyed by `octaveShift`. */
 const OTTAVA_LABELS = { 1: "8va", 2: "15ma", "-1": "8vb", "-2": "15mb" };
 
 /**
- * The ottava marking for an `octaveShift` (design §5.3): the bracket LABEL and
+ * The ottava marking for an `octaveShift`: the bracket LABEL and
  * whether it sits above (positive shift) or below (negative). `octaveShift` is a
  * bracket, NOT a vertical move — notes are still placed by their written octave —
  * so this only describes the dashed bracket + label that spans the affected hand's
@@ -1079,7 +1075,7 @@ export function ottavaFor(octaveShift) {
 	return { label, placement: octaveShift > 0 ? "above" : "below" };
 }
 
-// ── T6: ties + slurs — stack-based, dangling-safe (design §6.7) ─────────────────
+// ── Ties + slurs — stack-based, dangling-safe ────────────────────────────────────
 //
 // Per hand, a `tie:start` / `slur:start` opens a pending span closed by the next
 // matching `stop`. The matching is robust to malformed data: a dangling start (incl.
@@ -1091,7 +1087,7 @@ export function ottavaFor(octaveShift) {
 
 /**
  * Match one marker kind (`tie` or `slur`) across one hand's flattened event stream
- * into start/stop pairs (design §6.7). The stream is a flat list of event locators
+ * into start/stop pairs. The stream is a flat list of event locators
  * in playing order across the whole hand (every measure), each carrying its `tie` /
  * `slur` marker. Stack-based with a single pending start (monophonic-per-hand): a
  * new start while one is pending CLOSES nothing and replaces the pending start
@@ -1124,8 +1120,8 @@ export function matchSpans(stream) {
 }
 
 /**
- * Project a hand's flat event stream onto one marker kind for `matchSpans`
- * (design §6.7): keeps every event's identity (its index) and pulls the chosen
+ * Project a hand's flat event stream onto one marker kind for `matchSpans`:
+ * keeps every event's identity (its index) and pulls the chosen
  * marker (`tie` or `slur`) onto `marker`. Events without that marker carry
  * `marker: undefined` and simply pass through the matcher untouched.
  *
@@ -1137,9 +1133,9 @@ export function projectMarker(events, kind) {
 	return (events ?? []).map((e) => ({ marker: e?.[kind] }));
 }
 
-// ── T6: tempo text (design §6.7) ────────────────────────────────────────────────
+// ── Tempo text ────────────────────────────────────────────────────────────────────
 
-/** Note-value → its SMuFL metronome note glyph name (design §6.7). */
+/** Note-value → its SMuFL metronome note glyph name. */
 const TEMPO_NOTE_GLYPH = {
 	whole: "metNoteWhole",
 	half: "metNoteHalf",
@@ -1150,7 +1146,7 @@ const TEMPO_NOTE_GLYPH = {
 };
 
 /**
- * The tempo marking for a section (design §6.7): "[beatUnit note-glyph] = [bpm]"
+ * The tempo marking for a section: "[beatUnit note-glyph] = [bpm]"
  * (e.g. ♩ = 120). A missing `beatUnit` defaults to the quarter glyph — the glyph +
  * " = " + the bpm number is the recognizable metronome mark, so the glyph is never
  * omitted. Returns `null` when there is no tempo (so nothing is drawn).
@@ -1167,7 +1163,7 @@ export function tempoMark(tempo) {
 	return { glyph, bpm: tempo.bpm };
 }
 
-// ── T6: barlines (design §6.7) ──────────────────────────────────────────────────
+// ── Barlines ──────────────────────────────────────────────────────────────────────
 //
 // A barline spans both staves of the grand staff (the emit layer draws each stroke
 // from the top of the RH staff to the bottom of the LH staff). This returns the
@@ -1181,7 +1177,7 @@ const DOUBLE_BAR_GAP = 0.5;
 const REPEAT_DOT_GAP = 0.6;
 
 /**
- * The stroke + dot specs for one barline of a given type at X `x` (design §6.7),
+ * The stroke + dot specs for one barline of a given type at X `x`,
  * laid out left→right from `x`:
  *
  * - `regular` → one thin stroke;
@@ -1256,9 +1252,9 @@ export function barlineSpec(type, x = 0) {
 }
 
 /**
- * The trailing horizontal room a measure must reserve for its right barline
- * (design §6.2/§6.7): the barline group's own width plus `BARLINE_POST_PAD` of
- * whitespace after it, so the NEXT measure's first note clears the line (review-2).
+ * The trailing horizontal room a measure must reserve for its right barline:
+ * the barline group's own width plus `BARLINE_POST_PAD` of whitespace after it,
+ * so the NEXT measure's first note clears the line.
  *
  * @param {string} [barlineEnd] The measure's `barlineEnd` type (default regular).
  * @return {number} The trailing pad, in sp.
@@ -1267,7 +1263,7 @@ export function barlineTrailingPad(barlineEnd) {
 	return barlineSpec(barlineEnd ?? "regular").width + BARLINE_POST_PAD;
 }
 
-// ── T6: leading reserve + system wrapping / justify (design §6.3) ───────────────
+// ── Leading reserve + system wrapping / justify ──────────────────────────────────
 //
 // Each system restates a leading reserve (the brace, both clefs, and each hand's
 // `alters` cluster, plus the time signature on system 1 / on a change) before its
@@ -1276,23 +1272,23 @@ export function barlineTrailingPad(barlineEnd) {
 // glyphs, stems, or noteheads — with an over-wide single measure downscaling its
 // whole system so nothing overflows.
 
-/** Approximate widths of the leading-reserve glyphs, in sp (design §6.3). */
+/** Approximate widths of the leading-reserve glyphs, in sp. */
 const BRACE_WIDTH = 1.5;
-/** The clef's horizontal slot, including trailing space before the alters (review-5). */
+/** The clef's horizontal slot, including trailing space before the alters. */
 const CLEF_WIDTH = 3.8;
 const TIME_SIG_WIDTH = 2.5;
 /** Pad after the reserve before the first notehead. */
 const RESERVE_PAD = 1;
 
 /**
- * The per-system leading reserve in sp (design §6.3): brace + one clef column (the two
+ * The per-system leading reserve in sp: brace + one clef column (the two
  * clefs are vertically stacked, so they share ONE horizontal slot) + the wider hand's
  * `alters` cluster (its glyph count × the cluster step) + a gap before the time
  * signature when alters print, plus the time signature itself when `withTimeSig`.
  * Computed from the glyphs ACTUALLY printed, so it varies with the number of alters.
  * The field-advance arithmetic here is mirrored exactly by the positioned reserve model
- * in `buildLayoutModel`, so the measures begin precisely past the time signature (review
- * F1). This reserve is subtracted from the content budget and is NEVER scaled by justify.
+ * in `buildLayoutModel`, so the measures begin precisely past the time signature. This
+ * reserve is subtracted from the content budget and is NEVER scaled by justify.
  *
  * @param {{ clef: string, alters: object }} rightCtx The RH resolved context.
  * @param {{ clef: string, alters: object }} leftCtx The LH resolved context.
@@ -1313,7 +1309,7 @@ export function leadingReserveFor(rightCtx, leftCtx, withTimeSig) {
 }
 
 /**
- * Greedily pack measures into width-fitted stacked systems (design §6.3). Fill a
+ * Greedily pack measures into width-fitted stacked systems. Fill a
  * system until the next measure's content width would exceed the available content
  * width (`availSp`), then break; ALWAYS keep ≥ 1 measure per system (so a measure
  * wider than the container still goes, alone, on its own system — preventing an
@@ -1353,7 +1349,7 @@ export function packSystems(measures, budgetSp) {
 }
 
 /**
- * The justify / downscale factor for one packed system (design §6.3). Normally the
+ * The justify / downscale factor for one packed system. Normally the
  * internal grid advances are stretched to fill the width — `scale =
  * clamp(availSp/contentSp, 1, MAX_STRETCH)` — but NOT the last system of the whole
  * score (the conventional ragged last line) and NOT an over-wide system (scale < 1
@@ -1387,11 +1383,11 @@ export function systemScale(contentSp, availSp, { isLast = false } = {}) {
 	return { advanceScale, downscaleFactor: 1 };
 }
 
-// ── T6: full model assembly — buildLayoutModel (design §5.3, §6.3, §6.6, §6.7) ──
+// ── Full model assembly — buildLayoutModel ───────────────────────────────────────
 //
 // The single pure entry point. It walks the resolved sections, lays out each
-// measure's two hands onto the union grid (§6.2), packs measures into systems
-// (§6.3), and assembles the positioned-primitive model: systems → grand-staff bands
+// measure's two hands onto the union grid, packs measures into systems,
+// and assembles the positioned-primitive model: systems → grand-staff bands
 // → (staff lines, clefs, key sig, time sig, barlines, brace) + per-event primitives
 // + spans (ties/slurs) + texts (dynamics, chord symbols, tempo, measure numbers,
 // ottava). Everything is in sp units — NO DOM, NO sp→px. Resize re-runs only the
@@ -1400,7 +1396,7 @@ export function systemScale(contentSp, availSp, { isLast = false } = {}) {
 
 /**
  * Lay out one hand's events within a measure into positioned primitives at the
- * given per-onset column X map (design §6.1/§6.4). Reuses the T4 geometry: chord
+ * given per-onset column X map. Reuses the per-event geometry: chord
  * stacking, stems, beams (or flags), dots, accidentals, and ledger lines. All X are
  * relative to the measure's left edge; Y are relative to this staff's bottom line.
  *
@@ -1501,7 +1497,7 @@ function layoutHand(events, columnX, onsets, ctx, timeSignature) {
 			hasStem: decoded.hasStem,
 			direction,
 			heads,
-			// A note is either flagged or beamed, never both (design §6.1).
+			// A note is either flagged or beamed, never both.
 			flagCount: beamed ? 0 : decoded.flagCount,
 			beamCount: decoded.beamCount,
 			beamed,
@@ -1543,8 +1539,8 @@ function layoutHand(events, columnX, onsets, ctx, timeSignature) {
 }
 
 /**
- * Collect an event's per-event text primitives (dynamic + chord symbol) at X `x`
- * (design §6.7). Dynamics render below the hand's staff; chord symbols above the RH
+ * Collect an event's per-event text primitives (dynamic + chord symbol) at X `x`.
+ * Dynamics render below the hand's staff; chord symbols above the RH
  * staff. The hand placement (RH vs LH offset) is applied later by the band assembly.
  *
  * @param {{ dynamic?: string, chordSymbol?: string }} event The event.
@@ -1561,8 +1557,8 @@ function collectEventTexts(event, x, out) {
 }
 
 /**
- * Build the FULL positioned-primitive layout model for a song (design §5.3, §6.3,
- * §6.6, §6.7) — the single pure entry point. Pure, DOM-free, sp-only: it returns
+ * Build the FULL positioned-primitive layout model for a song — the single pure
+ * entry point. Pure, DOM-free, sp-only: it returns
  * `{ systems }`, where each system carries its Y band layout, leading reserve
  * (brace + clefs + key sig + optional time sig), per-measure barlines, both hands'
  * per-event primitives + beams, the resolved spans (ties/slurs), and the texts
@@ -1616,9 +1612,9 @@ export function buildLayoutModel(song, availableWidthInSp) {
 		});
 		// Two independent leading insets, both folded into the intrinsic width:
 		// - sectionReserve: a mid-system section change's cautionary glyphs (clef/key/
-		//   time), so the section's notes start after them (review-2);
+		//   time), so the section's notes start after them;
 		// - noteAccidentalLead: room for the opening note's accidental, when it has one,
-		//   so the note can otherwise hug the measure's left edge (review-4).
+		//   so the note can otherwise hug the measure's left edge.
 		const sectionReserve =
 			!m.isFirstOfScore && m.diff ? inlineReserveWidth(m) : 0;
 		const noteAccidentalLead = firstColumnHasAccidental(m)
@@ -1640,7 +1636,7 @@ export function buildLayoutModel(song, availableWidthInSp) {
 		return { contentWidth: m.contentWidth, reserve };
 	});
 
-	// Pack against the budget MINUS the two staff margins (review F9), so the reserve +
+	// Pack against the budget MINUS the two staff margins, so the reserve +
 	// measures always fit inside the inset staff lines.
 	const systemRanges = packSystems(packing, budgetSp - 2 * STAFF_MARGIN_X);
 
@@ -1667,7 +1663,7 @@ export function buildLayoutModel(song, availableWidthInSp) {
 			head.ctx.leftHand,
 			systemHasTimeSig,
 		);
-		// The content budget excludes the left/right staff margins (review F9) and the
+		// The content budget excludes the left/right staff margins and the
 		// leading reserve. Measures live in [STAFF_MARGIN_X + reserve, budgetSp − STAFF_MARGIN_X].
 		const availSp = Math.max(budgetSp - 2 * STAFF_MARGIN_X - reserve, 0);
 
@@ -1680,7 +1676,7 @@ export function buildLayoutModel(song, availableWidthInSp) {
 		// The top margin flexes to only the text lanes actually present above the staff
 		// (chord symbols, an above-staff ottava, the tempo) stacked over the ledger zone,
 		// so the staff and tempo drop close to the staff when there is nothing above it
-		// (review-3). Each present lane's baseline Y comes back in system coordinates.
+		// Each present lane's baseline Y comes back in system coordinates.
 		const top = topMarginLayout(members, ledgerTopExtent(members));
 		const topMargin = top.topMargin;
 		const bottomMargin = SYSTEM_BOTTOM_MARGIN + ledgerBottomExtent(members);
@@ -1707,8 +1703,8 @@ export function buildLayoutModel(song, availableWidthInSp) {
 		// ── Leading reserve content: brace + clefs + key sigs (+ time sig). ─────────
 		// Each field is positioned from the previous field's REAL width — not a fixed
 		// offset — so the clef, the key-signature cluster, and the time signature get
-		// reserved, non-overlapping space whatever the alter count (review F1). The whole
-		// head is inset by the left staff margin (review F9). These advances mirror
+		// reserved, non-overlapping space whatever the alter count. The whole
+		// head is inset by the left staff margin. These advances mirror
 		// `leadingReserveFor`, so the measures (which start at STAFF_MARGIN_X + reserve)
 		// begin exactly past the time signature.
 		const headCtx = head.ctx;
@@ -1759,8 +1755,8 @@ export function buildLayoutModel(song, availableWidthInSp) {
 			const ts = m.ctx.timeSignature;
 
 			// The leading inset before the first column: a mid-system section change's
-			// cautionary glyphs (review-2; at a system head the leading reserve restates
-			// them, so none there) plus room for the opening note's accidental (review-4).
+			// cautionary glyphs (at a system head the leading reserve restates
+			// them, so none there) plus room for the opening note's accidental.
 			const leadInset =
 				(localIdx > 0 ? (m.sectionReserve ?? 0) : 0) +
 				(m.noteAccidentalLead ?? 0);
@@ -1772,7 +1768,7 @@ export function buildLayoutModel(song, availableWidthInSp) {
 			const scaledContent = leadInset + scaledGrid;
 
 			// Columns sit left-to-right from the leading inset, so every measure's opening
-			// note (a whole note included) starts near the left barline (review-5).
+			// note (a whole note included) starts near the left barline.
 			const columnX = new Map();
 			let cx = leadInset;
 			ml.columns.forEach((col) => {
@@ -1797,8 +1793,8 @@ export function buildLayoutModel(song, availableWidthInSp) {
 
 			// The bar sits at the measure's content end (the last note already has its
 			// natural advance of whitespace before it), and the next measure starts a full
-			// BARLINE_POST_PAD past the bar so its first note clears the line (review F6 +
-			// review-2). This trailing room is already counted in the packing width
+			// BARLINE_POST_PAD past the bar so its first note clears the line.
+			// This trailing room is already counted in the packing width
 			// (`ml.width`), so honoring it here just turns reserved budget into real space.
 			const endType = m.measure?.barlineEnd ?? "regular";
 			const trailingPad = barlineTrailingPad(endType);
@@ -1866,7 +1862,7 @@ export function buildLayoutModel(song, availableWidthInSp) {
 			y: yCursor,
 			height: systemHeight,
 			width: budgetSp,
-			// The staff lines span the inset content area, not the full box (review F9).
+			// The staff lines span the inset content area, not the full box.
 			staffStartX: STAFF_MARGIN_X,
 			staffEndX: budgetSp - STAFF_MARGIN_X,
 			advanceScale,
@@ -1914,8 +1910,8 @@ function clefGlyph(clef) {
 /**
  * The highest notehead position (largest `sFromBottom`) above the RH staff top
  * across a system's measures, converted to an extra top margin in sp. Drives the
- * per-system top margin so tall ledger stacks do not collide with the system above
- * (design §6.3). The RH staff top is `sFromBottom = 8`.
+ * per-system top margin so tall ledger stacks do not collide with the system above.
+ * The RH staff top is `sFromBottom = 8`.
  */
 function ledgerTopExtent(members) {
 	let maxAbove = 8;
@@ -1975,14 +1971,8 @@ function handStepsFor(events, clef) {
 }
 
 /**
- * The inline cautionary symbols drawn at a mid-system section change (design §6.6):
- * only what the diff marks changed — a per-hand clef, a per-hand key-sig cluster, a
- * time-signature glyph — placed at the boundary measure's left X. (Tempo and ottava
- * changes surface as system texts / spans, not inline glyphs here.)
- *
-/**
  * Whether either hand's FIRST event (the measure's opening onset) draws an accidental,
- * so the measure must reserve a little extra leading room for it (review-4). A leading
+ * so the measure must reserve a little extra leading room for it. A leading
  * rest has no accidental; only an explicit `alter` or a key-sig default that resolves to
  * a glyph counts.
  *
@@ -2010,7 +2000,7 @@ function firstColumnHasAccidental(member) {
  * The horizontal room a mid-system section change consumes (clef + key sig + time
  * signature, only for the fields that changed) plus a trailing pad, in sp. Mirrors the
  * field advances of `inlineSectionChange` so the section's first note, inset by this
- * width, lands clear of the cautionary glyphs (review-2). Returns 0 when nothing visible
+ * width, lands clear of the cautionary glyphs. Returns 0 when nothing visible
  * changes (e.g. a tempo-only change, which is drawn as a system text, not inline).
  *
  * @param {object} member The flattened measure entry (carries `ctx` + `diff`).
@@ -2047,7 +2037,7 @@ function inlineReserveWidth(member) {
 /**
  * Each present field is positioned from the previous field's REAL width (clef →
  * key sig → time sig), so a multi-accidental change does not collide with the new
- * time signature (review F1) — mirroring the system-head reserve.
+ * time signature — mirroring the system-head reserve.
  *
  * @param {object} member The flattened measure entry (carries `ctx` + `diff`).
  * @param {number} x The boundary measure's absolute left X, in sp.
@@ -2105,7 +2095,7 @@ function inlineSectionChange(member, x) {
 
 /**
  * Record one measure's tie/slur markers + the laid-out geometry of each marked
- * note, into the per-hand cross-measure streams (design §6.7). Each entry keeps the
+ * note, into the per-hand cross-measure streams. Each entry keeps the
  * event's marker projections and the absolute anchor (X + a notehead Y + stem
  * direction + the current system index) so a matched pair can later be drawn between
  * its actual positions, even across barlines/systems.
@@ -2146,7 +2136,7 @@ function recordSpanMarkers(events, laidOut, options) {
 
 /**
  * Resolve every hand's tie and slur markers into drawn span specs between the
- * actual laid-out positions (design §6.7). Uses the stack-based `matchSpans` on each
+ * actual laid-out positions. Uses the stack-based `matchSpans` on each
  * hand's cross-measure stream; a dangling start/stop or double-start is dropped
  * (never throws). Each resolved span carries its Bézier control points and the
  * system it belongs to (the start's system; the emit layer clips a cross-system arc
@@ -2179,9 +2169,9 @@ function resolveAllSpans(placedEvents) {
 }
 
 /**
- * The Bézier geometry for one resolved span (design §6.7). A tie arcs clear of the
+ * The Bézier geometry for one resolved span. A tie arcs clear of the
  * noteheads — its endpoints sit a notehead's clearance ABOVE or BELOW the heads (on
- * the side opposite the stem), never through their centers (review F8) — bulging
+ * the side opposite the stem), never through their centers — bulging
  * further in that same direction. A slur is a longer arc OVER the phrase (above the
  * stems). The same quadratic-Bézier primitive serves both; only the reach, side, and
  * bulge differ.
@@ -2195,7 +2185,7 @@ function resolveAllSpans(placedEvents) {
 function buildSpanSpec(kind, start, stop, hand) {
 	const a = start.anchor;
 	const b = stop.anchor;
-	// Both ties AND slurs anchor at the note's horizontal CENTER (review-3), not its
+	// Both ties AND slurs anchor at the note's horizontal CENTER, not its
 	// edges, and sit on the side OPPOSITE the start note's stem — stem up → below the
 	// heads (sign +1, downward), stem down → above (sign −1, upward). The endpoints are
 	// offset clear of the noteheads and the control bulges further so the whole arc
@@ -2225,7 +2215,7 @@ function buildSpanSpec(kind, start, stop, hand) {
 /**
  * Whether a system carries any text that needs a dedicated lane above the staff — a
  * tempo mark (score start or a tempo change) or an above-staff ottava (a positive
- * `octaveShift` in either hand). Drives the deeper top margin (review F4/F5).
+ * `octaveShift` in either hand). Drives the deeper top margin.
  *
  * @param {object[]} members The system's flattened measure entries.
  * @return {boolean} True when a tempo or above-staff ottava prints on this system.
@@ -2255,7 +2245,7 @@ function systemHasChordSymbols(members) {
 }
 
 /**
- * The flexible top-margin layout for a system (review-3). Only the lanes actually
+ * The flexible top-margin layout for a system. Only the lanes actually
  * present are stacked above the high-note/ledger zone — chord symbols nearest the
  * staff, then an above-staff ottava, then the tempo at the very top — so when there is
  * nothing above the staff the margin (and the tempo) drop close to it. Returns the
@@ -2272,7 +2262,7 @@ function topMarginLayout(members, ledgerTop) {
 	// there: the high notes/ledgers AND the system's measure number (drawn just above
 	// the top line at the left). The stacked text lanes clear both so the tempo never
 	// drops onto the measure number when little else is above the staff. Measure 1 is
-	// never numbered (review-5), so a system that starts there reserves no number room.
+	// never numbered, so a system that starts there reserves no number room.
 	const showsMeasureNumber = members[0]?.number !== 1;
 	const innerZone = Math.max(
 		ledgerTop,
@@ -2311,7 +2301,7 @@ function topMarginLayout(members, ledgerTop) {
 
 /**
  * Build a system's text primitives: the tempo marks + the measure number, plus the
- * ottava brackets (design §5.3, §6.7).
+ * ottava brackets.
  *
  * - **Tempo** prints above the first measure of the section at the song start and at
  *   any tempo change — so it is emitted at every measure in this system that is a
@@ -2344,7 +2334,7 @@ function buildSystemTexts(members, measureModels, band) {
 					// The tempo prints at its measure's left edge (the score-start one
 					// over the first measure, just past the leading reserve).
 					x: measureModels[i].x,
-					// Topmost lane, above the note zone (review F4/F5).
+					// Topmost lane, above the note zone.
 					y: band.tempoLaneY,
 				});
 			}
@@ -2381,8 +2371,8 @@ function buildSystemTexts(members, measureModels, band) {
 					placement: ott.placement,
 					x1: Math.min(...run.xs) - NOTEHEAD_RX,
 					x2: Math.max(...run.xs) + NOTEHEAD_RX,
-					// Above: its own lane below the tempo and above the notes (review
-					// F4/F5). Below: in the bottom margin, clear of low ledgers.
+					// Above: its own lane below the tempo and above the notes.
+					// Below: in the bottom margin, clear of low ledgers.
 					y:
 						ott.placement === "above"
 							? band.ottavaAboveLaneY

@@ -1,7 +1,7 @@
 /**
  * The single home for the staff-space (sp) and layout constants shared by the
  * pure layout layer (`layout.js`) and the thin SVG-emit layer (`svg.js`), so the
- * magic numbers live in one place (design §5.1, §6.1–§6.3).
+ * magic numbers live in one place.
  *
  * The drawing uses the standard engraving unit, the **staff space (sp)** — the
  * distance between adjacent staff lines; the 5-line staff spans 4 sp. EVERY value
@@ -9,12 +9,11 @@
  * applies) and the integer count/multiplier tables. Keeping all geometry in sp
  * means the layout layer never touches pixels and resize is a pure re-wrap.
  *
- * The starting values come from design §5/§6; they may be tuned within the
- * documented ranges. This module is pure data — no DOM, no imports, no side
- * effects, so importing it is free.
+ * The starting values may be tuned within the documented ranges. This module is
+ * pure data — no DOM, no imports, no side effects, so importing it is free.
  */
 
-// ── Coordinate / staff sizing (design §5.1) ────────────────────────────────────
+// ── Coordinate / staff sizing ──────────────────────────────────────────────────
 
 /** sp→px scale: one staff space in SVG pixels. Staff height = 4 sp = 32 px. */
 export const SP_PX = 8;
@@ -25,7 +24,7 @@ export const STAFF_LINE_COUNT = 5;
 /** Height of one 5-line staff, in sp (4 spaces between the 5 lines). */
 export const STAFF_HEIGHT_SP = 4;
 
-// ── Noteheads / stems / flags / beams (design §6.1) ────────────────────────────
+// ── Noteheads / stems / flags / beams ──────────────────────────────────────────
 
 /** Notehead ellipse horizontal radius (≈ 1.18 sp wide notehead). */
 export const NOTEHEAD_RX = 0.6;
@@ -48,7 +47,7 @@ export const BEAM_GAP = 0.75;
 /** Inset of secondary beams toward the noteheads, parallel to the primary beam. */
 export const SECONDARY_BEAM_INSET = 0.28;
 
-// ── Augmentation dots (design §6.1) ────────────────────────────────────────────
+// ── Augmentation dots ──────────────────────────────────────────────────────────
 
 /** Augmentation-dot circle radius. */
 export const DOT_RADIUS = 0.15;
@@ -59,7 +58,7 @@ export const DOT_OFFSET = 0.5;
 /** Horizontal gap between successive dots (second dot further right). */
 export const DOT_GAP = 0.5;
 
-// ── Horizontal spacing (design §6.2) ───────────────────────────────────────────
+// ── Horizontal spacing ─────────────────────────────────────────────────────────
 
 /** Minimum advance between adjacent onsets; raised per-column for glyph clearance. */
 export const MIN_ADV = 2.2;
@@ -70,7 +69,7 @@ export const ADV_K = 3.0;
 /** Floor width for an empty measure (no events on either hand). */
 export const EMPTY_MEASURE_WIDTH = 3.3;
 
-// ── System wrapping / justify / vertical gaps (design §6.3) ─────────────────────
+// ── System wrapping / justify / vertical gaps ──────────────────────────────────
 
 /** Maximum justify stretch applied to internal grid advances (whitespace only). */
 export const MAX_STRETCH = 1.6;
@@ -90,7 +89,7 @@ export const SYSTEM_BOTTOM_MARGIN = 5;
 /**
  * Clearance, in sp, between the high-note/ledger zone and the first stacked text lane
  * above the staff (and above the topmost lane). Part of the flexible top stack that
- * only reserves space for the lanes actually present (review-3).
+ * only reserves space for the lanes actually present.
  */
 export const ABOVE_STAFF_PAD = 1;
 
@@ -99,11 +98,11 @@ export const TEXT_LANE_GAP = 0.6;
 
 /**
  * Horizontal inset on each side of a system, in sp: keeps the staff lines, the brace,
- * and the final barline inside the rendered box instead of bleeding past it (review F9).
+ * and the final barline inside the rendered box instead of bleeding past it.
  */
 export const STAFF_MARGIN_X = 1.5;
 
-// ── Barlines (design §6.7) ─────────────────────────────────────────────────────
+// ── Barlines ───────────────────────────────────────────────────────────────────
 
 /** Thin barline stroke thickness (regular bar / first stroke of a double). */
 export const BARLINE_THIN = 0.13;
@@ -113,12 +112,12 @@ export const BARLINE_THICK = 0.5;
 
 /**
  * Whitespace after a barline before the next measure's first note CENTER, in sp. Kept
- * small so the opening note sits close to the bar (review-4/5), but more than the
- * notehead radius so the head still clears the line (review-2).
+ * small so the opening note sits close to the bar, but more than the notehead radius
+ * so the head still clears the line.
  */
 export const BARLINE_POST_PAD = 0.7;
 
-// ── Accidentals / ledger lines (design §5.2, §6.4) ─────────────────────────────
+// ── Accidentals / ledger lines ─────────────────────────────────────────────────
 
 /** Ledger-line segment width, centered on the notehead. */
 export const LEDGER_WIDTH = 2;
@@ -126,7 +125,7 @@ export const LEDGER_WIDTH = 2;
 /**
  * Gap between an accidental glyph's center and the notehead center it sits left of.
  * Must clear the notehead (`NOTEHEAD_RX`) plus the glyph's own half-width so the
- * accidental reads as a separate symbol and never overlaps the head (review F7).
+ * accidental reads as a separate symbol and never overlaps the head.
  */
 export const ACCIDENTAL_GAP = 1.2;
 
@@ -137,20 +136,20 @@ export const ACCIDENTAL_COL_STEP = 1.3;
  * Extra leading room, in sp, reserved at a measure's start when its first note draws an
  * accidental — enough for the accidental glyph to sit between the measure boundary and
  * the notehead. With no accidental the opening note hugs the boundary; with one, the
- * note shifts right by this much so the accidental occupies the freed space (review-4).
+ * note shifts right by this much so the accidental occupies the freed space.
  */
 export const ACCIDENTAL_LEAD_EXTRA = 1;
 
-/** Gap between the end of the key-signature cluster and the time signature (review F1). */
+/** Gap between the end of the key-signature cluster and the time signature. */
 export const KEYSIG_TIMESIG_GAP = 0.8;
 
 /**
  * Vertical clearance, in sp, between a notehead center and a tie's endpoint, so the
- * tie arcs clear of the noteheads (above or below) instead of through them (review F8).
+ * tie arcs clear of the noteheads (above or below) instead of through them.
  */
 export const TIE_NOTE_CLEARANCE = 0.9;
 
-// ── Text sizes, in sp (design §6.7) ────────────────────────────────────────────
+// ── Text sizes, in sp ──────────────────────────────────────────────────────────
 
 /** Dynamics (bold-italic) text size. */
 export const DYNAMIC_SIZE = 2.8;
@@ -167,11 +166,11 @@ export const MEASURE_NUMBER_SIZE = 2.2;
 /** Ottava-bracket label text size ("8va" / "8vb" / "15ma" / "15mb"). */
 export const OTTAVA_SIZE = 2.2;
 
-// ── Duration tables (design §6.1, §6.2) ────────────────────────────────────────
+// ── Duration tables ────────────────────────────────────────────────────────────
 
 /**
  * Base duration of each note value in quarter-beats. Used by both the beaming
- * `pos` walk (§6.1) and the union-grid onset arithmetic (§6.2):
+ * `pos` walk and the union-grid onset arithmetic:
  * `dur(e) = BASE_DUR[duration] × DOT_MUL[dots]`.
  */
 export const BASE_DUR = {
@@ -183,14 +182,14 @@ export const BASE_DUR = {
 	"thirty-second": 0.125,
 };
 
-/** Dot multiplier keyed by dot count: 1 dot ×1.5, 2 dots ×1.75 (design §6.1). */
+/** Dot multiplier keyed by dot count: 1 dot ×1.5, 2 dots ×1.75. */
 export const DOT_MUL = {
 	0: 1,
 	1: 1.5,
 	2: 1.75,
 };
 
-/** Number of beams/flags per beamable note value (design §6.1 `beamCount`). */
+/** Number of beams/flags per beamable note value (`beamCount`). */
 export const BEAM_COUNT = {
 	eighth: 1,
 	sixteenth: 2,

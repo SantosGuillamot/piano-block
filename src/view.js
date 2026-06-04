@@ -1,22 +1,21 @@
 /**
- * The frontend `viewScript` entry (design §2.5, §2.6, §4, §6.3, §7) — the thin,
- * DOM-coupled half of the renderer. WordPress enqueues this on the frontend only,
- * only when the block is present, after the block markup. It owns NO layout math:
- * every musical decision lives in the pure layout layer (`notation/layout.js`); the
- * emit layer (`notation/svg.js`) turns the model into SVG. This file only wires the
- * DOM to those two.
+ * The frontend `viewScript` entry — the thin, DOM-coupled half of the renderer.
+ * WordPress enqueues this on the frontend only, only when the block is present,
+ * after the block markup. It owns NO layout math: every musical decision lives in
+ * the pure layout layer (`notation/layout.js`); the emit layer (`notation/svg.js`)
+ * turns the model into SVG. This file only wires the DOM to those two.
  *
- * Per block container (the wrapper `<div>` `render.php` emits, T9) it:
+ * Per block container (the wrapper `<div>` `render.php` emits) it:
  *   1. reads the inert `application/json` `<script>`'s `textContent` (the raw song);
- *   2. runs the reused `validateSong` gate — render-or-nothing (design §2.6);
+ *   2. runs the reused `validateSong` gate — render-or-nothing;
  *   3. for a conformant song, parses it, builds the layout model at the live
  *      container width, and mounts the SVG (a non-conformant or invalid song leaves
- *      the wrapper empty — the §2.5 non-renderable state, no raw echo, no error);
- *   4. computes the accessible name from `metadata` (design §7, i18n-wrapped);
+ *      the wrapper empty — the non-renderable state, no raw echo, no error);
+ *   4. computes the accessible name from `metadata` (i18n-wrapped);
  *   5. gates the FIRST draw on the music font so the ornate glyphs are present on
- *      first paint (design §2.4 / open item #1); and
+ *      first paint; and
  *   6. reflows on container resize via a rAF-debounced, one-way `ResizeObserver`
- *      (design §6.3 / §4 — width flows container → SVG only, never back).
+ *      (width flows container → SVG only, never back).
  */
 
 import domReady from "@wordpress/dom-ready";
@@ -35,18 +34,18 @@ import validateSong from "./song/validate.js";
 const BLOCK_CLASS = "wp-block-piano-block-piano";
 
 /**
- * The class on the inert JSON `<script>` `render.php` nests inside the wrapper
- * (design §2.2). Scoped to the wrapper so a stray match elsewhere is impossible.
+ * The class on the inert JSON `<script>` `render.php` nests inside the wrapper.
+ * Scoped to the wrapper so a stray match elsewhere is impossible.
  */
 const SONG_SCRIPT_CLASS = "wp-block-piano-block-piano__song";
 
-/** Below this container width (px) the staff space steps down a notch (design §6.3). */
+/** Below this container width (px) the staff space steps down a notch. */
 const NARROW_CONTAINER_PX = 480;
 /** The stepped-down sp→px scale used below `NARROW_CONTAINER_PX`. */
 const NARROW_SP_PX = 7;
 
 /**
- * The accessible name for a song, computed from its `metadata` (design §7). A
+ * The accessible name for a song, computed from its `metadata`. A
  * metadata string counts only when non-empty after trim. The non-author strings are
  * i18n-wrapped (`@wordpress/i18n`); the title-only case is the author's own text, so
  * it is passed through verbatim with no wrapper.
@@ -67,7 +66,7 @@ export function accessibleNameFor(metadata) {
 		);
 	}
 	if (title) {
-		// The author's own title — no wrapper (design §7).
+		// The author's own title — no wrapper.
 		return title;
 	}
 	if (composer) {
@@ -87,7 +86,7 @@ function trimmedString(value) {
 
 /**
  * The available width for the layout, in staff spaces, from a container's live
- * content width (design §6.3). Converts px → sp via `SP_PX`, stepping the scale down
+ * content width. Converts px → sp via `SP_PX`, stepping the scale down
  * one notch below `NARROW_CONTAINER_PX` so a phone packs more onto each system.
  *
  * @param {Element} container The block wrapper.
@@ -103,7 +102,7 @@ function availableWidthInSp(container) {
 /**
  * Wire one block container: gate on `validateSong`, and for a conformant song draw
  * the notation and attach the resize observer. A non-renderable song (invalid JSON
- * or non-conformant) leaves the wrapper empty (design §2.5) — no raw echo, no error.
+ * or non-conformant) leaves the wrapper empty — no raw echo, no error.
  *
  * @param {Element} container The block wrapper `<div>`.
  */
@@ -115,7 +114,7 @@ function setupContainer(container) {
 
 	const raw = script.textContent ?? "";
 	// The reused gate: one call covers both invalid JSON ("Invalid JSON: …") and a
-	// non-conformant structure. Any error → render nothing (design §2.6).
+	// non-conformant structure. Any error → render nothing.
 	if (validateSong(raw).length > 0) {
 		return;
 	}
@@ -136,7 +135,7 @@ function setupContainer(container) {
 	};
 
 	// Gate the FIRST draw on the music font so the ornate glyphs (clefs, rests,
-	// accidentals, flags, brace) are present on first paint (design §2.4). Subsequent
+	// accidentals, flags, brace) are present on first paint. Subsequent
 	// resize redraws need not re-wait — the font is cached by then.
 	drawWhenFontReady(draw);
 
@@ -144,9 +143,9 @@ function setupContainer(container) {
 }
 
 /**
- * Run `draw` once the music font is loaded, so the first paint has the ornate glyphs
- * (design §2.4 / open item #1). Falls back to an immediate draw when the Font Loading
- * API is unavailable (the hand-drawn skeleton still renders without the font).
+ * Run `draw` once the music font is loaded, so the first paint has the ornate glyphs.
+ * Falls back to an immediate draw when the Font Loading API is unavailable (the
+ * hand-drawn skeleton still renders without the font).
  *
  * @param {() => void} draw The first-draw callback.
  */
@@ -165,8 +164,8 @@ function drawWhenFontReady(draw) {
 }
 
 /**
- * Attach a rAF-debounced, one-way `ResizeObserver` to the container (design §6.3 /
- * §4). On a width change it re-runs `draw` (re-pack/justify + a fresh SVG); it NEVER
+ * Attach a rAF-debounced, one-way `ResizeObserver` to the container. On a width
+ * change it re-runs `draw` (re-pack/justify + a fresh SVG); it NEVER
  * writes the container width back, so it cannot trigger an observer loop. The work is
  * wrapped in `requestAnimationFrame`, which also clears the benign "undelivered
  * notifications" warning.
@@ -191,7 +190,7 @@ function observeResize(container, draw) {
 	observer.observe(container);
 }
 
-// Boot on DOM ready: wire every Piano block container on the page (design §4).
+// Boot on DOM ready: wire every Piano block container on the page.
 domReady(() => {
 	const containers = document.querySelectorAll(`.${BLOCK_CLASS}`);
 	for (const container of containers) {

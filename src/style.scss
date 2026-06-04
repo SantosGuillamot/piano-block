@@ -4,7 +4,7 @@
  */
 
 /**
- * The music font for the sheet-music renderer (design §2.4 / open item #1). It is a
+ * The music font for the sheet-music renderer. It is a
  * subsetted + RENAMED Bravura (the SMuFL reference font, SIL OFL 1.1) — renamed to
  * "PB Music" because "Bravura" is a Reserved Font Name. The family string MUST match
  * `MUSIC_FONT_FAMILY` in `notation/glyphs.js` and the `document.fonts.load('1em "PB

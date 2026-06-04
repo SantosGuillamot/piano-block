@@ -1,23 +1,22 @@
 /**
- * Unit tests for the zero-dependency song conformance validator (design §6.2,
- * §7). `validateSong(rawString)` receives the author's RAW string, parses it
+ * Unit tests for the zero-dependency song conformance validator.
+ * `validateSong(rawString)` receives the author's RAW string, parses it
  * itself, walks it against `schema.js`, and returns a list of human-readable,
  * path-pointed error messages — `[]` when the song is conformant.
  *
- * These tests are the format-coverage acceptance criteria for the data model:
- * AC4 (conformant → no error), AC5 (the comprehensive §9 song), AC6 (the
- * valid-JSON gate), AC9 (both note-name systems, case-insensitive), and AC10
- * (structural-only — no musical-timing validation). They run in pure Node with
- * no WordPress runtime.
+ * These tests cover the format for the data model: conformant songs produce no
+ * error, the comprehensive song, the valid-JSON gate, both note-name systems
+ * (case-insensitive), and structural-only validation (no musical-timing
+ * validation). They run in pure Node with no WordPress runtime.
  */
 import validateSong from "../validate.js";
 
 /**
- * The annotated comprehensive example song from design §9, transcribed
- * verbatim (the §9 listing is JSONC for documentation; the stored `song`
- * content is the JSON it describes — comments stripped, values unchanged).
+ * The annotated comprehensive example song, transcribed verbatim (the
+ * documentation listing is JSONC; the stored `song` content is the JSON it
+ * describes — comments stripped, values unchanged).
  *
- * It exercises every required element (AC5): notes & rests in both hands, the
+ * It exercises every required element: notes & rests in both hands, the
  * opening 3-pitch C-major chord, a dotted half (`dots: 1`), a per-note
  * accidental (F#2 via `alter`), mixed English + Spanish note names, per-hand
  * `clef` / `alters` / `octaveShift`, Section-2 mid-song tempo / time-signature
@@ -149,7 +148,7 @@ const COMPREHENSIVE_SONG = {
 /** Convenience: validate an object by serializing it to its JSON string. */
 const check = (value) => validateSong(JSON.stringify(value));
 
-describe("validateSong — valid-JSON gate (AC6)", () => {
+describe("validateSong — valid-JSON gate", () => {
 	it("returns exactly one parse error for a string that is not valid JSON", () => {
 		const errors = validateSong("{ not json");
 		expect(errors).toHaveLength(1);
@@ -171,8 +170,8 @@ describe("validateSong — valid-JSON gate (AC6)", () => {
 	});
 });
 
-describe("validateSong — conformant songs (AC4, AC5)", () => {
-	it("accepts the minimal conformant song (design §3) with no errors", () => {
+describe("validateSong — conformant songs", () => {
+	it("accepts the minimal conformant song with no errors", () => {
 		expect(validateSong('{"sections":[{"measures":[]}]}')).toEqual([]);
 	});
 
@@ -180,12 +179,12 @@ describe("validateSong — conformant songs (AC4, AC5)", () => {
 		expect(check({ sections: [] })).toEqual([]);
 	});
 
-	it("accepts the comprehensive example song from design §9 (AC5)", () => {
+	it("accepts the comprehensive example song", () => {
 		expect(check(COMPREHENSIVE_SONG)).toEqual([]);
 	});
 });
 
-describe("validateSong — note-name systems and case (AC9)", () => {
+describe("validateSong — note-name systems and case", () => {
 	const pitchSong = (pitch) => ({
 		sections: [
 			{
@@ -227,7 +226,7 @@ describe("validateSong — note-name systems and case (AC9)", () => {
 	});
 });
 
-describe("validateSong — closed-enum errors (design §5)", () => {
+describe("validateSong — closed-enum errors", () => {
 	// Each builds an otherwise-valid song with one offending enum value, and
 	// asserts an error whose message includes the offending JSON path.
 	const eventSong = (event) => ({
@@ -388,7 +387,7 @@ describe("validateSong — type / required / nesting errors", () => {
 	});
 });
 
-describe("validateSong — the one conditional: note ⇒ non-empty pitches (design §4.2)", () => {
+describe("validateSong — the one conditional: note ⇒ non-empty pitches", () => {
 	const eventSong = (event) => ({
 		sections: [{ measures: [{ rightHand: [event] }] }],
 	});
@@ -511,7 +510,7 @@ describe("validateSong — integer-range errors", () => {
 	});
 });
 
-describe("validateSong — walker special cases (design §7)", () => {
+describe("validateSong — walker special cases", () => {
 	const tempoSong = (tempo) => ({
 		defaults: { tempo },
 		sections: [{ measures: [] }],
@@ -558,7 +557,7 @@ describe("validateSong — walker special cases (design §7)", () => {
 	});
 });
 
-describe("validateSong — lenient on unknown properties (design §5)", () => {
+describe("validateSong — lenient on unknown properties", () => {
 	it("ignores an unknown property at the root", () => {
 		expect(check({ foo: 1, sections: [{ measures: [] }] })).toEqual([]);
 	});
@@ -603,7 +602,7 @@ describe("validateSong — lenient on unknown properties (design §5)", () => {
 	});
 });
 
-describe("validateSong — structural only, no musical-timing validation (AC10)", () => {
+describe("validateSong — structural only, no musical-timing validation", () => {
 	it("accepts a song whose measure durations do not sum to the time signature and whose hands differ in length", () => {
 		// 4/4 time, but the right hand is a single eighth note (½ beat) and the
 		// left hand is two whole notes (8 beats) — wildly unbalanced, and the

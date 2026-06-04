@@ -1,6 +1,6 @@
 /**
  * The single shared home for the closed two-system note-name vocabulary and the
- * `step → canonical English letter` mapping (design §6.5).
+ * `step → canonical English letter` mapping.
  *
  * Both the validator (`validate.js`) and the renderer (`notation/`) need to know
  * the recognised note names and how to canonicalize them; encoding that
@@ -17,7 +17,7 @@
 
 /**
  * Recognised token → canonical UPPERCASE English letter. The single source of
- * the English/Spanish equivalence (design §6.5); keys are lowercased so lookup
+ * the English/Spanish equivalence; keys are lowercased so lookup
  * is case-insensitive once the input is lowercased.
  */
 const STEP_TO_LETTER = {
@@ -40,7 +40,7 @@ const STEP_TO_LETTER = {
 /**
  * The closed note-name vocabulary, lowercased — both systems. Derived from the
  * canonical map so the recognised tokens and their letters cannot diverge. The
- * validator consumes this `Set` for `isNoteName` (design §4.4, §7).
+ * validator consumes this `Set` for `isNoteName`.
  */
 export const NOTE_NAMES = new Set(Object.keys(STEP_TO_LETTER));
 

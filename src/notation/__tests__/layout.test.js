@@ -1,13 +1,12 @@
 /**
- * Unit tests for the PURE layout layer, part 1 (T4): pitch→staff position with
+ * Unit tests for the PURE layout layer, part 1: pitch→staff position with
  * ledger lines, duration decoding, chord stacking + the seconds rule, best-effort
- * beaming, and stateless accidental resolution (design §5.2, §6.1, §6.4).
+ * beaming, and stateless accidental resolution.
  *
- * These pin the design's VERIFIED numeric cases as fixtures — the pitch→Y table
- * (§5.2), the simple/compound beaming grouping + breaks + length-1→flag rule
- * (§6.1), and the accidental-precedence cases (§6.4, AC3). Everything here is
- * DOM-free plain data in staff-space (sp) units; later parts (T5/T6) extend this
- * same file.
+ * These pin the VERIFIED numeric cases as fixtures — the pitch→Y table, the
+ * simple/compound beaming grouping + breaks + length-1→flag rule, and the
+ * accidental-precedence cases. Everything here is DOM-free plain data in
+ * staff-space (sp) units; later parts extend this same file.
  */
 import {
 	ACCIDENTAL_GAP,
@@ -55,7 +54,7 @@ import {
 	unionGrid,
 } from "../layout.js";
 
-// ── Pitch → staff position (design §5.2) ───────────────────────────────────────
+// ── Pitch → staff position ─────────────────────────────────────────────────────
 
 describe("stepIndex / diatonicIndex", () => {
 	it("indexes the canonical letters C=0…B=6", () => {
@@ -86,7 +85,7 @@ describe("stepIndex / diatonicIndex", () => {
 	});
 });
 
-describe("pitchToStaffStep (the §5.2 verified table)", () => {
+describe("pitchToStaffStep (the verified table)", () => {
 	it("places treble-clef pitches", () => {
 		expect(pitchToStaffStep({ step: "E", octave: 4 }, "treble")).toBe(0);
 		expect(pitchToStaffStep({ step: "G", octave: 4 }, "treble")).toBe(2);
@@ -129,7 +128,7 @@ describe("staffStepToY", () => {
 	});
 });
 
-describe("ledgerLinesFor (design §5.2)", () => {
+describe("ledgerLinesFor", () => {
 	it("draws nothing for notes within the staff (0..8)", () => {
 		expect(ledgerLinesFor(0)).toEqual([]);
 		expect(ledgerLinesFor(4)).toEqual([]);
@@ -157,7 +156,7 @@ describe("ledgerLinesFor (design §5.2)", () => {
 	});
 });
 
-// ── Durations → noteheads / stems / flags / dots (design §6.1) ──────────────────
+// ── Durations → noteheads / stems / flags / dots ────────────────────────────────
 
 describe("decodeDuration", () => {
 	it("whole = open notehead, no stem, no flags", () => {
@@ -214,7 +213,7 @@ describe("isBeamable / beamCountFor", () => {
 	});
 });
 
-describe("stem direction (design §6.1)", () => {
+describe("stem direction", () => {
 	it("single note < 4 stems up, ≥ 4 stems down (middle line stems down)", () => {
 		expect(stemDirectionForStep(0)).toBe("up");
 		expect(stemDirectionForStep(3)).toBe("up");
@@ -234,7 +233,7 @@ describe("stem direction (design §6.1)", () => {
 	});
 });
 
-describe("dotPositions (design §6.1)", () => {
+describe("dotPositions", () => {
 	it("returns no dots when dots is 0", () => {
 		expect(dotPositions(3, 0)).toEqual([]);
 	});
@@ -256,9 +255,9 @@ describe("dotPositions (design §6.1)", () => {
 	});
 });
 
-// ── Chord stacking + the seconds rule (design §6.1) ─────────────────────────────
+// ── Chord stacking + the seconds rule ───────────────────────────────────────────
 
-describe("stackChord (design §6.1)", () => {
+describe("stackChord", () => {
 	it("places a plain triad all on the stem's normal side", () => {
 		// C-E-G (no seconds) stem-up → all to the right.
 		const heads = stackChord([0, 2, 4], "up");
@@ -292,7 +291,7 @@ describe("stackChord (design §6.1)", () => {
 	});
 });
 
-// ── Best-effort beaming (design §6.1) ──────────────────────────────────────────
+// ── Best-effort beaming ──────────────────────────────────────────────────────────
 
 describe("eventDuration / beatGroupLength", () => {
 	it("computes duration as BASE_DUR × DOT_MUL", () => {
@@ -323,7 +322,7 @@ describe("eventDuration / beatGroupLength", () => {
 	});
 });
 
-describe("beamGroups (design §6.1)", () => {
+describe("beamGroups", () => {
 	it("beams 4/4 eighths in twos", () => {
 		const events = Array.from({ length: 8 }, () => ({
 			type: "note",
@@ -406,7 +405,7 @@ describe("beamGroups (design §6.1)", () => {
 	});
 });
 
-describe("beamGeometry (design §6.1)", () => {
+describe("beamGeometry", () => {
 	it("produces flat horizontal stems to a common beam Y (stem-up)", () => {
 		const members = [
 			{ x: 0, topStep: 1, bottomStep: 1, beamCount: 1 },
@@ -443,7 +442,7 @@ describe("beamGeometry (design §6.1)", () => {
 	});
 });
 
-// ── Accidentals — stateless, data-faithful (design §6.4, AC3) ──────────────────
+// ── Accidentals — stateless, data-faithful ──────────────────────────────────────
 
 describe("normalizeAlters", () => {
 	it("keys the alters map through normalizeStep", () => {
@@ -460,7 +459,7 @@ describe("normalizeAlters", () => {
 	});
 });
 
-describe("resolveAccidental (the §6.4 verified precedence cases)", () => {
+describe("resolveAccidental (the verified precedence cases)", () => {
 	it("B default-flat with no override → no glyph, effective −1", () => {
 		const r = resolveAccidental({ step: "B" }, normalizeAlters({ B: -1 }));
 		expect(r.glyph).toBeNull();
@@ -519,7 +518,7 @@ describe("resolveAccidental (the §6.4 verified precedence cases)", () => {
 	});
 });
 
-describe("stackAccidentals (design §6.4, best-effort)", () => {
+describe("stackAccidentals (best-effort)", () => {
 	it("keeps well-separated accidentals in one column", () => {
 		const placed = stackAccidentals([
 			{ sFromBottom: 0, glyph: "accSharp" },
@@ -543,14 +542,14 @@ describe("stackAccidentals (design §6.4, best-effort)", () => {
 	});
 });
 
-// ── T5: union-grid alignment + compressive spacing + intrinsic widths (§6.2) ────
+// ── Union-grid alignment + compressive spacing + intrinsic widths ────────────────
 //
-// The §6.2 AC8/AC9 battery: onsets/grid/advances come PURELY from event durations
-// — `timeSignature` is never consulted for any X or width. These tests are the
-// spec's most-tested robustness path: no throw, no NaN, both staff bands for a
-// one-hand/empty-hand measure, floor width for an empty measure.
+// Onsets/grid/advances come PURELY from event durations — `timeSignature` is never
+// consulted for any X or width. These tests cover the robustness path: no throw, no
+// NaN, both staff bands for a one-hand/empty-hand measure, floor width for an empty
+// measure.
 
-describe("handOnsets / handEnd (design §6.2)", () => {
+describe("handOnsets / handEnd", () => {
 	it("computes onsets as the running sum from 0 of each event's duration", () => {
 		// Four quarters → onsets 0,1,2,3; end 4.
 		const events = Array.from({ length: 4 }, () => ({
@@ -589,7 +588,7 @@ describe("handOnsets / handEnd (design §6.2)", () => {
 	});
 });
 
-describe("unionGrid (design §6.2)", () => {
+describe("unionGrid", () => {
 	it("aligns equal onsets to a single shared column", () => {
 		// Both hands four quarters → identical onsets → one column each.
 		const rh = Array.from({ length: 4 }, () => ({
@@ -643,7 +642,7 @@ describe("unionGrid (design §6.2)", () => {
 	});
 });
 
-describe("advanceFor (compressive spacing, design §6.2)", () => {
+describe("advanceFor (compressive spacing)", () => {
 	it("is MIN_ADV + ADV_K·sqrt(Δ)", () => {
 		// Δ = 4 → sqrt 2 → MIN_ADV + 3·2 = MIN_ADV + 6.
 		expect(advanceFor(4)).toBeCloseTo(MIN_ADV + 6, 10);
@@ -672,7 +671,7 @@ describe("advanceFor (compressive spacing, design §6.2)", () => {
 	});
 });
 
-describe("measureLayout (design §6.2 — the AC8/AC9 battery)", () => {
+describe("measureLayout", () => {
 	it("returns a union grid, per-onset X, and an intrinsic width", () => {
 		const rh = [
 			{ type: "note", duration: "quarter" },
@@ -708,7 +707,7 @@ describe("measureLayout (design §6.2 — the AC8/AC9 battery)", () => {
 		expect(xOf(0.5)).toBeGreaterThan(xOf(0));
 	});
 
-	it("extends the grid to max(handEnds); the short hand simply ends (AC8)", () => {
+	it("extends the grid to max(handEnds); the short hand simply ends", () => {
 		// RH two quarters (end 2); LH one whole (end 4). The last advance uses
 		// measureEnd = max(2,4) = 4, so the whole-note column gets a wide gap.
 		const rh = [
@@ -722,7 +721,7 @@ describe("measureLayout (design §6.2 — the AC8/AC9 battery)", () => {
 		expect(Number.isFinite(layout.width)).toBe(true);
 	});
 
-	it("produces both staff bands for a one-hand measure (AC9)", () => {
+	it("produces both staff bands for a one-hand measure", () => {
 		// LH absent: the grid is the RH onsets, but the measure still reports both
 		// hands' geometry so the emit layer draws both staves regardless.
 		const rh = [
@@ -736,7 +735,7 @@ describe("measureLayout (design §6.2 — the AC8/AC9 battery)", () => {
 		expect(Number.isFinite(layout.width)).toBe(true);
 	});
 
-	it("produces both staff bands for an empty measure at the floor width (AC9)", () => {
+	it("produces both staff bands for an empty measure at the floor width", () => {
 		const layout = measureLayout([], []);
 		expect(layout.grid).toEqual([]);
 		expect(layout.columns).toEqual([]);
@@ -747,7 +746,7 @@ describe("measureLayout (design §6.2 — the AC8/AC9 battery)", () => {
 		expect(Number.isFinite(layout.width)).toBe(true);
 	});
 
-	it("never throws and stays NaN-free on an overflowing bar (AC8)", () => {
+	it("never throws and stays NaN-free on an overflowing bar", () => {
 		// Far more eighths than 4/4 holds — but the layout never knows or cares
 		// what the bar "should" total; it lays out purely from durations.
 		const rh = Array.from({ length: 20 }, () => ({
@@ -809,19 +808,19 @@ describe("measureLayout (design §6.2 — the AC8/AC9 battery)", () => {
 	});
 });
 
-// ── T6: section resolution + diff, wrapping/justify, spans/texts/barlines/ottava,
-// and the full buildLayoutModel (design §5.3, §6.3, §6.4, §6.6, §6.7) ────────────
+// ── Section resolution + diff, wrapping/justify, spans/texts/barlines/ottava,
+// and the full buildLayoutModel ──────────────────────────────────────────────────
 //
-// The §6.6 diff fixture below is the `docs/song-format.md` annotated 2-section
-// example, transcribed verbatim (and identical to the validator's COMPREHENSIVE
-// fixture). It is the shared full-coverage song.
+// The diff fixture below is the `docs/song-format.md` annotated 2-section example,
+// transcribed verbatim (and identical to the validator's COMPREHENSIVE fixture). It
+// is the shared full-coverage song.
 
 /**
- * The annotated comprehensive example song (design §9 / `docs/song-format.md`),
- * transcribed verbatim. It exercises every element and is the §6.6-verified
- * 2-section diff fixture: tempo 120→90, time sig 4/4→3/4, RH clef treble unchanged,
- * LH clef bass→tenor, RH alters {}→{F,C}, LH alters {B:-1}→{}, RH octaveShift 0→1,
- * LH octaveShift unchanged.
+ * The annotated comprehensive example song (`docs/song-format.md`), transcribed
+ * verbatim. It exercises every element and is the verified 2-section diff fixture:
+ * tempo 120→90, time sig 4/4→3/4, RH clef treble unchanged, LH clef bass→tenor,
+ * RH alters {}→{F,C}, LH alters {B:-1}→{}, RH octaveShift 0→1, LH octaveShift
+ * unchanged.
  */
 const COMPREHENSIVE_SONG = {
 	metadata: { title: "Example", composer: "A. Composer" },
@@ -928,7 +927,7 @@ const COMPREHENSIVE_SONG = {
 	],
 };
 
-describe("resolveHandContext / resolveSectionContexts (design §6.6)", () => {
+describe("resolveHandContext / resolveSectionContexts", () => {
 	it("inherits each field from defaults independently", () => {
 		const ctx = resolveHandContext(
 			"rightHand",
@@ -986,7 +985,7 @@ describe("resolveHandContext / resolveSectionContexts (design §6.6)", () => {
 	});
 });
 
-describe("diffContext — the §6.6-verified 2-section diff fixture", () => {
+describe("diffContext — the verified 2-section diff fixture", () => {
 	it("marks ONLY what changed between the two sections", () => {
 		const ctxs = resolveSectionContexts(COMPREHENSIVE_SONG);
 		const diff = diffContext(ctxs[1], ctxs[0]);
@@ -1011,7 +1010,7 @@ describe("diffContext — the §6.6-verified 2-section diff fixture", () => {
 	});
 });
 
-describe("keySignatureCluster (design §6.4)", () => {
+describe("keySignatureCluster", () => {
 	it("renders one glyph per altered note at its key-sig register, in sharp order", () => {
 		// {F,C} sharps → conventional sharp order F then C, at the treble registers.
 		const cluster = keySignatureCluster({ F: 1, C: 1 }, "treble");
@@ -1054,7 +1053,7 @@ describe("keySignatureCluster (design §6.4)", () => {
 	});
 });
 
-describe("ottavaFor (design §5.3)", () => {
+describe("ottavaFor", () => {
 	it("maps each octave shift to its label + placement", () => {
 		expect(ottavaFor(1)).toEqual({ label: "8va", placement: "above" });
 		expect(ottavaFor(2)).toEqual({ label: "15ma", placement: "above" });
@@ -1068,7 +1067,7 @@ describe("ottavaFor (design §5.3)", () => {
 	});
 });
 
-describe("tempoMark (design §6.7)", () => {
+describe("tempoMark", () => {
 	it("uses the beatUnit note glyph + bpm", () => {
 		expect(tempoMark({ bpm: 120, beatUnit: "half" })).toEqual({
 			glyph: "metNoteHalf",
@@ -1089,7 +1088,7 @@ describe("tempoMark (design §6.7)", () => {
 	});
 });
 
-describe("barlineSpec (design §6.7)", () => {
+describe("barlineSpec", () => {
 	it("regular = one thin stroke", () => {
 		const b = barlineSpec("regular");
 		expect(b.strokes).toHaveLength(1);
@@ -1131,7 +1130,7 @@ describe("barlineSpec (design §6.7)", () => {
 	});
 });
 
-describe("matchSpans — stack-based, dangling-safe (design §6.7)", () => {
+describe("matchSpans — stack-based, dangling-safe", () => {
 	it("matches a start with the next stop", () => {
 		expect(matchSpans([{ marker: "start" }, {}, { marker: "stop" }])).toEqual([
 			{ startIndex: 0, stopIndex: 2 },
@@ -1177,7 +1176,7 @@ describe("matchSpans — stack-based, dangling-safe (design §6.7)", () => {
 	});
 });
 
-describe("packSystems + systemScale (design §6.3)", () => {
+describe("packSystems + systemScale", () => {
 	const measures = (widths) =>
 		widths.map((contentWidth) => ({ contentWidth, reserve: 10 }));
 
@@ -1234,7 +1233,7 @@ describe("packSystems + systemScale (design §6.3)", () => {
 	});
 });
 
-describe("buildLayoutModel — the full positioned-primitive model (§6.3/§6.6/§6.7)", () => {
+describe("buildLayoutModel — the full positioned-primitive model", () => {
 	it("returns a well-formed model with two staff bands per system", () => {
 		const model = buildLayoutModel(COMPREHENSIVE_SONG, 200);
 		expect(Array.isArray(model.systems)).toBe(true);
@@ -1259,7 +1258,7 @@ describe("buildLayoutModel — the full positioned-primitive model (§6.3/§6.6/
 		}
 	});
 
-	it("packs the song into fewer systems when wider, more when narrower (AC5)", () => {
+	it("packs the song into fewer systems when wider, more when narrower", () => {
 		const wide = buildLayoutModel(COMPREHENSIVE_SONG, 200);
 		const narrow = buildLayoutModel(COMPREHENSIVE_SONG, 30);
 		expect(narrow.systems.length).toBeGreaterThan(wide.systems.length);
@@ -1288,7 +1287,7 @@ describe("buildLayoutModel — the full positioned-primitive model (§6.3/§6.6/
 		});
 	});
 
-	it("numbers measures sequentially 1..N across section boundaries (§6.7)", () => {
+	it("numbers measures sequentially 1..N across section boundaries", () => {
 		const model = buildLayoutModel(COMPREHENSIVE_SONG, 200);
 		const numbers = model.systems.flatMap((s) =>
 			s.measures.map((m) => m.number),
@@ -1296,14 +1295,14 @@ describe("buildLayoutModel — the full positioned-primitive model (§6.3/§6.6/
 		expect(numbers).toEqual([1, 2, 3]); // section 2 does NOT reset the count
 	});
 
-	it("resolves the tie + slur spanning the two measures (§6.7)", () => {
+	it("resolves the tie + slur spanning the two measures", () => {
 		const model = buildLayoutModel(COMPREHENSIVE_SONG, 200);
 		const spans = model.systems.flatMap((s) => s.spans);
 		expect(spans.some((s) => s.kind === "tie")).toBe(true);
 		expect(spans.some((s) => s.kind === "slur")).toBe(true);
 	});
 
-	it("surfaces per-event dynamics + chord symbols and barlines (§6.7)", () => {
+	it("surfaces per-event dynamics + chord symbols and barlines", () => {
 		const model = buildLayoutModel(COMPREHENSIVE_SONG, 200);
 		const allRightTexts = model.systems.flatMap((s) =>
 			s.measures.flatMap((m) => m.right.texts),
@@ -1318,13 +1317,13 @@ describe("buildLayoutModel — the full positioned-primitive model (§6.3/§6.6/
 			s.measures.flatMap((m) => m.barlines.map((b) => `${b.side}/${b.type}`)),
 		);
 		// The score's first measure has no left barline — its `repeat-start` is
-		// suppressed (§6.7) — but repeat-end and final still draw on the right.
+		// suppressed — but repeat-end and final still draw on the right.
 		expect(allBarlines).not.toContain("start/repeat-start");
 		expect(allBarlines).toContain("end/repeat-end");
 		expect(allBarlines).toContain("end/final");
 	});
 
-	it("draws a left repeat-start barline on a non-first measure (§6.7)", () => {
+	it("draws a left repeat-start barline on a non-first measure", () => {
 		const song = {
 			sections: [
 				{
@@ -1360,7 +1359,7 @@ describe("buildLayoutModel — the full positioned-primitive model (§6.3/§6.6/
 		expect(barlines).toContain("start/repeat-start");
 	});
 
-	it("prints a tempo at the song start and at the section-2 tempo change (§6.7)", () => {
+	it("prints a tempo at the song start and at the section-2 tempo change", () => {
 		const model = buildLayoutModel(COMPREHENSIVE_SONG, 200);
 		const tempos = model.systems.flatMap((s) => s.texts.tempos);
 		// One at the song start (120 → quarter glyph) and one at the change (90).
@@ -1368,7 +1367,7 @@ describe("buildLayoutModel — the full positioned-primitive model (§6.3/§6.6/
 		expect(tempos.every((t) => t.glyph === "metNoteQuarter")).toBe(true);
 	});
 
-	it("starts an 8va ottava for the RH octave shift in section 2 (§5.3)", () => {
+	it("starts an 8va ottava for the RH octave shift in section 2", () => {
 		const model = buildLayoutModel(COMPREHENSIVE_SONG, 200);
 		const ottavas = model.systems.flatMap((s) => s.texts.ottavas);
 		const eightVa = ottavas.find((o) => o.label === "8va");
@@ -1377,7 +1376,7 @@ describe("buildLayoutModel — the full positioned-primitive model (§6.3/§6.6/
 		expect(eightVa.placement).toBe("above");
 	});
 
-	it("draws an inline section change at a mid-system section boundary (AC4)", () => {
+	it("draws an inline section change at a mid-system section boundary", () => {
 		// At a width that keeps all three measures on one system, the section-2 start
 		// (measure 3) carries inline cautionary changes (LH clef + RH/LH key sig).
 		const model = buildLayoutModel(COMPREHENSIVE_SONG, 200);
@@ -1408,7 +1407,7 @@ describe("buildLayoutModel — the full positioned-primitive model (§6.3/§6.6/
 		expect(xsOf(b)).toEqual(xsOf(a));
 	});
 
-	it("never throws on dangling ties/slurs, empty hands, or an empty song (AC8/AC9)", () => {
+	it("never throws on dangling ties/slurs, empty hands, or an empty song", () => {
 		const dangling = {
 			sections: [
 				{
@@ -1451,7 +1450,7 @@ describe("buildLayoutModel — the full positioned-primitive model (§6.3/§6.6/
 		expect(() => buildLayoutModel({ sections: [] }, 100)).not.toThrow();
 		expect(() => buildLayoutModel({}, 100)).not.toThrow();
 		expect(buildLayoutModel({ sections: [] }, 100).systems).toEqual([]);
-		// Each system in the dangling song still has both staff bands (AC9).
+		// Each system in the dangling song still has both staff bands.
 		const model = buildLayoutModel(dangling, 100);
 		for (const sys of model.systems) {
 			expect(sys.band.rightStaffTopY).toBeDefined();
@@ -1460,10 +1459,9 @@ describe("buildLayoutModel — the full positioned-primitive model (§6.3/§6.6/
 	});
 });
 
-// ── Review 1 (PR #6) layout-polish fixes — see .rp/pipelines/4-render-sheet-music/
-// 6-review/review-1.md (F1, F4/F5, F6, F7, F9) ───────────────────────────────────
-describe("review-1 layout fixes (F1, F4/F5, F6, F7, F9)", () => {
-	it("F1 — head fields get reserved, non-overlapping X (clef → key sig → time sig)", () => {
+// ── Layout-polish fixes ──────────────────────────────────────────────────────────
+describe("layout-polish fixes", () => {
+	it("head fields get reserved, non-overlapping X (clef → key sig → time sig)", () => {
 		const reserve = buildLayoutModel(COMPREHENSIVE_SONG, 200).systems[0]
 			.reserve;
 		const clefX = reserve.clefs.right.x;
@@ -1478,7 +1476,7 @@ describe("review-1 layout fixes (F1, F4/F5, F6, F7, F9)", () => {
 		expect(reserve.timeSignatureX).toBeGreaterThan(keySigX + maxCluster);
 	});
 
-	it("F4/F5 — tempo, ottava, and chord lanes stack above the staff", () => {
+	it("tempo, ottava, and chord lanes stack above the staff", () => {
 		const sys = buildLayoutModel(COMPREHENSIVE_SONG, 200).systems[0];
 		const above = sys.texts.ottavas.filter((o) => o.placement === "above");
 		expect(sys.texts.tempos.length).toBeGreaterThan(0);
@@ -1496,7 +1494,7 @@ describe("review-1 layout fixes (F1, F4/F5, F6, F7, F9)", () => {
 		}
 	});
 
-	it("review-3 — the top margin flexes: no chord/ottava → a shallower margin than with them", () => {
+	it("the top margin flexes: no chord/ottava → a shallower margin than with them", () => {
 		// The comprehensive song's first system carries chord + ottava + tempo.
 		const rich = buildLayoutModel(COMPREHENSIVE_SONG, 200).systems[0];
 		// A plain song with only notes — no tempo, ottava, or chord symbol above.
@@ -1532,19 +1530,19 @@ describe("review-1 layout fixes (F1, F4/F5, F6, F7, F9)", () => {
 		expect(plain.band.chordSymbolY).toBeNull();
 	});
 
-	it("F6 — every barline leaves a gap wider than a notehead before the next measure", () => {
+	it("every barline leaves a gap wider than a notehead before the next measure", () => {
 		const measures = buildLayoutModel(COMPREHENSIVE_SONG, 200).systems[0]
 			.measures;
 		expect(measures.length).toBeGreaterThan(1);
 		for (let i = 1; i < measures.length; i++) {
 			// The bar sits at the previous measure's content end; the next measure starts
-			// far enough past it that its opening notehead clears the line (review-2).
+			// far enough past it that its opening notehead clears the line.
 			const barX = measures[i - 1].x + measures[i - 1].width;
 			expect(measures[i].x - barX).toBeGreaterThan(NOTEHEAD_RX);
 		}
 	});
 
-	it("review-2 — a mid-system section change's notes start after the inline time signature", () => {
+	it("a mid-system section change's notes start after the inline time signature", () => {
 		const model = buildLayoutModel(COMPREHENSIVE_SONG, 200);
 		const m3 = model.systems
 			.flatMap((s) => s.measures)
@@ -1557,17 +1555,17 @@ describe("review-1 layout fixes (F1, F4/F5, F6, F7, F9)", () => {
 		}
 	});
 
-	it("F7 — an accidental clears the notehead (gap exceeds the notehead radius)", () => {
+	it("an accidental clears the notehead (gap exceeds the notehead radius)", () => {
 		expect(ACCIDENTAL_GAP).toBeGreaterThan(NOTEHEAD_RX);
 	});
 
-	it("F9 — staff lines are inset and all content stays inside the box", () => {
+	it("staff lines are inset and all content stays inside the box", () => {
 		const model = buildLayoutModel(COMPREHENSIVE_SONG, 200);
 		for (const sys of model.systems) {
 			expect(sys.staffStartX).toBeCloseTo(STAFF_MARGIN_X, 10);
 			expect(sys.staffEndX).toBeCloseTo(model.width - STAFF_MARGIN_X, 10);
 			// The first measure begins at/after the inset, and no barline stroke crosses
-			// the right inset — nothing bleeds past the staff lines (review F9).
+			// the right inset — nothing bleeds past the staff lines.
 			expect(sys.measures[0].x).toBeGreaterThanOrEqual(STAFF_MARGIN_X);
 			for (const m of sys.measures) {
 				for (const bar of m.barlines) {
@@ -1579,7 +1577,7 @@ describe("review-1 layout fixes (F1, F4/F5, F6, F7, F9)", () => {
 		}
 	});
 
-	it("review-3 — ties and slurs anchor at the note centers (not the notehead edges)", () => {
+	it("ties and slurs anchor at the note centers (not the notehead edges)", () => {
 		const model = buildLayoutModel(COMPREHENSIVE_SONG, 200);
 		const measures = model.systems.flatMap((s) => s.measures);
 		const m1 = measures.find((m) => m.number === 1);
@@ -1594,7 +1592,7 @@ describe("review-1 layout fixes (F1, F4/F5, F6, F7, F9)", () => {
 		}
 	});
 
-	it("review-5 — a whole-measure note is left-aligned (not centered) near the bar", () => {
+	it("a whole-measure note is left-aligned (not centered) near the bar", () => {
 		const song = {
 			sections: [
 				{
@@ -1626,7 +1624,7 @@ describe("review-1 layout fixes (F1, F4/F5, F6, F7, F9)", () => {
 		expect(m.right.notes[0].x).toBeLessThan(m.width / 2);
 	});
 
-	it("review-5 — measure 1 is not numbered; a later system numbers its first measure", () => {
+	it("measure 1 is not numbered; a later system numbers its first measure", () => {
 		const model = buildLayoutModel(COMPREHENSIVE_SONG, 30); // narrow → many systems
 		expect(model.systems.length).toBeGreaterThan(1);
 		// The system that opens the piece (measure 1) shows no measure number…
@@ -1640,7 +1638,7 @@ describe("review-1 layout fixes (F1, F4/F5, F6, F7, F9)", () => {
 		expect(Number(later[0].text)).toBeGreaterThanOrEqual(2);
 	});
 
-	it("review-4 — an opening note hugs the measure start, but reserves room when it has an accidental", () => {
+	it("an opening note hugs the measure start, but reserves room when it has an accidental", () => {
 		const q = (step, octave, alter) => ({
 			type: "note",
 			duration: "quarter",

@@ -2,7 +2,7 @@
 
 A WordPress block plugin for creating piano song sheets — the long-term goal is to write out notes and build practice sheets you can use to learn and train piano skills.
 
-> **Status:** This repository is an installable WordPress plugin that registers a single **Piano** block. The block **stores a complete song** as structured JSON — a right-hand + left-hand grand staff in the plugin's own [song format](docs/song-format.md) — authored by hand in a raw-JSON editor field, and on the front end **renders that song as visual piano sheet music**: a braced grand staff drawn as an SVG by the plugin's own rendering code (no third-party notation library). It does **not** yet play audio or offer a visual authoring UI; audio playback and a richer authoring experience remain future work (see [Forthcoming](#forthcoming)). A build pipeline (`@wordpress/scripts`) and a local dev environment (`wp-env`) are in place to build on.
+> **Status:** This repository is an installable WordPress plugin that registers a single **Piano** block. The block **stores a complete song** as structured JSON — a right-hand + left-hand grand staff in the plugin's own [song format](docs/song-format.md) — authored by hand in a raw-JSON editor field, and on the front end **renders that song as visual piano sheet music**: a braced grand staff drawn as an SVG by the plugin's own rendering code (no third-party notation library). It does **not** yet play audio or offer a visual authoring UI; audio playback and a richer authoring experience remain future work (see [Forthcoming](#forthcoming)). A build toolchain (`@wordpress/scripts`) and a local dev environment (`wp-env`) are in place to build on.
 
 ## What the block does today
 
@@ -99,7 +99,7 @@ The block is built with [`@wordpress/scripts`](https://developer.wordpress.org/b
 ### The build model
 
 - **JSX + ES modules.** `src/` is authored with JSX and `import`s from the `@wordpress/*` packages; the build transpiles the JSX and externalises those imports to WordPress's runtime script handles, generating `build/index.asset.php` (the script's dependencies and version) automatically.
-- **SCSS.** Styles are authored in `src/style.scss` and compiled to `build/style-index.css`. (Biome does not process SCSS; the build's Sass pipeline owns it.)
+- **SCSS.** Styles are authored in `src/style.scss` and compiled to `build/style-index.css`. (Biome does not process SCSS; the build's Sass step owns it.)
 - **Biome for lint/format.** Biome (tab indentation, double-quoted JS) lints and formats the JavaScript/JSON sources in `src/`. The generated `build/` directory is git-ignored and therefore outside Biome's set; the PHP files sit outside Biome's processing set and are not linted by it.
 - **`register_block_type()` targets `build/`.** `piano-block.php` registers the block from the `build/` directory, so you must run `npm run build` before the plugin will work.
 
@@ -155,7 +155,7 @@ Three checks the keyword subset cannot express are handled directly by the walke
 - **Enumerated values are closed.** The value enums (durations, clefs, dynamics, barlines, tie/slur, `type`, `beatType`) are the format's fixed vocabulary, not extension points; a typo like `"quaver"` for a duration **is** a conformance error.
 - **Accepted trade-off:** a misspelled *optional* property (e.g. `dynmic` for `dynamic`) is silently ignored rather than flagged — an accepted cost of the permissive, never-blocking v1 stance.
 
-**Additive growth (no `version` field).** New capabilities arrive as **new optional fields** on existing objects (`event` / `section` / `measure` / `handConfig` / `pitch`) — never a breaking change, never a `version` field. A song authored against today's format stays conformant after the format grows, because old songs simply omit the new fields. The spec's "Out of Scope" list (articulations, ornaments, pedal, fingering, tuplets, voltas, multiple voices, lyrics, per-pitch ties, wider octave-shift, triple dots, …) is effectively the backlog of additive candidates.
+**Additive growth (no `version` field).** New capabilities arrive as **new optional fields** on existing objects (`event` / `section` / `measure` / `handConfig` / `pitch`) — never a breaking change, never a `version` field. A song authored against today's format stays conformant after the format grows, because old songs simply omit the new fields. The deliberately out-of-scope list (articulations, ornaments, pedal, fingering, tuplets, voltas, multiple voices, lyrics, per-pitch ties, wider octave-shift, triple dots, …) is effectively the backlog of additive candidates.
 
 **Render contract — a container carrying an inert JSON `<script>`.** `src/render.php` emits a block-wrapper `<div>` (the attributes from `get_block_wrapper_attributes()`) containing a single inert `<script type="application/json">` whose body is the **raw** stored `song` string; the frontend (`src/view.js`) reads that script's `textContent` and decides whether to draw. PHP performs **no** validation, parsing, or re-serialization — the render-or-nothing decision lives entirely on the front end — and it still outputs **nothing** when the song is empty or whitespace-only (no wrapper at all). Contributors must keep PHP's role purely "carry whatever is stored": adding `json_encode`/`json_decode` would re-escape, reorder, or fail on the author's literal text and would break non-JSON input.
 
@@ -165,11 +165,9 @@ The one transformation PHP does make is a **script-breakout escape**: it replace
 
 **Tests.** Unit tests (run by `npm run test:unit`) cover two layers in pure Node. The validator suite (`src/song/__tests__/`) exercises a comprehensive example song, both note-name systems (case-insensitive), closed-enum / type / range errors, the lenient-on-unknown policy, and the structural-only stance (no musical-timing check). The renderer's pure layout/emit layers have their own suite (`src/notation/__tests__/`), so the musical geometry is verified without a browser. End-to-end tests (`specs/`, run by `npm run test:e2e` against `wp-env`) cover the editor (a fresh block is empty; conformant input shows no error; non-conformant input is flagged yet still stored; a song round-trips across save/reload — unchanged) and the front end across its three display states: a conformant song renders an `<svg role="img">` grand staff with an accessible name and the raw JSON is **not** shown; an empty/whitespace song renders nothing; a non-renderable song (invalid JSON or non-conformant) renders nothing — no raw echo, no error; and a conformant song carrying hostile free text renders that text inert (emitted via SVG `textContent`) while still drawing and parsing back to the exact author bytes.
 
-> The full rationale behind these decisions — the data model, the rejected alternatives, and the requirement/AC traceability — is in the design doc at `.rp/pipelines/2-store-song-information/2-design-doc/design-doc.md`.
-
 ## Forthcoming
 
-Song *storage* and front-end **notation rendering** have landed, but the audible and richer interactive piano experience has not. The following are planned for future tasks and are **not** part of v1 (the spec's "Out of Scope" set):
+Song *storage* and front-end **notation rendering** have landed, but the audible and richer interactive piano experience has not. The following are planned for future tasks and are **not** part of v1 (the "out of scope" set):
 
 - **Audio playback** — the format retains the pitch, octave, duration, and tempo precision needed for future sound, but nothing plays yet.
 - **A visual authoring UI** — anything beyond the single raw-JSON field; in v1 you write the song JSON by hand.
