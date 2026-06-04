@@ -281,6 +281,10 @@ That measure carries two standalone notes: `"rit."` above the right-hand staff a
 
 `notes` is **optional** on both events and measures. Both an **absent** `notes` and an explicit **empty array `notes: []`** are valid and mean "no annotations here." You can mix the two modes freely: a single measure may carry both per-event notes (on its events) and standalone notes (on the measure), and they all render.
 
+### Migrating a legacy `chordSymbol`
+
+Older songs used a per-event `chordSymbol` string for the chord-symbol-above-the-staff case; that field is gone, replaced by `notes`. Rewrite each `"chordSymbol": "C"` as a per-event note `"notes": [{ "text": "C", "placement": "above" }]`. A leftover `chordSymbol` is still **valid** — it is an unknown key, so it is silently ignored — but it **no longer renders**, and nothing rewrites it for you: the migration is manual.
+
 ## Pitches
 
 A **pitch** is a single sounding note name with its octave and optional accidental:
