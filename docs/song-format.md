@@ -298,7 +298,7 @@ Two consequences you can observe as an author:
 
 The following is a **complete, copy-pasteable example** — valid song JSON (no comments) you can paste straight into the block's song field and adapt.
 
-It exercises a broad spread of elements: notes and rests in both hands, a three-pitch chord, a dotted duration, a per-note accidental, mixed English and Spanish note names, per-hand clef / default accidentals / octave shift, a Section 2 mid-song tempo / time-signature / clef / accidental change, dynamics, a free-text chord symbol, a tie, repeat and final barlines, and title/composer metadata.
+It exercises a broad spread of elements: notes and rests in both hands, a three-pitch chord, a dotted duration, a per-note accidental, mixed English and Spanish note names, per-hand clef / default accidentals / octave shift, a Section 2 mid-song tempo / time-signature / clef / accidental change, dynamics, a free-text chord symbol, a tie, a crescendo span and a separate decrescendo span that meet on a shared messa-di-voce hinge note (carrying both `crescendo: "stop"` and `decrescendo: "start"`), repeat and final barlines, and title/composer metadata.
 
 ```json
 {
@@ -372,10 +372,13 @@ It exercises a broad spread of elements: notes and rests in both hands, a three-
           "barlineEnd": "final",
           "rightHand": [
             { "type": "note", "duration": "quarter", "dynamic": "p",
+              "crescendo": "start",
               "pitches": [ { "step": "F", "octave": 5 } ] },
             { "type": "note", "duration": "quarter",
+              "crescendo": "stop", "decrescendo": "start",
               "pitches": [ { "step": "la", "octave": 5 } ] },
-            { "type": "rest", "duration": "quarter" }
+            { "type": "note", "duration": "quarter", "decrescendo": "stop",
+              "pitches": [ { "step": "C", "octave": 6 } ] }
           ],
           "leftHand": [
             { "type": "note", "duration": "half", "dots": 1,
