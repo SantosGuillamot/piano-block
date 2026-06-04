@@ -362,7 +362,7 @@ Two consequences you can observe as an author:
 
 The following is a **complete, copy-pasteable example** — valid song JSON (no comments) you can paste straight into the block's song field and adapt.
 
-It exercises a broad spread of elements: notes and rests in both hands, a three-pitch chord, a dotted duration, a per-note accidental, mixed English and Spanish note names, per-hand clef / default accidentals / octave shift, a Section 2 mid-song tempo / time-signature / clef / accidental change, dynamics, a free-text note annotation, a tie, repeat and final barlines, and title/composer metadata.
+It exercises a broad spread of elements: notes and rests in both hands, a three-pitch chord, a dotted duration, a per-note accidental, mixed English and Spanish note names, per-hand clef / default accidentals / octave shift, a Section 2 mid-song tempo / time-signature / clef / accidental change, dynamics, free-text note annotations (a per-event chord symbol above and a fingering below, plus a standalone `"rit."` on a measure), a tie, repeat and final barlines, and title/composer metadata.
 
 ```json
 {
@@ -388,7 +388,10 @@ It exercises a broad spread of elements: notes and rests in both hands, a three-
               "duration": "half",
               "dots": 1,
               "dynamic": "mf",
-              "notes": [{ "text": "C", "placement": "above" }],
+              "notes": [
+                { "text": "C", "placement": "above" },
+                { "text": "1", "placement": "below" }
+              ],
               "tie": "start",
               "pitches": [
                 { "step": "C", "octave": 5 },
@@ -434,6 +437,9 @@ It exercises a broad spread of elements: notes and rests in both hands, a three-
       "measures": [
         {
           "barlineEnd": "final",
+          "notes": [
+            { "text": "rit.", "placement": "above", "staff": "rightHand" }
+          ],
           "rightHand": [
             { "type": "note", "duration": "quarter", "dynamic": "p",
               "pitches": [ { "step": "F", "octave": 5 } ] },
