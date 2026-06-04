@@ -21,8 +21,9 @@ import validateSong from "../validate.js";
  * accidental (F#2 via `alter`), mixed English + Spanish note names, per-hand
  * `clef` / `alters` / `octaveShift`, Section-2 mid-song tempo / time-signature
  * / left-hand clef / `alters` changes, `mf` / `p` dynamics, a free-text
- * `chordSymbol` ("C"), `tie` / `slur` start + stop, `repeat-start` /
- * `repeat-end` / `final` barlines, and `metadata` title + composer.
+ * per-event `notes` annotation ("C"), `tie` / `slur` start + stop,
+ * `repeat-start` / `repeat-end` / `final` barlines, and `metadata` title +
+ * composer.
  */
 const COMPREHENSIVE_SONG = {
 	metadata: {
@@ -50,7 +51,7 @@ const COMPREHENSIVE_SONG = {
 							duration: "half",
 							dots: 1,
 							dynamic: "mf",
-							chordSymbol: "C",
+							notes: [{ text: "C", placement: "above" }],
 							slur: "start",
 							tie: "start",
 							pitches: [
@@ -406,6 +407,245 @@ describe("validateSong — the one conditional: note ⇒ non-empty pitches", () 
 
 	it("accepts a rest event with no `pitches`", () => {
 		expect(check(eventSong({ type: "rest", duration: "quarter" }))).toEqual([]);
+	});
+});
+
+describe("validateSong — per-event `notes`", () => {
+	// Wrap one event (carrying a `notes` array) into an otherwise-valid song.
+	const eventSong = (event) => ({
+		sections: [{ measures: [{ rightHand: [event] }] }],
+	});
+
+	it("accepts an event whose `notes` holds an above-placement annotation", () => {
+		expect(
+			check(
+				eventSong({
+					type: "note",
+					duration: "quarter",
+					notes: [{ text: "C", placement: "above" }],
+					pitches: [{ step: "C", octave: 4 }],
+				}),
+			),
+		).toEqual([]);
+	});
+
+	it("accepts a rest event with a below-placement annotation", () => {
+		expect(
+			check(
+				eventSong({
+					type: "rest",
+					duration: "quarter",
+					notes: [{ text: "pedal", placement: "below" }],
+				}),
+			),
+		).toEqual([]);
+	});
+
+	it("accepts an event with no `notes` key", () => {
+		expect(check(eventSong({ type: "rest", duration: "quarter" }))).toEqual([]);
+	});
+
+	it("accepts an event with an empty `notes` array", () => {
+		expect(
+			check(eventSong({ type: "rest", duration: "quarter", notes: [] })),
+		).toEqual([]);
+	});
+
+	it("accepts a note annotation with empty text", () => {
+		expect(
+			check(
+				eventSong({
+					type: "rest",
+					duration: "quarter",
+					notes: [{ text: "", placement: "above" }],
+				}),
+			),
+		).toEqual([]);
+	});
+
+	it("flags a note annotation missing `text`, pointing at that element", () => {
+		const result = check(
+			eventSong({
+				type: "rest",
+				duration: "quarter",
+				notes: [{ placement: "above" }],
+			}),
+		);
+		expect(result.some((e) => /notes\[0\]/.test(e) && /text/.test(e))).toBe(
+			true,
+		);
+	});
+
+	it("flags a note annotation missing `placement`", () => {
+		const result = check(
+			eventSong({
+				type: "rest",
+				duration: "quarter",
+				notes: [{ text: "C" }],
+			}),
+		);
+		expect(result.some((e) => /placement/.test(e))).toBe(true);
+	});
+
+	it("flags a note annotation with an out-of-enum `placement`", () => {
+		const result = check(
+			eventSong({
+				type: "rest",
+				duration: "quarter",
+				notes: [{ text: "C", placement: "middle" }],
+			}),
+		);
+		expect(result.some((e) => /placement/.test(e) && /middle/.test(e))).toBe(
+			true,
+		);
+	});
+
+	it("ignores a stray `staff` or `beat` on a per-event note", () => {
+		expect(
+			check(
+				eventSong({
+					type: "rest",
+					duration: "quarter",
+					notes: [
+						{ text: "C", placement: "above", staff: "rightHand", beat: 2 },
+					],
+				}),
+			),
+		).toEqual([]);
+	});
+
+	it("reports the element index and field for a bad `placement` in a later element", () => {
+		const result = check(
+			eventSong({
+				type: "rest",
+				duration: "quarter",
+				notes: [
+					{ text: "C", placement: "above" },
+					{ text: "G", placement: "sideways" },
+				],
+			}),
+		);
+		expect(result.some((e) => /notes\[1\]\.placement/.test(e))).toBe(true);
+	});
+});
+
+describe("validateSong — standalone measure `notes`", () => {
+	// Wrap one standalone note into an otherwise-valid measure.
+	const measureNoteSong = (note) => ({
+		sections: [{ measures: [{ notes: [note] }] }],
+	});
+
+	it("accepts a standalone note with both required string fields and a staff", () => {
+		expect(
+			check(
+				measureNoteSong({
+					text: "rit.",
+					placement: "above",
+					staff: "rightHand",
+				}),
+			),
+		).toEqual([]);
+	});
+
+	it("accepts both `staff` values", () => {
+		expect(
+			check(
+				measureNoteSong({
+					text: "rit.",
+					placement: "above",
+					staff: "rightHand",
+				}),
+			),
+		).toEqual([]);
+		expect(
+			check(
+				measureNoteSong({
+					text: "rit.",
+					placement: "below",
+					staff: "leftHand",
+				}),
+			),
+		).toEqual([]);
+	});
+
+	it("accepts a measure with an empty `notes` array", () => {
+		expect(check({ sections: [{ measures: [{ notes: [] }] }] })).toEqual([]);
+	});
+
+	it("accepts a standalone note with empty text", () => {
+		expect(
+			check(
+				measureNoteSong({ text: "", placement: "above", staff: "rightHand" }),
+			),
+		).toEqual([]);
+	});
+
+	it("flags a standalone note missing `text`, pointing at that element", () => {
+		const result = check(
+			measureNoteSong({ placement: "above", staff: "rightHand" }),
+		);
+		expect(result.some((e) => /notes\[0\]/.test(e) && /text/.test(e))).toBe(
+			true,
+		);
+	});
+
+	it("flags a standalone note missing `staff`", () => {
+		const result = check(measureNoteSong({ text: "rit.", placement: "above" }));
+		expect(result.some((e) => /staff/.test(e))).toBe(true);
+	});
+
+	it("flags a standalone note with an invalid `staff` value", () => {
+		const result = check(
+			measureNoteSong({ text: "rit.", placement: "above", staff: "bothHands" }),
+		);
+		expect(result.some((e) => /staff/.test(e) && /bothHands/.test(e))).toBe(
+			true,
+		);
+	});
+
+	it("flags a standalone note missing `placement`", () => {
+		const result = check(measureNoteSong({ text: "rit.", staff: "rightHand" }));
+		expect(result.some((e) => /placement/.test(e))).toBe(true);
+	});
+
+	it("flags a standalone note with an out-of-enum `placement`", () => {
+		const result = check(
+			measureNoteSong({
+				text: "rit.",
+				placement: "middle",
+				staff: "rightHand",
+			}),
+		);
+		expect(result.some((e) => /placement/.test(e) && /middle/.test(e))).toBe(
+			true,
+		);
+	});
+
+	it("flags `beat: -1`", () => {
+		const result = check(
+			measureNoteSong({
+				text: "rit.",
+				placement: "above",
+				staff: "rightHand",
+				beat: -1,
+			}),
+		);
+		expect(result.some((e) => /beat/.test(e))).toBe(true);
+	});
+
+	it("accepts `beat` values of 0, 0.5, and 99", () => {
+		for (const beat of [0, 0.5, 99]) {
+			expect(
+				check(
+					measureNoteSong({
+						text: "rit.",
+						placement: "above",
+						staff: "rightHand",
+						beat,
+					}),
+				),
+			).toEqual([]);
+		}
 	});
 });
 
