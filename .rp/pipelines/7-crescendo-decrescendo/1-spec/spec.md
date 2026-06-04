@@ -109,7 +109,19 @@ decrescendo.
 17. **Out of scope** — A true single-note one-directional span is degenerate (a
     hairpin shows change *across* notes; one note has no horizontal extent) and is
     out of scope.
-18. **MUST** — Validation matches the rendering split. The validator accepts any
+18. **MUST** — A degenerate near-zero-width span — a *two-note* span whose start and
+    end notes land at near-identical horizontal positions, producing a near-zero-width
+    wedge — must not throw. Its visual output is unspecified beyond not crashing (this
+    is distinct from the single-note case in Requirement 17, which is out of scope
+    entirely). This mirrors the overlapping-spans treatment in Requirement 14: the
+    input is tolerated without a crash, but no particular rendered shape is guaranteed.
+19. **MUST** — A span whose start note and end note fall on two different rendered
+    systems (the start on one line, the end on the next) must not throw and must not
+    corrupt any other marking; at minimum the within-system portion of the span is
+    drawn. The full split rendering (a hairpin split across the system break with an
+    open mouth on the continuation) is **not** required by this spec and is left to
+    Design; see **OQ-3**.
+20. **MUST** — Validation matches the rendering split. The validator accepts any
     structurally and value-valid use of the new marking even when its start/end
     pairing is dangling or unbalanced — pairing is resolved best-effort at render
     time and is not a conformance check — and the validator rejects a value outside
@@ -137,7 +149,7 @@ The following are explicitly excluded from this feature:
 
 - **AC1** — Given a song JSON authored with a crescendo over a run of two or more
   notes in one hand and a separate decrescendo over a run of two or more notes,
-  when the song is validated, then it validates with no errors. (Reqs 1, 2, 18)
+  when the song is validated, then it validates with no errors. (Reqs 1, 2, 20)
 - **AC2** — Given an existing song that uses no gradual dynamics, when the feature's
   data additions are present in the format, then that song validates and renders
   exactly as it did before the feature (additive growth introduces no change to it).
@@ -153,11 +165,13 @@ The following are explicitly excluded from this feature:
 - **AC5** — Given a value outside the new marking's allowed set, when the song is
   validated, then it is reported as a conformance error; and given a misspelled
   optional field name, when the song is validated, then it is silently ignored (not
-  an error). (Reqs 3, 18)
+  an error). (Reqs 3, 20)
 - **AC6** — Given each of the following inputs — a dangling start, a dangling stop,
-  a double start, a span endpoint on a rest, and two overlapping same-kind spans in
-  one hand — when the song is rendered, then rendering completes without throwing
-  and without corrupting any other marking. (Reqs 12, 13, 14)
+  a double start, a span endpoint on a rest, two overlapping same-kind spans in one
+  hand, a degenerate near-zero-width two-note span, and a span whose start and end
+  fall on two different rendered systems — when the song is rendered, then rendering
+  completes without throwing and without corrupting any other marking. (Reqs 12, 13,
+  14, 18, 19)
 - **AC7** — Given a point dynamic at a span's start, at its end, at both ends, or at
   neither, when the song is rendered, then the span and any point dynamics both
   render independently in every case. (Req 4)
@@ -165,6 +179,17 @@ The following are explicitly excluded from this feature:
   ottava brackets, beams, chords, accidentals, barlines, tempo, measure numbers)
   alongside a new gradual-dynamic span, when it is rendered, then all existing
   markings render unchanged. (Req 11)
+- **AC9** — Given a span whose start note and end note fall on two *different*
+  rendered systems (the start on one line, the end on the next line after a wrap),
+  when the song is rendered, then rendering completes without throwing, no other
+  marking is corrupted, and the within-system portion of the span is drawn. (The full
+  split-across-the-break rendering with an open mouth on the continuation is not
+  asserted here; it is left to Design per OQ-3.) (Req 19)
+- **AC10** — Given a two-note gradual-dynamic span whose start and end notes land at
+  near-identical horizontal positions (a degenerate near-zero-width wedge), when the
+  song is rendered, then rendering completes without throwing and no other marking is
+  corrupted. (No particular rendered shape for the degenerate span is asserted.)
+  (Req 18)
 
 ## Open Questions for Design / the owner
 
@@ -186,10 +211,11 @@ Design (or by the owner). They are not blockers for this spec.
   to split the hairpin, leaving an open mouth on the continuation. The existing
   tie/slur cross-system clipping that this feature would otherwise inherit is
   **unverified and may be under-implemented**, so Design must verify rather than
-  assume cross-system handling already works. The spec requires non-crashing,
-  legible output for a wrapping span but does not mandate a specific split rendering
-  for this version; rendering the within-system portion correctly and never
-  crashing is the minimum, with a full split-with-open-mouth a SHOULD/MAY.
+  assume cross-system handling already works. The spec pins only the non-crash
+  MUST-minimum for this case — never throws, no corruption of other markings, and the
+  within-system portion drawn (Requirement 19, AC9). It does not mandate a specific
+  split rendering for this version; a full split-with-open-mouth on the continuation
+  is a SHOULD/MAY left to Design.
 - **OQ-4 (design)** — The placement lane: between the two staves (the strict
   grand-staff convention) vs. below each hand's staff (matching where the existing
   point dynamic sits). Per-hand below-staff placement is an accepted simplification
