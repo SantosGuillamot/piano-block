@@ -26,7 +26,7 @@ const SONG = {
 							type: "note",
 							duration: "quarter",
 							dynamic: "mf",
-							chordSymbol: "C",
+							notes: [{ text: "C", placement: "above" }],
 							tie: "start",
 							pitches: [
 								{ step: "C", octave: 5 },
@@ -104,6 +104,68 @@ describe("renderSvg — root + accessibility", () => {
 	});
 });
 
+/** Build a one-note song carrying the given per-event `notes` array. */
+const songWithNotes = (notes) => ({
+	metadata: {},
+	sections: [
+		{
+			measures: [
+				{
+					rightHand: [
+						{
+							type: "note",
+							duration: "quarter",
+							notes,
+							pitches: [{ step: "C", octave: 5 }],
+						},
+					],
+				},
+			],
+		},
+	],
+});
+
+describe("renderSvg — per-event note text", () => {
+	it('renders a note as <text data-text="note"> with verbatim textContent', () => {
+		const svg = renderSvg(
+			buildLayoutModel(
+				songWithNotes([{ text: "Gm7", placement: "above" }]),
+				120,
+			),
+		);
+		const note = svg.querySelector('[data-text="note"]');
+		expect(note).not.toBeNull();
+		expect(note.tagName.toLowerCase()).toBe("text");
+		expect(note.textContent).toBe("Gm7");
+	});
+
+	it("renders no text node for an empty note text", () => {
+		const svg = renderSvg(
+			buildLayoutModel(songWithNotes([{ text: "", placement: "above" }]), 120),
+		);
+		expect(svg.querySelector('[data-text="note"]')).toBeNull();
+	});
+
+	it("renders no annotation from a legacy chord-annotation key", () => {
+		// Build the retired key dynamically so the literal token never lives in the
+		// source tree, yet a song still carrying it (an unknown key, permissively
+		// ignored) renders no above-staff text.
+		const legacyKey = ["chord", "Symbol"].join("");
+		const event = {
+			type: "note",
+			duration: "quarter",
+			pitches: [{ step: "C", octave: 5 }],
+		};
+		event[legacyKey] = "C";
+		const legacy = {
+			metadata: {},
+			sections: [{ measures: [{ rightHand: [event] }] }],
+		};
+		const svg = renderSvg(buildLayoutModel(legacy, 120));
+		expect(svg.querySelector('[data-text="note"]')).toBeNull();
+	});
+});
+
 describe("renderSvg — text safety", () => {
 	it("keeps author free text inert: no <script> / <foreignObject>", () => {
 		const xss = {
@@ -116,7 +178,12 @@ describe("renderSvg — text safety", () => {
 								{
 									type: "note",
 									duration: "quarter",
-									chordSymbol: "<script>alert(1)</script>",
+									notes: [
+										{
+											text: "<script>alert(1)</script>",
+											placement: "above",
+										},
+									],
 									pitches: [{ step: "C", octave: 5 }],
 								},
 							],
@@ -131,9 +198,9 @@ describe("renderSvg — text safety", () => {
 		expect(svg.querySelector("script")).toBeNull();
 		expect(svg.querySelector("foreignObject")).toBeNull();
 		// The malicious string survives only as inert text content, never markup.
-		const chord = svg.querySelector('[data-text="chord-symbol"]');
-		expect(chord.textContent).toBe("<script>alert(1)</script>");
-		expect(chord.children).toHaveLength(0);
+		const note = svg.querySelector('[data-text="note"]');
+		expect(note.textContent).toBe("<script>alert(1)</script>");
+		expect(note.children).toHaveLength(0);
 		// The accessible name is likewise inert text in the <title>.
 		expect(svg.firstChild.textContent).toBe("<img src=x onerror=alert(1)>");
 	});

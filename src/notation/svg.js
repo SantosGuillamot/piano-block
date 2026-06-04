@@ -5,7 +5,7 @@
  * is already computed in staff-space (sp) units by the layout layer; this module only:
  *
  * - builds DOM via `createElementNS` (never `innerHTML`), so author free text
- *   (`chordSymbol`, the accessible-name `<title>`) is inert (the text-safety
+ *   (a note's text, the accessible-name `<title>`) is inert (the text-safety
  *   guarantee);
  * - applies the single sp→px scale (`SP_PX`) through the root `viewBox` so the
  *   layout numbers map to pixels without any arithmetic here beyond the scale;
@@ -29,11 +29,11 @@ import {
 	BARLINE_THIN,
 	BEAM_GAP,
 	BEAM_THICKNESS,
-	CHORD_SYMBOL_SIZE,
 	DOT_RADIUS,
 	DYNAMIC_SIZE,
 	LEDGER_WIDTH,
 	MEASURE_NUMBER_SIZE,
+	NOTE_SIZE,
 	NOTEHEAD_RX,
 	OTTAVA_SIZE,
 	SECONDARY_BEAM_INSET,
@@ -473,22 +473,23 @@ function renderMeasure(measure, band) {
 	});
 
 	// Each hand's primitives are placed relative to that staff's BOTTOM line (the sp
-	// Y origin the layout layer used). A nested <g> carries that staff offset. Chord
-	// symbols sit in the system's flexible chord lane (band.chordSymbolY, a system-local
-	// Y); convert it to each hand's local frame so the emit adds no layout math.
-	const chordDyR =
-		band.chordSymbolY == null
+	// Y origin the layout layer used). A nested <g> carries that staff offset. Author
+	// notes sit in the system's flexible above-RH lane (band.noteAboveRHLaneY, a
+	// system-local Y); convert it to each hand's local frame so the emit adds no layout
+	// math.
+	const noteDyR =
+		band.noteAboveRHLaneY == null
 			? undefined
-			: band.chordSymbolY - band.rightStaffBottomY;
-	const chordDyL =
-		band.chordSymbolY == null
+			: band.noteAboveRHLaneY - band.rightStaffBottomY;
+	const noteDyL =
+		band.noteAboveRHLaneY == null
 			? undefined
-			: band.chordSymbolY - band.leftStaffBottomY;
+			: band.noteAboveRHLaneY - band.leftStaffBottomY;
 	g.appendChild(
-		renderHand(measure.right, "rightHand", band.rightStaffBottomY, chordDyR),
+		renderHand(measure.right, "rightHand", band.rightStaffBottomY, noteDyR),
 	);
 	g.appendChild(
-		renderHand(measure.left, "leftHand", band.leftStaffBottomY, chordDyL),
+		renderHand(measure.left, "leftHand", band.leftStaffBottomY, noteDyL),
 	);
 
 	// Barlines span from the RH staff top to the LH staff bottom. The model gives
@@ -509,9 +510,9 @@ function renderMeasure(measure, band) {
  * Render one hand's primitives within a measure into a `<g>` translated to the
  * hand's staff bottom-line Y (the sp origin the layout layer measured Ys from).
  * Draws beams, then notes (noteheads + stems + flags + accidentals + ledgers +
- * dots), then rests, then per-event texts (dynamics / chord symbols).
+ * dots), then rests, then per-event texts (dynamics / author notes).
  */
-function renderHand(hand, handKey, staffBottomY, chordDy) {
+function renderHand(hand, handKey, staffBottomY, noteDy) {
 	const g = el("g", {
 		transform: `translate(0 ${staffBottomY})`,
 		"data-hand": handKey,
@@ -530,7 +531,7 @@ function renderHand(hand, handKey, staffBottomY, chordDy) {
 		g.appendChild(renderRest(rest, handKey));
 	}
 	for (const text of hand.texts ?? []) {
-		g.appendChild(renderHandText(text, chordDy));
+		g.appendChild(renderHandText(text, noteDy));
 	}
 
 	return g;
@@ -833,16 +834,16 @@ function renderSpan(span) {
 }
 
 /**
- * Render one hand's per-event text (a dynamic below the staff, a chord symbol above
+ * Render one hand's per-event text (a dynamic below the staff, an author note above
  * it). Y is relative to the hand's staff bottom line (the enclosing `<g>` already
  * carries that translate), so positive Y is below the staff and negative is above.
- * `chordDy` is the chord lane's Y in this hand's local frame (the flex lane);
- * without it, the chord falls back to just above the staff.
+ * `noteDy` is the above-RH note lane's Y in this hand's local frame (the flex lane);
+ * without it, the note falls back to just above the staff.
  *
  * @param {{ kind: string, x: number, text: string }} text The per-event text.
- * @param {number} [chordDy] The chord-symbol baseline Y in the hand's local frame.
+ * @param {number} [noteDy] The note baseline Y in the hand's local frame.
  */
-function renderHandText(text, chordDy) {
+function renderHandText(text, noteDy) {
 	if (text.kind === "dynamic") {
 		// Dynamics: bold-italic, set clearly BELOW the hand's staff bottom line (positive
 		// Y is downward) so the glyphs sit under the staff, not across it.
@@ -858,15 +859,15 @@ function renderHandText(text, chordDy) {
 		});
 		return setText(node, text.text);
 	}
-	// Chord symbol: author free text, in the system's flexible chord lane above the
+	// Note: author free text, in the system's flexible above-RH lane above the
 	// staff (or just above the top line when no lane Y is supplied).
 	const node = el("text", {
 		x: text.x,
-		y: chordDy ?? -5,
+		y: noteDy ?? -5,
 		fill: INK,
-		"font-size": CHORD_SYMBOL_SIZE,
+		"font-size": NOTE_SIZE,
 		"text-anchor": "middle",
-		"data-text": "chord-symbol",
+		"data-text": "note",
 	});
 	return setText(node, text.text);
 }

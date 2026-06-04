@@ -45,7 +45,7 @@ const BLOCK_CLASS = "wp-block-piano-block-piano";
  * renders; its `metadata` (title "Example", composer "A. Composer") drives the
  * accessible name. It exercises per-hand clefs, `alters`, a time signature, a
  * tempo, dotted notes, a chord, a per-note accidental, ties/slurs, dynamics, a
- * free-text `chordSymbol` ("C"), every barline, an octave shift, and a mid-song
+ * free-text note annotation ("C"), every barline, an octave shift, and a mid-song
  * section change — the AC2 coverage surface.
  */
 const COMPREHENSIVE_SONG = JSON.stringify({
@@ -70,7 +70,7 @@ const COMPREHENSIVE_SONG = JSON.stringify({
 							duration: "half",
 							dots: 1,
 							dynamic: "mf",
-							chordSymbol: "C",
+							notes: [{ text: "C", placement: "above" }],
 							slur: "start",
 							tie: "start",
 							pitches: [
@@ -212,7 +212,7 @@ const MANY_MEASURE_SONG = JSON.stringify({
 });
 
 // AC8 injection protection: a CONFORMANT song whose free-text fields carry the
-// HTML-significant breakout literals. `chordSymbol` and `metadata.title` are free
+// HTML-significant breakout literals. A note's `text` and `metadata.title` are free
 // text, so the song stays conformant; it must therefore still `JSON.parse` back
 // to these exact bytes (the `render.php` `<` escape round-trips) and RENDER.
 const HOSTILE_TITLE = `Pwn </script><!-- <script>alert("xss")</script>`;
@@ -227,7 +227,7 @@ const HOSTILE_SONG = JSON.stringify({
 						{
 							type: "note",
 							duration: "quarter",
-							chordSymbol: HOSTILE_CHORD,
+							notes: [{ text: HOSTILE_CHORD, placement: "above" }],
 							pitches: [{ step: "C", octave: 5 }],
 						},
 					],
@@ -338,9 +338,9 @@ test.describe("Piano block — front-end render", () => {
 		await expect(svg.locator("[data-reserve]")).toHaveCount(systemCount);
 
 		// (AC2 spot-check) Recognizable notation primitives are present: noteheads,
-		// and the free-text chord symbol "C" renders as inert SVG <text>.
+		// and the free-text note annotation "C" renders as inert SVG <text>.
 		await expect(svg.locator("[data-notehead]")).not.toHaveCount(0);
-		await expect(svg.locator('[data-text="chord-symbol"]')).toContainText("C");
+		await expect(svg.locator('[data-text="note"]')).toContainText("C");
 
 		// (AC1) The raw JSON is NOT shown to the reader: no <pre>, and the visible
 		// text of the block is not the JSON document. (A successful render replaces
@@ -473,9 +473,9 @@ test.describe("Piano block — front-end render", () => {
 		expect(await page.evaluate(() => window.__pianoXssFired)).toBe(false);
 
 		// (c) The hostile text is inert: it appears ONLY as SVG <text> content
-		// (built via textContent, design §6.8), never parsed as markup. The chord
-		// symbol carries the hostile literal verbatim as text…
-		await expect(svg.locator('[data-text="chord-symbol"]')).toContainText(
+		// (built via textContent, design §6.8), never parsed as markup. The note
+		// carries the hostile literal verbatim as text…
+		await expect(svg.locator('[data-text="note"]')).toContainText(
 			HOSTILE_CHORD,
 		);
 		// …and the accessible name (the SVG <title>) carries the hostile title

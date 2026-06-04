@@ -48,10 +48,10 @@ const CONFORMANT_SONG = JSON.stringify(
 	2,
 );
 
-// A conformant song used by AC1 — its `chordSymbol` deliberately carries
+// A conformant song used by AC1 — its note's `text` deliberately carries
 // HTML-significant characters (a double quote, `<`, `>`, and `&`) so the
 // save→reload round-trip exercises the block-delimiter-comment escaping
-// (design §6.1). `chordSymbol` is free text, so this stays conformant.
+// (design §6.1). A note's `text` is free text, so this stays conformant.
 const ROUND_TRIP_SONG = JSON.stringify(
 	{
 		metadata: { title: 'A "quoted" <title> & more' },
@@ -63,7 +63,7 @@ const ROUND_TRIP_SONG = JSON.stringify(
 							{
 								type: "note",
 								duration: "half",
-								chordSymbol: 'C7 & <alt> "sus"',
+								notes: [{ text: 'C7 & <alt> "sus"', placement: "above" }],
 								pitches: [{ step: "C", octave: 4 }],
 							},
 						],

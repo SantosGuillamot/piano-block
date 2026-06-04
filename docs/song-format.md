@@ -164,7 +164,7 @@ event := {
   dots?,          // integer 0..2  (un-dotted | single dot | double dot)
   pitches?,       // array of pitch objects — required & non-empty for a note; omitted for a rest
   dynamic?,       // enum: pp | p | mp | mf | f | ff | sf | sfz
-  chordSymbol?,   // free-text string (e.g. "C", "Gm7")
+  notes?,         // array of { text, placement } free-text annotations
   tie?,           // enum: start | stop
   slur?           // enum: start | stop
 }
@@ -175,12 +175,12 @@ event := {
 - **`dots`** — an integer **0..2**: `0`/absent for un-dotted, `1` for a single dot, `2` for a double dot.
 - **`pitches`** — an array of pitch objects. This is **the one conditional in the format**: a `note` **must** carry a non-empty `pitches` array; a `rest` omits it. A **chord** is simply several pitches in one event; a single note is a one-element `pitches`.
 - **`dynamic`** — one of `pp | p | mp | mf | f | ff | sf | sfz`.
-- **`chordSymbol`** — **free text** (an open vocabulary — the deliberate exception to the format's otherwise-closed enums), for example `"C"` or `"Gm7"`.
+- **`notes`** — an array of **free-text** annotations attached to this event, each `{ "text": …, "placement": "above" | "below" }`. The `text` is an open vocabulary (the deliberate exception to the format's otherwise-closed enums), for example `"C"` or `"Gm7"`.
 - **`tie`** and **`slur`** — event-level `start | stop` markers.
 
 ```json
 { "type": "note", "duration": "half", "dots": 1, "dynamic": "mf",
-  "chordSymbol": "C", "slur": "start", "tie": "start",
+  "notes": [{ "text": "C", "placement": "above" }], "slur": "start", "tie": "start",
   "pitches": [
     { "step": "C", "octave": 5 },
     { "step": "E", "octave": 5 },
@@ -269,7 +269,7 @@ Two consequences you can observe as an author:
 
 The following is a **complete, copy-pasteable example** — valid song JSON (no comments) you can paste straight into the block's song field and adapt.
 
-It exercises a broad spread of elements: notes and rests in both hands, a three-pitch chord, a dotted duration, a per-note accidental, mixed English and Spanish note names, per-hand clef / default accidentals / octave shift, a Section 2 mid-song tempo / time-signature / clef / accidental change, dynamics, a free-text chord symbol, a tie, repeat and final barlines, and title/composer metadata.
+It exercises a broad spread of elements: notes and rests in both hands, a three-pitch chord, a dotted duration, a per-note accidental, mixed English and Spanish note names, per-hand clef / default accidentals / octave shift, a Section 2 mid-song tempo / time-signature / clef / accidental change, dynamics, a free-text note annotation, a tie, repeat and final barlines, and title/composer metadata.
 
 ```json
 {
@@ -295,7 +295,7 @@ It exercises a broad spread of elements: notes and rests in both hands, a three-
               "duration": "half",
               "dots": 1,
               "dynamic": "mf",
-              "chordSymbol": "C",
+              "notes": [{ "text": "C", "placement": "above" }],
               "tie": "start",
               "pitches": [
                 { "step": "C", "octave": 5 },

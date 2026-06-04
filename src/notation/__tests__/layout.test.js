@@ -841,7 +841,7 @@ const COMPREHENSIVE_SONG = {
 							duration: "half",
 							dots: 1,
 							dynamic: "mf",
-							chordSymbol: "C",
+							notes: [{ text: "C", placement: "above" }],
 							slur: "start",
 							tie: "start",
 							pitches: [
@@ -1302,7 +1302,7 @@ describe("buildLayoutModel — the full positioned-primitive model", () => {
 		expect(spans.some((s) => s.kind === "slur")).toBe(true);
 	});
 
-	it("surfaces per-event dynamics + chord symbols and barlines", () => {
+	it("surfaces per-event dynamics + notes and barlines", () => {
 		const model = buildLayoutModel(COMPREHENSIVE_SONG, 200);
 		const allRightTexts = model.systems.flatMap((s) =>
 			s.measures.flatMap((m) => m.right.texts),
@@ -1310,9 +1310,9 @@ describe("buildLayoutModel — the full positioned-primitive model", () => {
 		expect(
 			allRightTexts.some((t) => t.kind === "dynamic" && t.text === "mf"),
 		).toBe(true);
-		expect(
-			allRightTexts.some((t) => t.kind === "chordSymbol" && t.text === "C"),
-		).toBe(true);
+		expect(allRightTexts.some((t) => t.kind === "note" && t.text === "C")).toBe(
+			true,
+		);
 		const allBarlines = model.systems.flatMap((s) =>
 			s.measures.flatMap((m) => m.barlines.map((b) => `${b.side}/${b.type}`)),
 		);
@@ -1476,16 +1476,16 @@ describe("layout-polish fixes", () => {
 		expect(reserve.timeSignatureX).toBeGreaterThan(keySigX + maxCluster);
 	});
 
-	it("tempo, ottava, and chord lanes stack above the staff", () => {
+	it("tempo, ottava, and note lanes stack above the staff", () => {
 		const sys = buildLayoutModel(COMPREHENSIVE_SONG, 200).systems[0];
 		const above = sys.texts.ottavas.filter((o) => o.placement === "above");
 		expect(sys.texts.tempos.length).toBeGreaterThan(0);
 		expect(above.length).toBeGreaterThan(0);
-		// Stacked top→bottom: tempo above the ottava above the chord lane, all above the
-		// staff top (smaller Y is higher).
+		// Stacked top→bottom: tempo above the ottava above the above-RH note lane, all
+		// above the staff top (smaller Y is higher).
 		expect(sys.band.tempoLaneY).toBeLessThan(sys.band.ottavaAboveLaneY);
-		expect(sys.band.ottavaAboveLaneY).toBeLessThan(sys.band.chordSymbolY);
-		expect(sys.band.chordSymbolY).toBeLessThan(sys.band.rightStaffTopY);
+		expect(sys.band.ottavaAboveLaneY).toBeLessThan(sys.band.noteAboveRHLaneY);
+		expect(sys.band.noteAboveRHLaneY).toBeLessThan(sys.band.rightStaffTopY);
 		for (const t of sys.texts.tempos) {
 			expect(t.y).toBeCloseTo(sys.band.tempoLaneY, 10);
 		}
@@ -1494,10 +1494,10 @@ describe("layout-polish fixes", () => {
 		}
 	});
 
-	it("the top margin flexes: no chord/ottava → a shallower margin than with them", () => {
-		// The comprehensive song's first system carries chord + ottava + tempo.
+	it("the top margin flexes: no note/ottava → a shallower margin than with them", () => {
+		// The comprehensive song's first system carries a note lane + ottava + tempo.
 		const rich = buildLayoutModel(COMPREHENSIVE_SONG, 200).systems[0];
-		// A plain song with only notes — no tempo, ottava, or chord symbol above.
+		// A plain song with only notes — no tempo, ottava, or note annotation above.
 		const plainSong = {
 			sections: [
 				{
@@ -1527,7 +1527,7 @@ describe("layout-polish fixes", () => {
 		// (and everything above) sits higher than in the text-rich system.
 		expect(plain.band.topMargin).toBeLessThan(rich.band.topMargin);
 		expect(plain.band.tempoLaneY).toBeNull();
-		expect(plain.band.chordSymbolY).toBeNull();
+		expect(plain.band.noteAboveRHLaneY).toBeNull();
 	});
 
 	it("every barline leaves a gap wider than a notehead before the next measure", () => {

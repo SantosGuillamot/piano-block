@@ -30,7 +30,6 @@ import {
 	BARLINE_THIN,
 	BASE_DUR,
 	BEAM_COUNT,
-	CHORD_SYMBOL_SIZE,
 	DOT_GAP,
 	DOT_MUL,
 	DOT_OFFSET,
@@ -42,6 +41,7 @@ import {
 	MAX_STRETCH,
 	MEASURE_NUMBER_SIZE,
 	MIN_ADV,
+	NOTE_SIZE,
 	NOTEHEAD_RX,
 	OTTAVA_SIZE,
 	STAFF_HEIGHT_SP,
@@ -1389,7 +1389,7 @@ export function systemScale(contentSp, availSp, { isLast = false } = {}) {
 // measure's two hands onto the union grid, packs measures into systems,
 // and assembles the positioned-primitive model: systems → grand-staff bands
 // → (staff lines, clefs, key sig, time sig, barlines, brace) + per-event primitives
-// + spans (ties/slurs) + texts (dynamics, chord symbols, tempo, measure numbers,
+// + spans (ties/slurs) + texts (dynamics, notes, tempo, measure numbers,
 // ottava). Everything is in sp units — NO DOM, NO sp→px. Resize re-runs only the
 // packing/justify because the per-measure intrinsic widths and pitch Ys are
 // sp-relative invariants.
@@ -1539,11 +1539,14 @@ function layoutHand(events, columnX, onsets, ctx, timeSignature) {
 }
 
 /**
- * Collect an event's per-event text primitives (dynamic + chord symbol) at X `x`.
- * Dynamics render below the hand's staff; chord symbols above the RH
- * staff. The hand placement (RH vs LH offset) is applied later by the band assembly.
+ * Collect an event's per-event text primitives (a dynamic plus any author `notes`)
+ * at X `x`. The dynamic renders below the hand's staff; each note's free text renders
+ * above the RH staff in the single above-RH lane. The hand placement (RH vs LH
+ * offset) is applied later by the band assembly; each note carries its `placement`
+ * onto the primitive for later lane selection.
  *
- * @param {{ dynamic?: string, chordSymbol?: string }} event The event.
+ * @param {{ dynamic?: string, notes?: object[] }} event The event, whose optional
+ *   `notes` is an array of `{ text, placement }` author annotations.
  * @param {number} x The event's relative X.
  * @param {object[]} out The list to push texts onto.
  */
@@ -1551,8 +1554,10 @@ function collectEventTexts(event, x, out) {
 	if (event?.dynamic) {
 		out.push({ kind: "dynamic", x, text: event.dynamic });
 	}
-	if (typeof event?.chordSymbol === "string" && event.chordSymbol.length > 0) {
-		out.push({ kind: "chordSymbol", x, text: event.chordSymbol });
+	for (const el of event?.notes ?? []) {
+		if (typeof el?.text === "string" && el.text.length > 0) {
+			out.push({ kind: "note", x, text: el.text, placement: el.placement });
+		}
 	}
 }
 
@@ -1562,7 +1567,7 @@ function collectEventTexts(event, x, out) {
  * `{ systems }`, where each system carries its Y band layout, leading reserve
  * (brace + clefs + key sig + optional time sig), per-measure barlines, both hands'
  * per-event primitives + beams, the resolved spans (ties/slurs), and the texts
- * (tempo, measure number, dynamics, chord symbols, ottava). Resize need only re-run
+ * (tempo, measure number, dynamics, notes, ottava). Resize need only re-run
  * the packing/justify — the intrinsic widths and pitch Ys are sp-relative invariants.
  *
  * @param {{ defaults?: object, sections?: object[] }} song The parsed, conformant
@@ -1674,7 +1679,7 @@ export function buildLayoutModel(song, availableWidthInSp) {
 
 		// ── Vertical band layout for this system (computed from content). ───────────
 		// The top margin flexes to only the text lanes actually present above the staff
-		// (chord symbols, an above-staff ottava, the tempo) stacked over the ledger zone,
+		// (notes, an above-staff ottava, the tempo) stacked over the ledger zone,
 		// so the staff and tempo drop close to the staff when there is nothing above it
 		// Each present lane's baseline Y comes back in system coordinates.
 		const top = topMarginLayout(members, ledgerTopExtent(members));
@@ -1697,7 +1702,7 @@ export function buildLayoutModel(song, availableWidthInSp) {
 			// null when that element is absent from the system).
 			tempoLaneY: top.tempoLaneY,
 			ottavaAboveLaneY: top.ottavaAboveLaneY,
-			chordSymbolY: top.chordSymbolY,
+			noteAboveRHLaneY: top.noteAboveRHLaneY,
 		};
 
 		// ── Leading reserve content: brace + clefs + key sigs (+ time sig). ─────────
@@ -2235,26 +2240,30 @@ function systemHasOttavaAbove(members) {
 	);
 }
 
-/** Whether any RH event in this system carries a chord symbol. */
-function systemHasChordSymbols(members) {
-	return members.some((m) =>
-		(m.measure?.rightHand ?? []).some(
-			(e) => typeof e?.chordSymbol === "string" && e.chordSymbol.length > 0,
-		),
+/** Whether any event in either hand of this system carries a non-empty note text. */
+function systemHasNotes(members) {
+	const eventHasNote = (e) =>
+		(e?.notes ?? []).some(
+			(n) => typeof n?.text === "string" && n.text.length > 0,
+		);
+	return members.some(
+		(m) =>
+			(m.measure?.rightHand ?? []).some(eventHasNote) ||
+			(m.measure?.leftHand ?? []).some(eventHasNote),
 	);
 }
 
 /**
  * The flexible top-margin layout for a system. Only the lanes actually
- * present are stacked above the high-note/ledger zone — chord symbols nearest the
- * staff, then an above-staff ottava, then the tempo at the very top — so when there is
- * nothing above the staff the margin (and the tempo) drop close to it. Returns the
- * staff's top margin plus each present lane's baseline Y in system-local coordinates
- * (null when that lane is absent).
+ * present are stacked above the high-note/ledger zone — the above-RH note lane
+ * nearest the staff, then an above-staff ottava, then the tempo at the very top — so
+ * when there is nothing above the staff the margin (and the tempo) drop close to it.
+ * Returns the staff's top margin plus each present lane's baseline Y in system-local
+ * coordinates (null when that lane is absent).
  *
  * @param {object[]} members The system's flattened measure entries.
  * @param {number} ledgerTop The high-note/ledger extent above the staff top, in sp.
- * @return {{ topMargin: number, chordSymbolY: ?number, ottavaAboveLaneY: ?number,
+ * @return {{ topMargin: number, noteAboveRHLaneY: ?number, ottavaAboveLaneY: ?number,
  *   tempoLaneY: ?number }} The top margin and lane baselines.
  */
 function topMarginLayout(members, ledgerTop) {
@@ -2271,12 +2280,12 @@ function topMarginLayout(members, ledgerTop) {
 	// Distances ABOVE the staff top line (positive = up); each present lane stacks out.
 	let d = innerZone + ABOVE_STAFF_PAD;
 	let topExtent = innerZone;
-	let chordD = null;
+	let noteAboveRHD = null;
 	let ottavaD = null;
 	let tempoD = null;
-	if (systemHasChordSymbols(members)) {
-		chordD = d;
-		topExtent = d + CHORD_SYMBOL_SIZE;
+	if (systemHasNotes(members)) {
+		noteAboveRHD = d;
+		topExtent = d + NOTE_SIZE;
 		d = topExtent + TEXT_LANE_GAP;
 	}
 	if (systemHasOttavaAbove(members)) {
@@ -2293,7 +2302,7 @@ function topMarginLayout(members, ledgerTop) {
 	const at = (dist) => (dist === null ? null : topMargin - dist);
 	return {
 		topMargin,
-		chordSymbolY: at(chordD),
+		noteAboveRHLaneY: at(noteAboveRHD),
 		ottavaAboveLaneY: at(ottavaD),
 		tempoLaneY: at(tempoD),
 	};

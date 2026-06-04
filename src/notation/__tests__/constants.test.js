@@ -2,11 +2,9 @@
  * Unit tests for the shared notation constants.
  *
  * These pin the note-annotation geometry values consumed by the layout/emit
- * layers and guard the temporary `CHORD_SYMBOL_SIZE` alias that keeps the
- * existing importers resolving until they switch to `NOTE_SIZE`.
+ * layers, including `NOTE_SIZE` as the sole note-annotation text size.
  */
 import {
-	CHORD_SYMBOL_SIZE,
 	DYNAMICS_LANE_RESERVE,
 	MID_GAP,
 	NOTE_CLAMP_INSET,
@@ -18,11 +16,6 @@ import {
 describe("notation constants — note-annotation geometry", () => {
 	it("exports NOTE_SIZE as the note-annotation text size", () => {
 		expect(NOTE_SIZE).toBe(2.8);
-	});
-
-	it("keeps CHORD_SYMBOL_SIZE as a temporary alias of NOTE_SIZE", () => {
-		expect(CHORD_SYMBOL_SIZE).toBe(NOTE_SIZE);
-		expect(CHORD_SYMBOL_SIZE).toBe(2.8);
 	});
 
 	it("exports NOTE_GAP_STAFF as a number with the recommended value", () => {

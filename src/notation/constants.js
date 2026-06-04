@@ -161,12 +161,6 @@ export const DYNAMIC_SIZE = 2.8;
 /** Note-annotation text size (free author text placed around the staves). */
 export const NOTE_SIZE = 2.8;
 
-/**
- * Deprecated temporary alias of {@link NOTE_SIZE}; kept only so existing
- * importers keep resolving during the rename. Removed in the clean-break task.
- */
-export const CHORD_SYMBOL_SIZE = NOTE_SIZE;
-
 /** Tempo marking text size ("[note-glyph] = [bpm]"). */
 export const TEMPO_SIZE = 2.8;
 

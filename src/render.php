@@ -10,7 +10,7 @@
  *
  * Script-breakout escaping: inside a raw-text <script> element the HTML parser
  * scans for the ETAGO sequence `</` (and the comment-open `<!--`) regardless of JSON
- * quoting, so a song carrying a literal `</script>` or `<!--` (e.g. in a chordSymbol
+ * quoting, so a song carrying a literal `</script>` or `<!--` (e.g. in a note's text
  * or metadata.title) could break out of the element. We escape the leading `<` of
  * every such sequence as the JSON unicode escape `<` (a blanket `<` -> `<`
  * is the simplest valid form). `<` is a legal JSON escape for `<`, so
