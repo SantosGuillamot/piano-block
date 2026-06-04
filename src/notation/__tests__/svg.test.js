@@ -77,6 +77,16 @@ describe("renderSvg — root + accessibility (design §7)", () => {
 		expect(Number(svg.getAttribute("height"))).toBeGreaterThan(0);
 	});
 
+	it("review-3 — constrains the SVG to its container so it cannot overflow the box", () => {
+		const svg = renderSvg(modelFor());
+		// max-width:100% shrinks the SVG to the block's content box when the intrinsic
+		// px width is wider (padded wrapper / narrow-screen step-down), so the staff
+		// stays inside the box on the page.
+		const style = svg.getAttribute("style") ?? "";
+		expect(style.replace(/\s/g, "")).toContain("max-width:100%");
+		expect(style.replace(/\s/g, "")).toContain("height:auto");
+	});
+
 	it("sets exactly one accessible name via a first-child <title> textContent", () => {
 		const svg = renderSvg(modelFor(), { accessibleName: "Hello by Ada" });
 		const title = svg.firstChild;

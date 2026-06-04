@@ -21,6 +21,7 @@
 
 import { normalizeStep } from "../song/normalizeStep.js";
 import {
+	ABOVE_STAFF_PAD,
 	ACCIDENTAL_COL_STEP,
 	ACCIDENTAL_GAP,
 	ADV_K,
@@ -29,6 +30,7 @@ import {
 	BARLINE_THIN,
 	BASE_DUR,
 	BEAM_COUNT,
+	CHORD_SYMBOL_SIZE,
 	DOT_GAP,
 	DOT_MUL,
 	DOT_OFFSET,
@@ -38,17 +40,18 @@ import {
 	KEYSIG_TIMESIG_GAP,
 	LEDGER_WIDTH,
 	MAX_STRETCH,
+	MEASURE_NUMBER_SIZE,
 	MIN_ADV,
 	NOTEHEAD_RX,
-	OTTAVA_ABOVE_LANE_Y,
+	OTTAVA_SIZE,
 	STAFF_HEIGHT_SP,
 	STAFF_MARGIN_X,
 	STEM_LENGTH,
 	SYSTEM_BOTTOM_MARGIN,
 	SYSTEM_TOP_MARGIN,
-	TEMPO_LANE_Y,
+	TEMPO_SIZE,
+	TEXT_LANE_GAP,
 	TIE_NOTE_CLEARANCE,
-	TOP_TEXT_RESERVE,
 } from "./constants.js";
 import { ACCIDENTAL_GLYPHS } from "./glyphs.js";
 
@@ -1664,15 +1667,12 @@ export function buildLayoutModel(song, availableWidthInSp) {
 		});
 
 		// ── Vertical band layout for this system (computed from content). ───────────
-		// A system carrying a tempo mark and/or an above-staff ottava needs a deeper top
-		// margin so those texts get their own lanes ABOVE the note zone (review F4/F5);
-		// otherwise the base margin suffices. The note zone always starts at the base
-		// margin below the system top, so the lanes (TEMPO_LANE_Y / OTTAVA_ABOVE_LANE_Y)
-		// stay clear of the highest notes regardless of any ledger stack.
-		const baseTopMargin = systemHasTopText(members)
-			? TOP_TEXT_RESERVE
-			: SYSTEM_TOP_MARGIN;
-		const topMargin = baseTopMargin + ledgerTopExtent(members);
+		// The top margin flexes to only the text lanes actually present above the staff
+		// (chord symbols, an above-staff ottava, the tempo) stacked over the ledger zone,
+		// so the staff and tempo drop close to the staff when there is nothing above it
+		// (review-3). Each present lane's baseline Y comes back in system coordinates.
+		const top = topMarginLayout(members, ledgerTopExtent(members));
+		const topMargin = top.topMargin;
 		const bottomMargin = SYSTEM_BOTTOM_MARGIN + ledgerBottomExtent(members);
 		const rhBottomY = topMargin + STAFF_HEIGHT_SP;
 		const lhTopY = rhBottomY + INTRA_STAFF_GAP;
@@ -1687,9 +1687,11 @@ export function buildLayoutModel(song, availableWidthInSp) {
 			leftStaffTopY: lhTopY,
 			leftStaffBottomY: lhBottomY,
 			height: systemHeight,
-			// Dedicated text lanes above the staff (system-top coordinates).
-			tempoLaneY: TEMPO_LANE_Y,
-			ottavaAboveLaneY: OTTAVA_ABOVE_LANE_Y,
+			// Flexible text-lane baselines above the staff (system coordinates; a lane is
+			// null when that element is absent from the system).
+			tempoLaneY: top.tempoLaneY,
+			ottavaAboveLaneY: top.ottavaAboveLaneY,
+			chordSymbolY: top.chordSymbolY,
 		};
 
 		// ── Leading reserve content: brace + clefs + key sigs (+ time sig). ─────────
@@ -1752,18 +1754,27 @@ export function buildLayoutModel(song, availableWidthInSp) {
 			// reserve already restates them, so no inset there (localIdx === 0).
 			const leadInset = localIdx > 0 ? (m.leadInset ?? 0) : 0;
 
-			// Scale the grid advances (justify) → relative column X within the measure.
-			// The first column sits at the leading inset (0 for a non-section measure).
+			// The scaled grid width (advances stretched by justify) and the measure's
+			// scaled content (the fixed leading inset, unscaled, plus the grid).
+			const scaledGrid =
+				(ml.contentWidth || EMPTY_MEASURE_WIDTH) * advanceScale;
+			const scaledContent = leadInset + scaledGrid;
+
+			// A measure whose whole content is a single onset at beat 0 (e.g. a lone whole
+			// note or whole rest filling the bar) is CENTERED in its content, so it occupies
+			// the space it spans rather than hugging the left barline (review-3). Otherwise
+			// columns sit left-to-right from the leading inset.
+			const centerFill = ml.columns.length === 1 && ml.columns[0].onset === 0;
 			const columnX = new Map();
-			let cx = leadInset;
-			ml.columns.forEach((col) => {
-				columnX.set(col.onset, cx);
-				cx += col.advance * advanceScale;
-			});
-			// The scaled measure content width: the fixed leading inset (unscaled) plus the
-			// stretched grid advances (pads not).
-			const scaledContent =
-				leadInset + (ml.contentWidth || EMPTY_MEASURE_WIDTH) * advanceScale;
+			if (centerFill) {
+				columnX.set(0, leadInset + scaledGrid / 2);
+			} else {
+				let cx = leadInset;
+				ml.columns.forEach((col) => {
+					columnX.set(col.onset, cx);
+					cx += col.advance * advanceScale;
+				});
+			}
 
 			const right = layoutHand(
 				m.measure?.rightHand,
@@ -2154,36 +2165,18 @@ function resolveAllSpans(placedEvents) {
 function buildSpanSpec(kind, start, stop, hand) {
 	const a = start.anchor;
 	const b = stop.anchor;
-	const x1 = a.x + NOTEHEAD_RX;
-	const x2 = b.x - NOTEHEAD_RX;
-	const midX = (x1 + x2) / 2;
-	const cx = midX;
-
-	if (kind === "slur") {
-		// A slur always arcs above the phrase (negative Y is up in the staff frame).
-		const baseY = Math.min(a.y, b.y);
-		return {
-			kind,
-			hand,
-			systemIndex: start.systemIndex,
-			x1,
-			y1: a.y,
-			x2,
-			y2: b.y,
-			cx,
-			cy: baseY - 1.2,
-			crossSystem: start.systemIndex !== stop.systemIndex,
-		};
-	}
-
-	// Tie: place it on the side OPPOSITE the start note's stem — stem up → tie below
-	// the heads (sign +1, downward), stem down → tie above (sign −1, upward). The
-	// endpoints are offset clear of the noteheads, and the control bulges further so
-	// the whole arc stays off the heads.
+	// Both ties AND slurs anchor at the note's horizontal CENTER (review-3), not its
+	// edges, and sit on the side OPPOSITE the start note's stem — stem up → below the
+	// heads (sign +1, downward), stem down → above (sign −1, upward). The endpoints are
+	// offset clear of the noteheads and the control bulges further so the whole arc
+	// stays off the heads; a slur (a phrase) bulges more than a tie (two notes).
 	const sign = a.direction === "up" ? 1 : -1;
+	const bulge = kind === "slur" ? 1.6 : 0.9;
+	const x1 = a.x;
+	const x2 = b.x;
 	const y1 = a.y + sign * TIE_NOTE_CLEARANCE;
 	const y2 = b.y + sign * TIE_NOTE_CLEARANCE;
-	const cy = (y1 + y2) / 2 + sign * 0.9;
+	const cy = (y1 + y2) / 2 + sign * bulge;
 	return {
 		kind,
 		hand,
@@ -2192,7 +2185,7 @@ function buildSpanSpec(kind, start, stop, hand) {
 		y1,
 		x2,
 		y2,
-		cx,
+		cx: (x1 + x2) / 2,
 		cy,
 		// True when the pair spans two systems: the emit layer clips to system edges.
 		crossSystem: start.systemIndex !== stop.systemIndex,
@@ -2207,15 +2200,78 @@ function buildSpanSpec(kind, start, stop, hand) {
  * @param {object[]} members The system's flattened measure entries.
  * @return {boolean} True when a tempo or above-staff ottava prints on this system.
  */
-function systemHasTopText(members) {
-	return members.some((m) => {
-		const hasTempo =
+function systemHasTempo(members) {
+	return members.some(
+		(m) =>
 			(m.isFirstOfScore || (m.diff ? m.diff.tempo : false)) &&
-			!!tempoMark(m.ctx.tempo);
-		const hasOttavaAbove =
-			m.ctx.rightHand.octaveShift > 0 || m.ctx.leftHand.octaveShift > 0;
-		return hasTempo || hasOttavaAbove;
-	});
+			!!tempoMark(m.ctx.tempo),
+	);
+}
+
+/** Whether any measure in this system carries an above-staff (positive) octave shift. */
+function systemHasOttavaAbove(members) {
+	return members.some(
+		(m) => m.ctx.rightHand.octaveShift > 0 || m.ctx.leftHand.octaveShift > 0,
+	);
+}
+
+/** Whether any RH event in this system carries a chord symbol. */
+function systemHasChordSymbols(members) {
+	return members.some((m) =>
+		(m.measure?.rightHand ?? []).some(
+			(e) => typeof e?.chordSymbol === "string" && e.chordSymbol.length > 0,
+		),
+	);
+}
+
+/**
+ * The flexible top-margin layout for a system (review-3). Only the lanes actually
+ * present are stacked above the high-note/ledger zone — chord symbols nearest the
+ * staff, then an above-staff ottava, then the tempo at the very top — so when there is
+ * nothing above the staff the margin (and the tempo) drop close to it. Returns the
+ * staff's top margin plus each present lane's baseline Y in system-local coordinates
+ * (null when that lane is absent).
+ *
+ * @param {object[]} members The system's flattened measure entries.
+ * @param {number} ledgerTop The high-note/ledger extent above the staff top, in sp.
+ * @return {{ topMargin: number, chordSymbolY: ?number, ottavaAboveLaneY: ?number,
+ *   tempoLaneY: ?number }} The top margin and lane baselines.
+ */
+function topMarginLayout(members, ledgerTop) {
+	// The innermost reserved zone above the staff top holds whatever already lives
+	// there: the high notes/ledgers AND the system's measure number (drawn just above
+	// the top line at the left). The stacked text lanes clear both so the tempo never
+	// drops onto the measure number when little else is above the staff.
+	const innerZone = Math.max(ledgerTop, MEASURE_NUMBER_SIZE + 1);
+	// Distances ABOVE the staff top line (positive = up); each present lane stacks out.
+	let d = innerZone + ABOVE_STAFF_PAD;
+	let topExtent = innerZone;
+	let chordD = null;
+	let ottavaD = null;
+	let tempoD = null;
+	if (systemHasChordSymbols(members)) {
+		chordD = d;
+		topExtent = d + CHORD_SYMBOL_SIZE;
+		d = topExtent + TEXT_LANE_GAP;
+	}
+	if (systemHasOttavaAbove(members)) {
+		ottavaD = d;
+		topExtent = d + OTTAVA_SIZE;
+		d = topExtent + TEXT_LANE_GAP;
+	}
+	if (systemHasTempo(members)) {
+		tempoD = d;
+		topExtent = d + TEMPO_SIZE;
+		d = topExtent + TEXT_LANE_GAP;
+	}
+	const topMargin = Math.max(SYSTEM_TOP_MARGIN, topExtent + ABOVE_STAFF_PAD);
+	const at = (dist) => (dist === null ? null : topMargin - dist);
+	return {
+		topMargin,
+		chordSymbolY: at(chordD),
+		ottavaAboveLaneY: at(ottavaD),
+		tempoLaneY: at(tempoD),
+	};
 }
 
 /**

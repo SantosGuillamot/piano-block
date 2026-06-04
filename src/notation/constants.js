@@ -81,24 +81,21 @@ export const INTRA_STAFF_GAP = 8;
 /** Vertical gap between stacked grand-staff systems. */
 export const INTER_SYSTEM_GAP = 10;
 
-/** Top margin of a system (room for chord symbols / ledgers) when it carries no tempo/ottava. */
+/** Base top margin of a system (room for ledgers) when it carries no text lanes. */
 export const SYSTEM_TOP_MARGIN = 5;
 
 /** Bottom margin of a system (room for dynamics / low ledgers). */
 export const SYSTEM_BOTTOM_MARGIN = 5;
 
 /**
- * Top margin used when a system carries a tempo mark and/or an above-staff ottava
- * bracket — deep enough to stack both in their own lanes ABOVE the note zone so
- * neither collides with high notes (review F4) nor with each other (review F5).
+ * Clearance, in sp, between the high-note/ledger zone and the first stacked text lane
+ * above the staff (and above the topmost lane). Part of the flexible top stack that
+ * only reserves space for the lanes actually present (review-3).
  */
-export const TOP_TEXT_RESERVE = 7;
+export const ABOVE_STAFF_PAD = 1;
 
-/** Tempo-mark baseline Y (from the system top): the topmost text lane (review F4/F5). */
-export const TEMPO_LANE_Y = 2.8;
-
-/** Above-staff ottava-bracket baseline Y (from the system top): the lane below tempo. */
-export const OTTAVA_ABOVE_LANE_Y = 5;
+/** Vertical gap between two stacked above-staff text lanes (chord / ottava / tempo). */
+export const TEXT_LANE_GAP = 0.6;
 
 /**
  * Horizontal inset on each side of a system, in sp: keeps the staff lines, the brace,

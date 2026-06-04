@@ -15,9 +15,7 @@ import {
 	MAX_STRETCH,
 	MIN_ADV,
 	NOTEHEAD_RX,
-	OTTAVA_ABOVE_LANE_Y,
 	STAFF_MARGIN_X,
-	TEMPO_LANE_Y,
 } from "../constants.js";
 import {
 	advanceFor,
@@ -1480,20 +1478,58 @@ describe("review-1 layout fixes (F1, F4/F5, F6, F7, F9)", () => {
 		expect(reserve.timeSignatureX).toBeGreaterThan(keySigX + maxCluster);
 	});
 
-	it("F4/F5 — tempo and above-ottava sit in stacked lanes above the staff", () => {
+	it("F4/F5 — tempo, ottava, and chord lanes stack above the staff", () => {
 		const sys = buildLayoutModel(COMPREHENSIVE_SONG, 200).systems[0];
 		const above = sys.texts.ottavas.filter((o) => o.placement === "above");
 		expect(sys.texts.tempos.length).toBeGreaterThan(0);
 		expect(above.length).toBeGreaterThan(0);
-		// Tempo lane is strictly above the ottava lane, and both are above the staff top.
-		expect(TEMPO_LANE_Y).toBeLessThan(OTTAVA_ABOVE_LANE_Y);
-		expect(OTTAVA_ABOVE_LANE_Y).toBeLessThan(sys.band.rightStaffTopY);
+		// Stacked top→bottom: tempo above the ottava above the chord lane, all above the
+		// staff top (smaller Y is higher).
+		expect(sys.band.tempoLaneY).toBeLessThan(sys.band.ottavaAboveLaneY);
+		expect(sys.band.ottavaAboveLaneY).toBeLessThan(sys.band.chordSymbolY);
+		expect(sys.band.chordSymbolY).toBeLessThan(sys.band.rightStaffTopY);
 		for (const t of sys.texts.tempos) {
-			expect(t.y).toBeCloseTo(TEMPO_LANE_Y, 10);
+			expect(t.y).toBeCloseTo(sys.band.tempoLaneY, 10);
 		}
 		for (const o of above) {
-			expect(o.y).toBeCloseTo(OTTAVA_ABOVE_LANE_Y, 10);
+			expect(o.y).toBeCloseTo(sys.band.ottavaAboveLaneY, 10);
 		}
+	});
+
+	it("review-3 — the top margin flexes: no chord/ottava → a shallower margin than with them", () => {
+		// The comprehensive song's first system carries chord + ottava + tempo.
+		const rich = buildLayoutModel(COMPREHENSIVE_SONG, 200).systems[0];
+		// A plain song with only notes — no tempo, ottava, or chord symbol above.
+		const plainSong = {
+			sections: [
+				{
+					measures: [
+						{
+							rightHand: [
+								{
+									type: "note",
+									duration: "quarter",
+									pitches: [{ step: "G", octave: 4 }],
+								},
+							],
+							leftHand: [
+								{
+									type: "note",
+									duration: "quarter",
+									pitches: [{ step: "C", octave: 3 }],
+								},
+							],
+						},
+					],
+				},
+			],
+		};
+		const plain = buildLayoutModel(plainSong, 200).systems[0];
+		// With nothing above the staff the top margin collapses to the base, so the staff
+		// (and everything above) sits higher than in the text-rich system.
+		expect(plain.band.topMargin).toBeLessThan(rich.band.topMargin);
+		expect(plain.band.tempoLaneY).toBeNull();
+		expect(plain.band.chordSymbolY).toBeNull();
 	});
 
 	it("F6 — every barline leaves a gap wider than a notehead before the next measure", () => {
@@ -1541,5 +1577,50 @@ describe("review-1 layout fixes (F1, F4/F5, F6, F7, F9)", () => {
 				}
 			}
 		}
+	});
+
+	it("review-3 — ties and slurs anchor at the note centers (not the notehead edges)", () => {
+		const model = buildLayoutModel(COMPREHENSIVE_SONG, 200);
+		const measures = model.systems.flatMap((s) => s.measures);
+		const m1 = measures.find((m) => m.number === 1);
+		const m2 = measures.find((m) => m.number === 2);
+		const startX = m1.x + m1.right.notes[0].x; // the chord's center
+		const stopX = m2.x + m2.right.notes[0].x; // the tied whole note's center
+		const spans = model.systems.flatMap((s) => s.spans);
+		for (const kind of ["tie", "slur"]) {
+			const span = spans.find((s) => s.kind === kind);
+			expect(span.x1).toBeCloseTo(startX, 6);
+			expect(span.x2).toBeCloseTo(stopX, 6);
+		}
+	});
+
+	it("review-3 — a whole-measure note is centered in its measure", () => {
+		const song = {
+			sections: [
+				{
+					measures: [
+						{
+							rightHand: [
+								{
+									type: "note",
+									duration: "whole",
+									pitches: [{ step: "C", octave: 5 }],
+								},
+							],
+							leftHand: [
+								{
+									type: "note",
+									duration: "whole",
+									pitches: [{ step: "C", octave: 3 }],
+								},
+							],
+						},
+					],
+				},
+			],
+		};
+		const m = buildLayoutModel(song, 200).systems[0].measures[0];
+		expect(m.x + m.right.notes[0].x).toBeCloseTo(m.x + m.width / 2, 6);
+		expect(m.x + m.left.notes[0].x).toBeCloseTo(m.x + m.width / 2, 6);
 	});
 });

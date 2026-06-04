@@ -244,6 +244,12 @@ export function renderSvg(model, { accessibleName = "" } = {}) {
 		width: widthSp * SP_PX,
 		height: heightSp * SP_PX,
 		preserveAspectRatio: "xMinYMin meet",
+		// Never exceed the block's content box: if the intrinsic px width is wider than
+		// the container (a padded wrapper, or the narrow-screen sp step-down), shrink to
+		// fit — the viewBox keeps the staff inset, so it can't bleed past the box
+		// (review-3: the staff still escaped the box on the page). `display:block` drops
+		// the inline-text descender gap below the SVG.
+		style: "display:block;max-width:100%;height:auto",
 	});
 
 	// FIRST child: the single accessible name, set via textContent (inert author
@@ -456,9 +462,23 @@ function renderMeasure(measure, band) {
 	});
 
 	// Each hand's primitives are placed relative to that staff's BOTTOM line (the sp
-	// Y origin the layout layer used). A nested <g> carries that staff offset.
-	g.appendChild(renderHand(measure.right, "rightHand", band.rightStaffBottomY));
-	g.appendChild(renderHand(measure.left, "leftHand", band.leftStaffBottomY));
+	// Y origin the layout layer used). A nested <g> carries that staff offset. Chord
+	// symbols sit in the system's flexible chord lane (band.chordSymbolY, a system-local
+	// Y); convert it to each hand's local frame so the emit adds no layout math.
+	const chordDyR =
+		band.chordSymbolY == null
+			? undefined
+			: band.chordSymbolY - band.rightStaffBottomY;
+	const chordDyL =
+		band.chordSymbolY == null
+			? undefined
+			: band.chordSymbolY - band.leftStaffBottomY;
+	g.appendChild(
+		renderHand(measure.right, "rightHand", band.rightStaffBottomY, chordDyR),
+	);
+	g.appendChild(
+		renderHand(measure.left, "leftHand", band.leftStaffBottomY, chordDyL),
+	);
 
 	// Barlines span from the RH staff top to the LH staff bottom. The model gives
 	// each stroke an absolute (system-local) X — but this measure group is already
@@ -480,7 +500,7 @@ function renderMeasure(measure, band) {
  * Draws beams, then notes (noteheads + stems + flags + accidentals + ledgers +
  * dots), then rests, then per-event texts (dynamics / chord symbols).
  */
-function renderHand(hand, handKey, staffBottomY) {
+function renderHand(hand, handKey, staffBottomY, chordDy) {
 	const g = el("g", {
 		transform: `translate(0 ${staffBottomY})`,
 		"data-hand": handKey,
@@ -499,7 +519,7 @@ function renderHand(hand, handKey, staffBottomY) {
 		g.appendChild(renderRest(rest, handKey));
 	}
 	for (const text of hand.texts ?? []) {
-		g.appendChild(renderHandText(text));
+		g.appendChild(renderHandText(text, chordDy));
 	}
 
 	return g;
@@ -805,8 +825,13 @@ function renderSpan(span) {
  * Render one hand's per-event text (a dynamic below the staff, a chord symbol above
  * it). Y is relative to the hand's staff bottom line (the enclosing `<g>` already
  * carries that translate), so positive Y is below the staff and negative is above.
+ * `chordDy` is the chord lane's Y in this hand's local frame (review-3 flex lane);
+ * without it, the chord falls back to just above the staff.
+ *
+ * @param {{ kind: string, x: number, text: string }} text The per-event text.
+ * @param {number} [chordDy] The chord-symbol baseline Y in the hand's local frame.
  */
-function renderHandText(text) {
+function renderHandText(text, chordDy) {
 	if (text.kind === "dynamic") {
 		// Dynamics: bold-italic, below the hand's staff (positive Y is downward).
 		const node = el("text", {
@@ -821,10 +846,11 @@ function renderHandText(text) {
 		});
 		return setText(node, text.text);
 	}
-	// Chord symbol: author free text, above the RH staff.
+	// Chord symbol: author free text, in the system's flexible chord lane above the
+	// staff (or just above the top line when no lane Y is supplied).
 	const node = el("text", {
 		x: text.x,
-		y: -5,
+		y: chordDy ?? -5,
 		fill: INK,
 		"font-size": CHORD_SYMBOL_SIZE,
 		"text-anchor": "middle",
