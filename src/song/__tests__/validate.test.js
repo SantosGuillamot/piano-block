@@ -182,6 +182,58 @@ describe("validateSong — conformant songs", () => {
 	it("accepts the comprehensive example song", () => {
 		expect(check(COMPREHENSIVE_SONG)).toEqual([]);
 	});
+
+	it("accepts a `crescendo` span and a separate `decrescendo` span, each over ≥2 notes", () => {
+		// One hand carries a crescendo (start → stop) across two notes; the same
+		// hand later carries an independent decrescendo across two more notes.
+		const note = (step, span) => ({
+			type: "note",
+			duration: "quarter",
+			pitches: [{ step, octave: 4 }],
+			...span,
+		});
+		expect(
+			check({
+				sections: [
+					{
+						measures: [
+							{
+								rightHand: [
+									note("C", { crescendo: "start" }),
+									note("D", { crescendo: "stop" }),
+									note("E", { decrescendo: "start" }),
+									note("F", { decrescendo: "stop" }),
+								],
+							},
+						],
+					},
+				],
+			}),
+		).toEqual([]);
+	});
+
+	it('accepts a lone `crescendo: "start"` with no matching stop (pairing is not a conformance check)', () => {
+		expect(
+			check({
+				sections: [
+					{
+						measures: [
+							{
+								rightHand: [
+									{
+										type: "note",
+										duration: "quarter",
+										crescendo: "start",
+										pitches: [{ step: "C", octave: 4 }],
+									},
+								],
+							},
+						],
+					},
+				],
+			}),
+		).toEqual([]);
+	});
 });
 
 describe("validateSong — note-name systems and case", () => {
@@ -295,6 +347,39 @@ describe("validateSong — closed-enum errors", () => {
 			}),
 		);
 		expect(result.some((e) => /tie/.test(e) && /begin/.test(e))).toBe(true);
+	});
+
+	it("flags a `crescendo` value outside the allowed set with its path and allowed values", () => {
+		const result = check(
+			eventSong({
+				type: "note",
+				duration: "quarter",
+				crescendo: "increase",
+				pitches: [{ step: "C", octave: 4 }],
+			}),
+		);
+		expect(
+			result.some(
+				(e) =>
+					/crescendo/.test(e) &&
+					/increase/.test(e) &&
+					/\["start", "stop"\]/.test(e),
+			),
+		).toBe(true);
+	});
+
+	it("flags a `decrescendo` value outside the allowed set with its path", () => {
+		const result = check(
+			eventSong({
+				type: "note",
+				duration: "quarter",
+				decrescendo: "decrease",
+				pitches: [{ step: "C", octave: 4 }],
+			}),
+		);
+		expect(
+			result.some((e) => /decrescendo/.test(e) && /decrease/.test(e)),
+		).toBe(true);
 	});
 });
 
@@ -570,6 +655,31 @@ describe("validateSong — lenient on unknown properties", () => {
 						measures: [
 							{
 								rightHand: [{ type: "rest", duration: "quarter", dynmic: "f" }],
+							},
+						],
+					},
+				],
+			}),
+		).toEqual([]);
+	});
+
+	it("ignores a misspelled gradual-dynamic field (`cresecndo`)", () => {
+		// A misspelled optional field name is an unknown property, silently
+		// ignored — only declared properties are inspected.
+		expect(
+			check({
+				sections: [
+					{
+						measures: [
+							{
+								rightHand: [
+									{
+										type: "note",
+										duration: "quarter",
+										cresecndo: "start",
+										pitches: [{ step: "C", octave: 4 }],
+									},
+								],
 							},
 						],
 					},

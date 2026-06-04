@@ -145,6 +145,8 @@ const songSchema = {
 				chordSymbol: { type: "string" },
 				tie: { enum: ["start", "stop"] },
 				slur: { enum: ["start", "stop"] },
+				crescendo: { enum: ["start", "stop"] },
+				decrescendo: { enum: ["start", "stop"] },
 			},
 			// The single data-model conditional: a note requires a non-empty pitches
 			// array (the non-empty part is enforced by the walker).

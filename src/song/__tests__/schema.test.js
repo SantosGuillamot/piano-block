@@ -22,4 +22,12 @@ describe("songSchema", () => {
 		// Consequence: pitches is required for a note.
 		expect(event.then.required).toContain("pitches");
 	});
+
+	it("defines the gradual-dynamic span fields symmetric with `tie` / `slur`", () => {
+		const { properties } = songSchema.$defs.event;
+		// `crescendo` / `decrescendo` are two independent optional start/stop
+		// enums, byte-for-byte symmetric with the existing `tie` / `slur`.
+		expect(properties.crescendo).toEqual({ enum: ["start", "stop"] });
+		expect(properties.decrescendo).toEqual({ enum: ["start", "stop"] });
+	});
 });
