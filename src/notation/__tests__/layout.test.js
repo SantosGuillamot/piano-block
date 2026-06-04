@@ -11,6 +11,7 @@
 import {
 	ACCIDENTAL_GAP,
 	EMPTY_MEASURE_WIDTH,
+	HAIRPIN_APERTURE,
 	HAIRPIN_LANE_DY,
 	MAX_STRETCH,
 	MIN_ADV,
@@ -24,6 +25,7 @@ import {
 	beamGeometry,
 	beamGroups,
 	beatGroupLength,
+	buildHairpinSpec,
 	buildLayoutModel,
 	decodeDuration,
 	diatonicIndex,
@@ -1813,9 +1815,301 @@ describe("existing tie/slur resolution is unaffected by the carried fields", () 
 		const spans = model.systems.flatMap((s) => s.spans);
 		expect(spans.some((s) => s.kind === "tie")).toBe(true);
 		expect(spans.some((s) => s.kind === "slur")).toBe(true);
-		// No hairpin spans appear yet — recording the markers is additive; matching
-		// the new kinds is a later task.
+		// This fixture carries no crescendo/decrescendo markers, so no hairpin spans
+		// resolve from it (the new kinds only resolve when their markers are authored).
 		expect(spans.some((s) => s.kind === "crescendo")).toBe(false);
 		expect(spans.some((s) => s.kind === "decrescendo")).toBe(false);
+	});
+});
+
+// ── Hairpin span resolution + the wedge builder ───────────────────────────────────
+//
+// These exercise `resolveAllSpans`'s two new crescendo/decrescendo passes and the
+// new `buildHairpinSpec` flat-lane wedge record. Fixtures use the real `rightHand`/
+// `leftHand` keys and the real `pitches`-array event shape.
+
+describe("hairpin span resolution (crescendo / decrescendo)", () => {
+	// A note carrying the given span markers; the `pitches` array is the real event
+	// shape, defaulting to a single right-hand pitch.
+	const note = (markers, pitches = [{ step: "C", octave: 5 }]) => ({
+		type: "note",
+		duration: "quarter",
+		pitches,
+		...markers,
+	});
+	// One section, one measure, with the given right/left hand events.
+	const song = (rightHand, leftHand = undefined) => ({
+		sections: [
+			{ measures: [{ rightHand, ...(leftHand ? { leftHand } : {}) }] },
+		],
+	});
+	const spansOf = (model) => model.systems.flatMap((s) => s.spans);
+
+	it("resolves a crescendo over ≥2 notes to one wedge record with flat lane + constant aperture", () => {
+		const model = buildLayoutModel(
+			song([
+				note({ crescendo: "start" }),
+				note({}),
+				note({ crescendo: "stop" }),
+			]),
+			200,
+		);
+		const wedges = spansOf(model).filter((s) => s.kind === "crescendo");
+		expect(wedges).toHaveLength(1);
+		const [w] = wedges;
+		const m = model.systems[0].measures[0];
+		expect(w.kind).toBe("crescendo");
+		expect(w.hand).toBe("rightHand");
+		// x1 / x2 sit at the start / end note centers (measureX + note.x).
+		expect(w.x1).toBeCloseTo(m.x + m.right.notes[0].x, 6);
+		expect(w.x2).toBeCloseTo(m.x + m.right.notes[2].x, 6);
+		expect(w.x2).toBeGreaterThan(w.x1);
+		// yCenter is the carried flat below-staff lane Y; aperture is the constant.
+		expect(w.yCenter).toBe(
+			model.systems[0].band.rightStaffBottomY + HAIRPIN_LANE_DY,
+		);
+		expect(w.aperture).toBe(HAIRPIN_APERTURE);
+		expect(w.crossSystem).toBe(false);
+	});
+
+	it("resolves a decrescendo identically, distinguished only by kind", () => {
+		const model = buildLayoutModel(
+			song([
+				note({ decrescendo: "start" }),
+				note({}),
+				note({ decrescendo: "stop" }),
+			]),
+			200,
+		);
+		const wedges = spansOf(model).filter((s) => s.kind === "decrescendo");
+		expect(wedges).toHaveLength(1);
+		const [w] = wedges;
+		expect(w.kind).toBe("decrescendo");
+		expect(w.hand).toBe("rightHand");
+		// Same flat lane + constant aperture as a crescendo; only `kind` differs.
+		expect(w.yCenter).toBe(
+			model.systems[0].band.rightStaffBottomY + HAIRPIN_LANE_DY,
+		);
+		expect(w.aperture).toBe(HAIRPIN_APERTURE);
+	});
+
+	it("carries the crescendo/decrescendo distinction in `kind`, with a shared flat yCenter + aperture", () => {
+		// Same two notes, once as a crescendo and once as a decrescendo: the records
+		// are identical apart from `kind` (the opening-vs-closing shape is at emit time).
+		const cres = buildLayoutModel(
+			song([note({ crescendo: "start" }), note({ crescendo: "stop" })]),
+			200,
+		);
+		const dec = buildLayoutModel(
+			song([note({ decrescendo: "start" }), note({ decrescendo: "stop" })]),
+			200,
+		);
+		const [c] = spansOf(cres).filter((s) => s.kind === "crescendo");
+		const [d] = spansOf(dec).filter((s) => s.kind === "decrescendo");
+		expect(c.kind).toBe("crescendo");
+		expect(d.kind).toBe("decrescendo");
+		expect(c.yCenter).toBe(d.yCenter);
+		expect(c.aperture).toBe(d.aperture);
+		expect(c.x1).toBeCloseTo(d.x1, 6);
+		expect(c.x2).toBeCloseTo(d.x2, 6);
+	});
+
+	it("drops a dangling start-only or stop-only span (0 wedge records), never throwing", () => {
+		const startOnly = song([note({ crescendo: "start" }), note({})]);
+		const stopOnly = song([note({}), note({ crescendo: "stop" })]);
+		expect(() => buildLayoutModel(startOnly, 200)).not.toThrow();
+		expect(() => buildLayoutModel(stopOnly, 200)).not.toThrow();
+		expect(
+			spansOf(buildLayoutModel(startOnly, 200)).filter(
+				(s) => s.kind === "crescendo",
+			),
+		).toHaveLength(0);
+		expect(
+			spansOf(buildLayoutModel(stopOnly, 200)).filter(
+				(s) => s.kind === "crescendo",
+			),
+		).toHaveLength(0);
+	});
+
+	it("resolves two overlapping same-kind starts in one hand to exactly one record", () => {
+		// A second start before the stop drops the earlier (dangling) start.
+		const model = buildLayoutModel(
+			song([
+				note({ crescendo: "start" }),
+				note({ crescendo: "start" }),
+				note({ crescendo: "stop" }),
+			]),
+			200,
+		);
+		expect(spansOf(model).filter((s) => s.kind === "crescendo")).toHaveLength(
+			1,
+		);
+	});
+
+	it("drops a span whose endpoint lands on a rest / unplaceable note (0 records), never throwing", () => {
+		// The stop marker rides a rest, which records `anchor: null`; the shared guard
+		// skips the pair before the builder runs.
+		const restEnd = {
+			sections: [
+				{
+					measures: [
+						{
+							rightHand: [
+								note({ crescendo: "start" }),
+								{ type: "rest", duration: "quarter", crescendo: "stop" },
+							],
+						},
+					],
+				},
+			],
+		};
+		expect(() => buildLayoutModel(restEnd, 200)).not.toThrow();
+		expect(
+			spansOf(buildLayoutModel(restEnd, 200)).filter(
+				(s) => s.kind === "crescendo",
+			),
+		).toHaveLength(0);
+	});
+
+	it("builds a degenerate near-zero-width span (x1 ≈ x2) to one finite record, never throwing", () => {
+		// The builder reads `anchor.x` verbatim, so a start and stop at near-identical X
+		// produce a near-zero-width record. The aperture is the constant (never derived
+		// from `x2 - x1`), so there is no division by ~0 — coordinates stay finite.
+		const start = { anchor: { x: 50 }, laneY: 12, systemIndex: 0 };
+		const stop = { anchor: { x: 50.0000001 }, systemIndex: 0 };
+		let w;
+		expect(() => {
+			w = buildHairpinSpec("crescendo", start, stop, "rightHand");
+		}).not.toThrow();
+		expect(w.x1).toBeCloseTo(w.x2, 6); // x1 ≈ x2
+		expect(Number.isFinite(w.x1)).toBe(true);
+		expect(Number.isFinite(w.x2)).toBe(true);
+		expect(Number.isFinite(w.yCenter)).toBe(true);
+		expect(Number.isFinite(w.aperture)).toBe(true);
+		// The aperture is the constant, not width-derived, so it is finite regardless
+		// of how small `x2 - x1` is.
+		expect(w.aperture).toBe(HAIRPIN_APERTURE);
+	});
+
+	it("builds the wedge record directly from the carried lane Y and constant aperture", () => {
+		// A focused unit on the builder: yCenter is the carried `start.laneY` (it ignores
+		// the notehead Y and stem direction entirely), and crossSystem reflects the
+		// start/stop systems.
+		const start = {
+			anchor: { x: 10, y: 99, direction: "up" },
+			laneY: 12,
+			systemIndex: 0,
+		};
+		const stop = {
+			anchor: { x: 40, y: 77, direction: "down" },
+			systemIndex: 1,
+		};
+		const w = buildHairpinSpec("decrescendo", start, stop, "leftHand");
+		expect(w).toEqual({
+			kind: "decrescendo",
+			hand: "leftHand",
+			systemIndex: 0,
+			x1: 10,
+			x2: 40,
+			yCenter: 12, // the carried lane Y, NOT anchor.y (99)
+			aperture: HAIRPIN_APERTURE,
+			crossSystem: true, // start system 0 ≠ stop system 1
+		});
+	});
+
+	it("resolves a messa-di-voce hinge into a gap-free `< >` sharing the hinge X, yCenter and aperture", () => {
+		// The middle note both stops the crescendo and starts the decrescendo.
+		const model = buildLayoutModel(
+			song([
+				note({ crescendo: "start" }),
+				note({ crescendo: "stop", decrescendo: "start" }),
+				note({ decrescendo: "stop" }),
+			]),
+			200,
+		);
+		const [cres] = spansOf(model).filter((s) => s.kind === "crescendo");
+		const [dec] = spansOf(model).filter((s) => s.kind === "decrescendo");
+		expect(cres).toBeDefined();
+		expect(dec).toBeDefined();
+		// The crescendo ends and the decrescendo starts at the SAME hinge X — no gap,
+		// no overlap.
+		expect(cres.x2).toBeCloseTo(dec.x1, 6);
+		// They share the flat lane and the constant aperture so the `< >` is seamless.
+		expect(cres.yCenter).toBe(dec.yCenter);
+		expect(cres.aperture).toBe(dec.aperture);
+	});
+
+	it("resolves the wedge unchanged regardless of a bracketing point dynamic (all four cases)", () => {
+		// p at start, f at end, both, or neither: the wedge resolves in every case and
+		// the dynamics stay on the measure's hand texts, independent of the wedge.
+		const build = (startDyn, endDyn) =>
+			buildLayoutModel(
+				song([
+					note({
+						crescendo: "start",
+						...(startDyn ? { dynamic: startDyn } : {}),
+					}),
+					note({ crescendo: "stop", ...(endDyn ? { dynamic: endDyn } : {}) }),
+				]),
+				200,
+			);
+		for (const [s, e] of [
+			["p", null],
+			[null, "f"],
+			["p", "f"],
+			[null, null],
+		]) {
+			const model = build(s, e);
+			const [w] = spansOf(model).filter((sp) => sp.kind === "crescendo");
+			expect(w).toBeDefined();
+			expect(w.aperture).toBe(HAIRPIN_APERTURE);
+			// The dynamics live on the hand texts, not on the wedge record.
+			const texts = model.systems[0].measures[0].right.texts;
+			const dynamics = texts
+				.filter((t) => t.kind === "dynamic")
+				.map((t) => t.text);
+			if (s) {
+				expect(dynamics).toContain(s);
+			}
+			if (e) {
+				expect(dynamics).toContain(e);
+			}
+		}
+	});
+
+	it("resolves hairpins per hand (a left-hand crescendo rides the left lane)", () => {
+		const model = buildLayoutModel(
+			song(
+				[note({}, [{ step: "C", octave: 5 }])],
+				[
+					note({ crescendo: "start" }, [{ step: "C", octave: 3 }]),
+					note({ crescendo: "stop" }, [{ step: "E", octave: 3 }]),
+				],
+			),
+			200,
+		);
+		const [w] = spansOf(model).filter((s) => s.kind === "crescendo");
+		expect(w.hand).toBe("leftHand");
+		expect(w.yCenter).toBe(
+			model.systems[0].band.leftStaffBottomY + HAIRPIN_LANE_DY,
+		);
+	});
+
+	it("leaves tie/slur resolution unchanged — still dispatched to buildSpanSpec (Bézier records)", () => {
+		const model = buildLayoutModel(COMPREHENSIVE_SONG, 200);
+		const spans = spansOf(model);
+		const tie = spans.find((s) => s.kind === "tie");
+		const slur = spans.find((s) => s.kind === "slur");
+		// The Bézier records keep their arc-only fields (y1/y2/cx/cy) and carry no
+		// flat-lane wedge fields (yCenter/aperture).
+		for (const span of [tie, slur]) {
+			expect(span).toBeDefined();
+			expect(span).toHaveProperty("y1");
+			expect(span).toHaveProperty("y2");
+			expect(span).toHaveProperty("cx");
+			expect(span).toHaveProperty("cy");
+			expect(span).not.toHaveProperty("yCenter");
+			expect(span).not.toHaveProperty("aperture");
+		}
 	});
 });

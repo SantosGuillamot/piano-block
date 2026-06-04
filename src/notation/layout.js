@@ -35,6 +35,7 @@ import {
 	DOT_MUL,
 	DOT_OFFSET,
 	EMPTY_MEASURE_WIDTH,
+	HAIRPIN_APERTURE,
 	HAIRPIN_LANE_DY,
 	INTER_SYSTEM_GAP,
 	INTRA_STAFF_GAP,
@@ -2157,22 +2158,26 @@ export function recordSpanMarkers(events, laidOut, options) {
 }
 
 /**
- * Resolve every hand's tie and slur markers into drawn span specs between the
- * actual laid-out positions. Uses the stack-based `matchSpans` on each
- * hand's cross-measure stream; a dangling start/stop or double-start is dropped
- * (never throws). Each resolved span carries its Bézier control points and the
- * system it belongs to (the start's system; the emit layer clips a cross-system arc
- * to the system edges).
+ * Resolve every hand's span markers into drawn span specs between the actual
+ * laid-out positions. Four kinds share one matcher: the notehead-anchored arcs
+ * (`tie`/`slur`) and the flat below-staff wedges (`crescendo`/`decrescendo`). Each
+ * kind gets its own fully independent per-hand stack via `matchSpans` on the hand's
+ * cross-measure stream; a dangling start/stop or double-start is dropped (never
+ * throws). After the shared rest-anchor guard, each pair is dispatched by kind:
+ * tie/slur build a Bézier arc spec (`buildSpanSpec`), crescendo/decrescendo build a
+ * flat-lane wedge record (`buildHairpinSpec`). Every resolved span carries the
+ * system it belongs to (the start's system) and a `crossSystem` flag the
+ * post-resolution clip reads.
  *
  * @param {{ rightHand: object[], leftHand: object[] }} placedEvents The per-hand
  *   placed-anchor streams.
- * @return {object[]} The resolved span specs.
+ * @return {object[]} The resolved span specs (Bézier arcs and/or wedge records).
  */
 function resolveAllSpans(placedEvents) {
 	const spans = [];
 	for (const hand of HANDS) {
 		const stream = placedEvents[hand];
-		for (const kind of ["tie", "slur"]) {
+		for (const kind of ["tie", "slur", "crescendo", "decrescendo"]) {
 			const projected = stream.map((e) => ({ marker: e[kind] }));
 			const pairs = matchSpans(projected);
 			for (const pair of pairs) {
@@ -2183,7 +2188,13 @@ function resolveAllSpans(placedEvents) {
 				if (!start.anchor || !stop.anchor) {
 					continue;
 				}
-				spans.push(buildSpanSpec(kind, start, stop, hand));
+				// Notehead-anchored arcs vs. flat below-staff wedges diverge only here:
+				// the wedge ignores the notehead Y and stem side and rides a flat lane.
+				if (kind === "crescendo" || kind === "decrescendo") {
+					spans.push(buildHairpinSpec(kind, start, stop, hand));
+				} else {
+					spans.push(buildSpanSpec(kind, start, stop, hand));
+				}
 			}
 		}
 	}
@@ -2230,6 +2241,48 @@ function buildSpanSpec(kind, start, stop, hand) {
 		cx: (x1 + x2) / 2,
 		cy,
 		// True when the pair spans two systems: the emit layer clips to system edges.
+		crossSystem: start.systemIndex !== stop.systemIndex,
+	};
+}
+
+/**
+ * The flat-lane geometry for one resolved gradual-dynamic span — a hairpin wedge
+ * (`<` for a crescendo, `>` for a decrescendo). Unlike the tie/slur arc, a wedge is
+ * a horizontal lane element: it rides a FLAT below-staff lane Y (the carried,
+ * pitch-independent `start.laneY`), constant across the whole span, so it ignores
+ * both the notehead Y (`anchor.y`) and the stem side (`anchor.direction`). The
+ * open-mouth height is the fixed constant `HAIRPIN_APERTURE` — never derived from
+ * the span width — so a degenerate near-zero-width span (`x1 ≈ x2`) stays finite
+ * (the builder never divides by `x2 - x1`). The opening-vs-closing shape itself is
+ * produced at emit time from `kind`; this record only carries the lane geometry.
+ *
+ * @param {"crescendo"|"decrescendo"} kind The wedge direction.
+ * @param {{ anchor: { x: number }, laneY: number, systemIndex: number }} start The
+ *   start anchor; `anchor.x` is the start note's horizontal center and `laneY` is
+ *   this hand's flat below-staff lane center.
+ * @param {{ anchor: { x: number } }} stop The stop anchor; `anchor.x` is the end
+ *   note's horizontal center.
+ * @param {string} hand The hand key (`"rightHand"` | `"leftHand"`).
+ * @return {{ kind: string, hand: string, systemIndex: number, x1: number,
+ *   x2: number, yCenter: number, aperture: number, crossSystem: boolean }} The
+ *   wedge record: endpoints `x1`/`x2` at the two note centers, the flat lane
+ *   `yCenter`, the constant `aperture`, the start system, and whether the pair
+ *   crosses systems.
+ */
+export function buildHairpinSpec(kind, start, stop, hand) {
+	return {
+		kind,
+		hand,
+		systemIndex: start.systemIndex,
+		// The note horizontal centers, the same `measureX + note.x` value tie/slur use.
+		x1: start.anchor.x,
+		x2: stop.anchor.x,
+		// The flat per-hand below-staff lane Y, constant across the span (carried from
+		// recording so it survives even though the notehead Y cannot reconstruct it).
+		yCenter: start.laneY,
+		// A fixed constant, never width-derived → degenerate-safe (no division).
+		aperture: HAIRPIN_APERTURE,
+		// True when the pair spans two systems: the layout clip trims to system edges.
 		crossSystem: start.systemIndex !== stop.systemIndex,
 	};
 }
