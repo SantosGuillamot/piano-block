@@ -180,9 +180,13 @@ export const NOTE_GAP_STAFF = 1;
 export const MID_GAP = 1.2;
 
 /**
- * Dynamics-glyph-box depth, in sp, that a below-RH/below-LH note dodges when its
- * hand carries dynamics. Serves as the `baseOffset` for a below band whose hand
- * has dynamics, feeding BOTH the per-note baseline and the gap/bottom-margin flex.
+ * Below-staff dynamics-region depth, in sp, that a below-RH/below-LH note dodges
+ * when its hand carries a below-staff dynamics occupant — a point dynamic glyph
+ * AND/OR a gradual-dynamic hairpin lane (both live in this region). Serves as the
+ * `baseOffset` for such a below band, feeding BOTH the per-note baseline and the
+ * gap/bottom-margin flex. Chosen to clear the deeper of the two occupants: the
+ * dynamics glyph box and the hairpin lane's lower edge (`HAIRPIN_LANE_DY +
+ * HAIRPIN_APERTURE / 2`).
  */
 export const DYNAMICS_LANE_RESERVE = 4.5;
 
@@ -191,6 +195,45 @@ export const DYNAMICS_LANE_RESERVE = 4.5;
  * over-content `beat`-anchored note so it stays inside the measure.
  */
 export const NOTE_CLAMP_INSET = 1;
+
+// ── Hairpins (crescendo / decrescendo wedges) ───────────────────────────────────
+
+/**
+ * Hairpin wedge open-mouth height: the vertical distance between the two stroke
+ * ends at the wedge's open side. A FIXED constant — never derived from the span's
+ * width — so a degenerate (near-zero-width) two-note span stays finite instead of
+ * dividing by `(x2 - x1)`.
+ */
+export const HAIRPIN_APERTURE = 1.0;
+
+/**
+ * Hairpin lane center offset below a hand's staff BOTTOM line (positive Y is
+ * downward). Places the wedge in the same below-staff dynamic band where point
+ * dynamics already sit.
+ */
+export const HAIRPIN_LANE_DY = 3.0;
+
+/**
+ * The light horizontal gap (sp) at a messa-di-voce hinge: when a crescendo's open
+ * tip and a decrescendo's open mouth meet on a shared hinge note, each is inset by
+ * half of this so a small space shows between the `<` and the `>`.
+ */
+export const HAIRPIN_HINGE_GAP = 0.6;
+
+/**
+ * Horizontal clearance (sp) between a point dynamic glyph and a hairpin that begins
+ * on the same note. A hairpin and a dynamic share the below-staff dynamics line, so
+ * a hairpin starting where a dynamic sits is shifted right to clear it (standard
+ * engraving) rather than drawn across it.
+ */
+export const HAIRPIN_DYNAMIC_GAP = 0.6;
+
+/**
+ * Approximate per-character advance, in em, of the bold-italic dynamic glyphs. Used
+ * only to estimate where a dynamic glyph ends so an adjacent hairpin can clear it
+ * (dynamics are center-anchored, so no exact metrics are otherwise needed).
+ */
+export const DYNAMIC_ADVANCE_EM = 0.6;
 
 // ── Duration tables ────────────────────────────────────────────────────────────
 

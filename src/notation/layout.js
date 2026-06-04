@@ -33,8 +33,14 @@ import {
 	DOT_GAP,
 	DOT_MUL,
 	DOT_OFFSET,
+	DYNAMIC_ADVANCE_EM,
+	DYNAMIC_SIZE,
 	DYNAMICS_LANE_RESERVE,
 	EMPTY_MEASURE_WIDTH,
+	HAIRPIN_APERTURE,
+	HAIRPIN_DYNAMIC_GAP,
+	HAIRPIN_HINGE_GAP,
+	HAIRPIN_LANE_DY,
 	INTER_SYSTEM_GAP,
 	INTRA_STAFF_GAP,
 	KEYSIG_TIMESIG_GAP,
@@ -1804,16 +1810,25 @@ export function buildLayoutModel(song, availableWidthInSp) {
 		// the depth a note glyph drops below its own baseline, kept inside the reserve.
 		const STACK_STEP = NOTE_SIZE + TEXT_LANE_GAP;
 		const DESCENT = 0.22 * NOTE_SIZE;
-		// System-wide MAX same-anchor note count per band, plus per-hand dynamics.
+		// System-wide MAX same-anchor note count per band, plus per-hand below-staff
+		// dynamics occupants. The below-staff dynamics region holds TWO independent
+		// occupants a below note must clear: a point dynamic glyph (`dynamic`) and/or a
+		// gradual-dynamic hairpin lane (a crescendo/decrescendo span). Either one present
+		// for a hand means that hand's below band must dodge the region.
 		const occ = bandOccupancy(members);
 		const rhHasDynamics = systemHandHasDynamics(members, "rightHand");
 		const lhHasDynamics = systemHandHasDynamics(members, "leftHand");
-		// A below band hugs the staff at the dynamics reserve when its hand prints
-		// dynamics (dodging the dynamics row), otherwise at the plain staff gap.
-		const baseOffsetBelow = (handHasDynamics) =>
-			handHasDynamics ? DYNAMICS_LANE_RESERVE : NOTE_GAP_STAFF;
-		const belowRHBase = baseOffsetBelow(rhHasDynamics);
-		const belowLHBase = baseOffsetBelow(lhHasDynamics);
+		const rhHasHairpin = systemHandHasHairpin(members, "rightHand");
+		const lhHasHairpin = systemHandHasHairpin(members, "leftHand");
+		// A below band hugs the staff at the dynamics reserve when its hand prints a
+		// point dynamic OR carries a hairpin lane (dodging the whole below-staff dynamics
+		// region — the dynamics row AND the hairpin lane), otherwise at the plain staff
+		// gap. The reserve (DYNAMICS_LANE_RESERVE) exceeds the hairpin lane's lower edge
+		// (HAIRPIN_LANE_DY + HAIRPIN_APERTURE / 2), so one reserve clears both occupants.
+		const baseOffsetBelow = (hasBelowStaffDynamics) =>
+			hasBelowStaffDynamics ? DYNAMICS_LANE_RESERVE : NOTE_GAP_STAFF;
+		const belowRHBase = baseOffsetBelow(rhHasDynamics || rhHasHairpin);
+		const belowLHBase = baseOffsetBelow(lhHasDynamics || lhHasHairpin);
 		// Reserved outward depth of each band's stack, measured from the staff edge.
 		// Zero (never negative) when the band has no notes.
 		const stackDepth = (n, base) =>
@@ -2088,6 +2103,10 @@ export function buildLayoutModel(song, availableWidthInSp) {
 	for (const sp of spans) {
 		const sys = systems[sp.systemIndex];
 		if (sys) {
+			// A cross-system span is filed under its start system only; clip it to that
+			// system's staff end so it draws its start-system portion (a no-op for a
+			// within-system span — see `clipSpanToStartSystem`).
+			clipSpanToStartSystem(sp, sys.staffEndX);
 			sys.spans.push(sp);
 		}
 	}
@@ -2299,21 +2318,41 @@ function inlineSectionChange(member, x) {
 }
 
 /**
- * Record one measure's tie/slur markers + the laid-out geometry of each marked
+ * Record one measure's span markers + the laid-out geometry of each marked
  * note, into the per-hand cross-measure streams. Each entry keeps the
  * event's marker projections and the absolute anchor (X + a notehead Y + stem
  * direction + the current system index) so a matched pair can later be drawn between
  * its actual positions, even across barlines/systems.
  *
+ * One entry is pushed per event, unconditionally — including rests/unplaceable notes
+ * (`anchor: null`) and unmarked events (the per-kind marker is then `undefined`) — so
+ * a hand's stream index never desyncs from its event index.
+ *
+ * Four marker projections are carried per entry, one per span kind: `tie`, `slur`,
+ * `crescendo`, and `decrescendo`. The notehead-anchored arcs (tie/slur) read only the
+ * notehead `anchor`; the flat below-staff hairpins (crescendo/decrescendo) cannot
+ * reconstruct their lane from the pitch-dependent `anchor.y`, so each entry also
+ * carries `laneY`, the precomputed per-hand below-staff lane center. Each entry also
+ * carries the event's point `dynamic` (if any) so a hairpin beginning on that note can
+ * clear the dynamic glyph rather than draw across it.
+ *
  * @param {object[]} [events] The hand's events for this measure.
  * @param {{ notes: object[] }} laidOut The hand's laid-out primitives (`layoutHand`).
  * @param {{ measureX: number, hand: string, placedEvents: object,
- *   staffBottomY: number, systemIndex: number }} options The recording context: the
- *   measure's absolute X, the hand key, the accumulating per-hand anchor list, the
- *   hand's staff bottom Y, and the current system index.
+ *   staffBottomY: number, systemIndex: number }} options The recording context.
+ * @param {number} options.measureX The measure's absolute X (sp).
+ * @param {string} options.hand The hand key (`"rightHand"` | `"leftHand"`).
+ * @param {object} options.placedEvents The accumulating per-hand anchor streams,
+ *   keyed by hand.
+ * @param {number} options.staffBottomY This hand's staff bottom-line Y (sp); the
+ *   below-staff lane Y is derived from it.
+ * @param {number} options.systemIndex The current system index.
  */
-function recordSpanMarkers(events, laidOut, options) {
+export function recordSpanMarkers(events, laidOut, options) {
 	const { measureX, hand, placedEvents, staffBottomY, systemIndex } = options;
+	// The flat hairpin lane sits a fixed offset below this hand's staff bottom; it is
+	// pitch-independent, so it is computed once per call and carried on every entry.
+	const laneY = staffBottomY + HAIRPIN_LANE_DY;
 	const list = events ?? [];
 	list.forEach((event, idx) => {
 		const note = laidOut.notes.find((n) => n.eventIndex === idx);
@@ -2333,29 +2372,39 @@ function recordSpanMarkers(events, laidOut, options) {
 		placedEvents[hand].push({
 			tie: event?.tie,
 			slur: event?.slur,
+			crescendo: event?.crescendo,
+			decrescendo: event?.decrescendo,
+			// The point dynamic on this event (if any); a hairpin starting here clears it.
+			dynamic: event?.dynamic,
 			anchor,
 			systemIndex,
+			laneY,
 		});
 	});
 }
 
 /**
- * Resolve every hand's tie and slur markers into drawn span specs between the
- * actual laid-out positions. Uses the stack-based `matchSpans` on each
- * hand's cross-measure stream; a dangling start/stop or double-start is dropped
- * (never throws). Each resolved span carries its Bézier control points and the
- * system it belongs to (the start's system; the emit layer clips a cross-system arc
- * to the system edges).
+ * Resolve every hand's span markers into drawn span specs between the actual
+ * laid-out positions. Four kinds share one matcher: the notehead-anchored arcs
+ * (`tie`/`slur`) and the flat below-staff wedges (`crescendo`/`decrescendo`). Each
+ * kind gets its own fully independent per-hand stack via `matchSpans` on the hand's
+ * cross-measure stream; a dangling start/stop or double-start is dropped (never
+ * throws). After the shared rest-anchor guard, each pair is dispatched by kind:
+ * tie/slur build a Bézier arc spec (`buildSpanSpec`), crescendo/decrescendo build a
+ * flat-lane wedge record (`buildHairpinSpec`). Every resolved span carries the
+ * system it belongs to (the start's system) and a `crossSystem` flag the
+ * post-resolution clip reads.
  *
  * @param {{ rightHand: object[], leftHand: object[] }} placedEvents The per-hand
  *   placed-anchor streams.
- * @return {object[]} The resolved span specs.
+ * @return {object[]} The resolved span specs (Bézier arcs and/or wedge records).
  */
 function resolveAllSpans(placedEvents) {
 	const spans = [];
 	for (const hand of HANDS) {
 		const stream = placedEvents[hand];
-		for (const kind of ["tie", "slur"]) {
+		const handSpans = [];
+		for (const kind of ["tie", "slur", "crescendo", "decrescendo"]) {
 			const projected = stream.map((e) => ({ marker: e[kind] }));
 			const pairs = matchSpans(projected);
 			for (const pair of pairs) {
@@ -2366,9 +2415,18 @@ function resolveAllSpans(placedEvents) {
 				if (!start.anchor || !stop.anchor) {
 					continue;
 				}
-				spans.push(buildSpanSpec(kind, start, stop, hand));
+				// Notehead-anchored arcs vs. flat below-staff wedges diverge only here:
+				// the wedge ignores the notehead Y and stem side and rides a flat lane.
+				if (kind === "crescendo" || kind === "decrescendo") {
+					handSpans.push(buildHairpinSpec(kind, start, stop, hand));
+				} else {
+					handSpans.push(buildSpanSpec(kind, start, stop, hand));
+				}
 			}
 		}
+		// Insert the messa-di-voce gap before the hand's wedges leave this scope.
+		insetHingeGap(handSpans);
+		spans.push(...handSpans);
 	}
 	return spans;
 }
@@ -2415,6 +2473,152 @@ function buildSpanSpec(kind, start, stop, hand) {
 		// True when the pair spans two systems: the emit layer clips to system edges.
 		crossSystem: start.systemIndex !== stop.systemIndex,
 	};
+}
+
+/**
+ * The flat-lane geometry for one resolved gradual-dynamic span — a hairpin wedge
+ * (`<` for a crescendo, `>` for a decrescendo). Unlike the tie/slur arc, a wedge is
+ * a horizontal lane element: it rides a FLAT below-staff lane Y (the carried,
+ * pitch-independent `start.laneY`), constant across the whole span, so it ignores
+ * both the notehead Y (`anchor.y`) and the stem side (`anchor.direction`). The
+ * open-mouth height is the fixed constant `HAIRPIN_APERTURE` — never derived from
+ * the span width — so a degenerate near-zero-width span (`x1 ≈ x2`) stays finite
+ * (the builder never divides by `x2 - x1`). The opening-vs-closing shape itself is
+ * produced at emit time from `kind`; this record only carries the lane geometry.
+ *
+ * When the start note also carries a point dynamic, the wedge would otherwise begin
+ * across the dynamic glyph (both share the below-staff dynamics line). The start X is
+ * therefore shifted right to clear the dynamic — past an estimate of the glyph's
+ * half-width plus `HAIRPIN_DYNAMIC_GAP` — so the two read as one line, the dynamic
+ * then the hairpin (standard engraving). The shift is clamped to the end X for a
+ * within-system span so the wedge never runs backwards; a cross-system span keeps the
+ * shifted start and lets the later staff-end clip trim the right edge.
+ *
+ * @param {"crescendo"|"decrescendo"} kind The wedge direction.
+ * @param {{ anchor: { x: number }, laneY: number, systemIndex: number,
+ *   dynamic?: string }} start The start anchor; `anchor.x` is the start note's
+ *   horizontal center, `laneY` this hand's flat below-staff lane center, and
+ *   `dynamic` the point dynamic on the start note (if any).
+ * @param {{ anchor: { x: number }, systemIndex: number }} stop The stop anchor;
+ *   `anchor.x` is the end note's horizontal center.
+ * @param {string} hand The hand key (`"rightHand"` | `"leftHand"`).
+ * @return {{ kind: string, hand: string, systemIndex: number, x1: number,
+ *   x2: number, yCenter: number, aperture: number, crossSystem: boolean }} The
+ *   wedge record: endpoints `x1`/`x2` (start cleared past any dynamic), the flat lane
+ *   `yCenter`, the constant `aperture`, the start system, and whether the pair
+ *   crosses systems.
+ */
+export function buildHairpinSpec(kind, start, stop, hand) {
+	const crossSystem = start.systemIndex !== stop.systemIndex;
+	let x1 = start.anchor.x;
+	if (start.dynamic) {
+		// Clear the center-anchored dynamic glyph: shift past its half-width + a gap.
+		const halfWidth =
+			(start.dynamic.length * DYNAMIC_ADVANCE_EM * DYNAMIC_SIZE) / 2;
+		x1 = start.anchor.x + halfWidth + HAIRPIN_DYNAMIC_GAP;
+		// Within a system, never let the cleared start run past the end (degenerate-safe);
+		// cross-system keeps the shift — the staff-end clip sets the right edge later.
+		if (!crossSystem) {
+			x1 = Math.min(x1, stop.anchor.x);
+		}
+	}
+	return {
+		kind,
+		hand,
+		systemIndex: start.systemIndex,
+		// The note horizontal centers, the same `measureX + note.x` value tie/slur use
+		// (the start cleared past any point dynamic on its note).
+		x1,
+		x2: stop.anchor.x,
+		// The flat per-hand below-staff lane Y, constant across the span (carried from
+		// recording so it survives even though the notehead Y cannot reconstruct it).
+		yCenter: start.laneY,
+		// A fixed constant, never width-derived → degenerate-safe (no division).
+		aperture: HAIRPIN_APERTURE,
+		// True when the pair spans two systems: the layout clip trims to system edges.
+		crossSystem,
+	};
+}
+
+/**
+ * Insert the light messa-di-voce gap between a crescendo and a decrescendo that meet
+ * on a shared hinge note. The hinge is a single note carrying both `crescendo: "stop"`
+ * and `decrescendo: "start"`, so the crescendo's open tip (`x2`) and the decrescendo's
+ * open mouth (`x1`) land on the same note X. Without a gap the two `<`/`>` mouths touch;
+ * this insets each by half of `HAIRPIN_HINGE_GAP` so a small space shows.
+ *
+ * Operates in place on one hand's resolved spans (a hand's note X values are unique, so
+ * a coincident crescendo-`x2` / decrescendo-`x1` is necessarily that hand's hinge). Each
+ * inset is clamped so neither wedge is pushed backwards past its other end.
+ *
+ * @param {object[]} handSpans One hand's resolved span records (arcs and/or wedges).
+ */
+function insetHingeGap(handSpans) {
+	const half = HAIRPIN_HINGE_GAP / 2;
+	for (const cres of handSpans) {
+		if (cres.kind !== "crescendo") {
+			continue;
+		}
+		for (const dec of handSpans) {
+			if (dec.kind !== "decrescendo" || Math.abs(cres.x2 - dec.x1) > 1e-6) {
+				continue;
+			}
+			cres.x2 = Math.max(cres.x1, cres.x2 - half);
+			dec.x1 = Math.min(dec.x2, dec.x1 + half);
+		}
+	}
+}
+
+/**
+ * Clip a resolved span to its start system's staff end, in place, so a cross-system
+ * span draws only its start-system portion. v1 files the whole span under its start
+ * system and drops the continuation, so a span whose end note landed on a later
+ * system has an `x2` that is a FOREIGN-frame X (a system-local coordinate from a
+ * different system) — meaningless in the start system's frame and a garbage stroke if
+ * drawn. The right edge is therefore set to the start system's own `staffEndX`; the
+ * foreign `x2` is never consulted.
+ *
+ * The clip is a STRICT no-op for a within-system span (`crossSystem === false`): it
+ * returns the record untouched, so within-system tie/slur and hairpin output is
+ * provably unchanged. It is degenerate-safe (never strokes backwards): the right edge
+ * is `max(x1, staffEndX)`, so a start already at/past the staff end collapses to a
+ * finite zero-width span rather than reversing. It adjusts HORIZONTAL coordinates only
+ * — it never touches any Y:
+ *
+ * - A hairpin wedge rides a FLAT lane Y (`yCenter`) constant across the whole span,
+ *   so clamping `x2` alone yields a fully correct start-system clip (the clipped
+ *   wedge stays on the lane it started on).
+ * - A tie/slur arc gets `x2` clamped and its Bézier control X recomputed to the new
+ *   midpoint (`cx = (x1 + x2) / 2`, the same rule `buildSpanSpec` uses) so the arc
+ *   terminates at the new right edge rather than aiming at a foreign X. Its `y2`/`cy`
+ *   derive from the end note's notehead Y on the foreign end system and are
+ *   deliberately LEFT unchanged: the clipped arc terminates at a foreign vertical
+ *   position, an accepted v1 best-effort (draw the start-system portion, drop the
+ *   continuation). No start-system-local vertical re-projection is attempted.
+ *
+ * @param {object} span The resolved span record (mutated in place when clipped). A
+ *   wedge carries `{ x1, x2, crossSystem, ... }`; a tie/slur arc additionally carries
+ *   `{ cx, y2, cy, ... }`.
+ * @param {number} staffEndX The start system's staff-end X (`budgetSp - STAFF_MARGIN_X`).
+ * @return {object} The same span record — untouched when within-system, else clipped.
+ */
+export function clipSpanToStartSystem(span, staffEndX) {
+	if (!span.crossSystem) {
+		return span;
+	}
+	// The end note lives on a later system, so `span.x2` is a coordinate in THAT
+	// system's frame — meaningless in the start system's frame and not to be consulted.
+	// The start-system right edge is the start system's own staff end. Clamp up from x1
+	// so a start already at/past the staff end collapses to a finite zero-width span
+	// (never a backwards stroke) rather than reversing.
+	const rightX = Math.max(span.x1, staffEndX);
+	span.x2 = rightX;
+	// A tie/slur arc carries a Bézier control X (a wedge does not); re-center it on the
+	// clipped span so the arc lands on the new right edge, not the old foreign midpoint.
+	if (typeof span.cx === "number") {
+		span.cx = (span.x1 + span.x2) / 2;
+	}
+	return span;
 }
 
 /**
@@ -2537,6 +2741,28 @@ function bandOccupancy(members) {
 function systemHandHasDynamics(members, hand) {
 	return members.some((m) =>
 		(m.measure?.[hand] ?? []).some((e) => !!e?.dynamic),
+	);
+}
+
+/**
+ * Whether any event in this system's measures for the given hand carries a gradual-
+ * dynamic (crescendo/decrescendo) marker — i.e. the hand has a hairpin lane occupant.
+ * The hairpin lane lives in the same below-staff dynamics region as point dynamics, so
+ * this drives the per-hand below-band dodge alongside `systemHandHasDynamics`: a below
+ * note dodges the region when its hand has either a point dynamic or a hairpin.
+ *
+ * Any single crescendo/decrescendo marker (`start` OR `stop`) in the hand's stream is
+ * enough — the lane is present wherever a wedge is drawn or carried, and the dodge is a
+ * per-system reservation (a dangling start/stop is still drawn best-effort and so still
+ * occupies the lane within this system).
+ *
+ * @param {object[]} members The system's flattened measure entries.
+ * @param {string} hand The hand key (`rightHand` | `leftHand`).
+ * @return {boolean} True when any event of this hand in the system carries a hairpin marker.
+ */
+function systemHandHasHairpin(members, hand) {
+	return members.some((m) =>
+		(m.measure?.[hand] ?? []).some((e) => !!e?.crescendo || !!e?.decrescendo),
 	);
 }
 

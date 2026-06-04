@@ -309,7 +309,8 @@ function renderSystem(system) {
 	}
 
 	for (const span of system.spans ?? []) {
-		g.appendChild(renderSpan(span));
+		const isHairpin = span.kind === "crescendo" || span.kind === "decrescendo";
+		g.appendChild(isHairpin ? renderHairpin(span) : renderSpan(span));
 	}
 
 	g.appendChild(renderSystemTexts(system.texts));
@@ -988,6 +989,52 @@ function renderSpan(span) {
 		"data-span": span.kind,
 		"data-hand": span.hand,
 	});
+}
+
+/**
+ * Render one resolved hairpin wedge (a gradual-dynamic span) as a `<g>` holding
+ * exactly two straight `<line>`s — a crescendo `<` (vertex at the left, opening to
+ * the right) or a decrescendo `>` (open mouth at the left, converging to a vertex at
+ * the right). The two lines share only their vertex; they are emitted as separate
+ * `<line>`s (not one `<polyline>`/`<path>`) so no spurious stroke joins the two free
+ * mouth ends. Every coordinate is the flat-lane wedge geometry the layout layer
+ * already resolved (sp units): `x1`/`x2` the start/end note centers, `yCenter` the
+ * constant below-staff lane Y, and `aperture` the fixed open-mouth height. Each line
+ * is stroked at `STEM_THICKNESS` (the same width the tie/slur `renderSpan` path uses).
+ *
+ * @param {{ kind: "crescendo"|"decrescendo", hand: string, x1: number, x2: number,
+ *   yCenter: number, aperture: number }} span The resolved wedge record. `kind`
+ *   selects the opening vs. closing shape; `hand` (`"rightHand"`/`"leftHand"`) is
+ *   stamped on the group; `x1`/`x2` are the horizontal endpoints; `yCenter` the lane
+ *   center Y; `aperture` the full mouth height (the lines diverge to ±`aperture/2`).
+ * @return {SVGGElement} A `<g data-span data-hand>` containing the two wedge lines.
+ */
+function renderHairpin(span) {
+	const g = el("g", {
+		"data-span": span.kind,
+		"data-hand": span.hand,
+	});
+	const half = span.aperture / 2;
+	if (span.kind === "crescendo") {
+		// `<`: the vertex sits at the left (x1, yCenter); the mouth fans open to ±half
+		// about yCenter at the right (x2).
+		g.appendChild(
+			line(span.x1, span.yCenter, span.x2, span.yCenter - half, STEM_THICKNESS),
+		);
+		g.appendChild(
+			line(span.x1, span.yCenter, span.x2, span.yCenter + half, STEM_THICKNESS),
+		);
+	} else {
+		// `>`: the mouth opens to ±half about yCenter at the left (x1) and converges to
+		// the vertex at the right (x2, yCenter).
+		g.appendChild(
+			line(span.x1, span.yCenter - half, span.x2, span.yCenter, STEM_THICKNESS),
+		);
+		g.appendChild(
+			line(span.x1, span.yCenter + half, span.x2, span.yCenter, STEM_THICKNESS),
+		);
+	}
+	return g;
 }
 
 /**

@@ -977,3 +977,330 @@ describe("renderInto", () => {
 		expect(svg.getAttribute("role")).toBe("img");
 	});
 });
+
+// ── Hairpin wedge emit (crescendo / decrescendo) ──────────────────────────────────
+//
+// These assert the emitted wedge DOM directly: a single `<g data-span data-hand>`
+// holding exactly two `<line>`s whose endpoints encode the opening (`<`) / closing
+// (`>`) geometry the layout records describe, while the tie/slur `<path>` emitter and
+// the point-dynamic text emitter are left untouched.
+
+describe("renderSvg — hairpin wedges", () => {
+	// A note carrying the given span markers; `pitches` is the real event shape,
+	// defaulting to a single right-hand pitch.
+	const note = (markers, pitches = [{ step: "C", octave: 5 }]) => ({
+		type: "note",
+		duration: "quarter",
+		pitches,
+		...markers,
+	});
+	// One section, one measure, with the given right/left hand events.
+	const song = (rightHand, leftHand = undefined) => ({
+		metadata: { title: "Hairpins" },
+		sections: [
+			{ measures: [{ rightHand, ...(leftHand ? { leftHand } : {}) }] },
+		],
+	});
+	// The two `<line>`s of a wedge `<g>` as { x1, y1, x2, y2 } numbers.
+	const linesOf = (g) =>
+		[...g.querySelectorAll("line")].map((l) => ({
+			x1: Number(l.getAttribute("x1")),
+			y1: Number(l.getAttribute("y1")),
+			x2: Number(l.getAttribute("x2")),
+			y2: Number(l.getAttribute("y2")),
+		}));
+	// The two lines' Y at the shared left X (their y1) and at the right X (their y2).
+	const leftYs = (lines) => lines.map((l) => l.y1);
+	const rightYs = (lines) => lines.map((l) => l.y2);
+
+	it("renders a crescendo as a <g data-span> of exactly two <line>s on the right hand", () => {
+		const svg = renderSvg(
+			buildLayoutModel(
+				song([
+					note({ crescendo: "start" }),
+					note({}),
+					note({ crescendo: "stop" }),
+				]),
+				200,
+			),
+		);
+		const g = svg.querySelector('[data-span="crescendo"]');
+		expect(g).not.toBeNull();
+		expect(g.tagName.toLowerCase()).toBe("g");
+		expect(g.getAttribute("data-hand")).toBe("rightHand");
+		const lines = g.querySelectorAll("line");
+		expect(lines).toHaveLength(2);
+	});
+
+	it("opens the crescendo wedge: vertex (Δy≈0) at x1, mouth (Δy≈aperture) at x2", () => {
+		const model = buildLayoutModel(
+			song([
+				note({ crescendo: "start" }),
+				note({}),
+				note({ crescendo: "stop" }),
+			]),
+			200,
+		);
+		const svg = renderSvg(model);
+		const wedge = model.systems
+			.flatMap((s) => s.spans)
+			.find((s) => s.kind === "crescendo");
+		const lines = linesOf(svg.querySelector('[data-span="crescendo"]'));
+		// Both lines share the wedge's start/end X (the vertex is at the left for a `<`).
+		for (const l of lines) {
+			expect(l.x1).toBeCloseTo(wedge.x1, 6);
+			expect(l.x2).toBeCloseTo(wedge.x2, 6);
+		}
+		// At x1 the two lines meet at the vertex (Δy ≈ 0) for a crescendo `<`.
+		const [lo, hi] = leftYs(lines).sort((a, b) => a - b);
+		expect(Math.abs(hi - lo)).toBeCloseTo(0, 6);
+		// At x2 they diverge to ±aperture/2 about yCenter (Δy ≈ aperture).
+		const [r0, r1] = rightYs(lines).sort((a, b) => a - b);
+		expect(Math.abs(r1 - r0)).toBeCloseTo(wedge.aperture, 6);
+		expect(r0).toBeCloseTo(wedge.yCenter - wedge.aperture / 2, 6);
+		expect(r1).toBeCloseTo(wedge.yCenter + wedge.aperture / 2, 6);
+	});
+
+	it("closes the decrescendo wedge: mouth (Δy≈aperture) at x1, vertex (Δy≈0) at x2", () => {
+		const model = buildLayoutModel(
+			song([
+				note({ decrescendo: "start" }),
+				note({}),
+				note({ decrescendo: "stop" }),
+			]),
+			200,
+		);
+		const svg = renderSvg(model);
+		const wedge = model.systems
+			.flatMap((s) => s.spans)
+			.find((s) => s.kind === "decrescendo");
+		const g = svg.querySelector('[data-span="decrescendo"]');
+		expect(g).not.toBeNull();
+		expect(g.getAttribute("data-hand")).toBe("rightHand");
+		const lines = linesOf(g);
+		expect(lines).toHaveLength(2);
+		// Mirror of the crescendo: mouth at x1 (Δy ≈ aperture), vertex at x2 (Δy ≈ 0).
+		const [l0, l1] = leftYs(lines).sort((a, b) => a - b);
+		expect(Math.abs(l1 - l0)).toBeCloseTo(wedge.aperture, 6);
+		expect(l0).toBeCloseTo(wedge.yCenter - wedge.aperture / 2, 6);
+		expect(l1).toBeCloseTo(wedge.yCenter + wedge.aperture / 2, 6);
+		const [r0, r1] = rightYs(lines).sort((a, b) => a - b);
+		expect(Math.abs(r1 - r0)).toBeCloseTo(0, 6);
+	});
+
+	it("makes the crescendo and decrescendo visibly distinct", () => {
+		// Render a crescendo and a decrescendo and confirm their left/right Δy patterns
+		// are opposite: the `<` opens left→right, the `>` closes left→right.
+		const cresModel = buildLayoutModel(
+			song([note({ crescendo: "start" }), note({ crescendo: "stop" })]),
+			200,
+		);
+		const decModel = buildLayoutModel(
+			song([note({ decrescendo: "start" }), note({ decrescendo: "stop" })]),
+			200,
+		);
+		const cres = linesOf(
+			renderSvg(cresModel).querySelector('[data-span="crescendo"]'),
+		);
+		const dec = linesOf(
+			renderSvg(decModel).querySelector('[data-span="decrescendo"]'),
+		);
+		const dy = (ys) => {
+			const [a, b] = ys.sort((p, q) => p - q);
+			return b - a;
+		};
+		// Crescendo: Δy grows left→right; decrescendo: Δy shrinks left→right.
+		expect(dy(leftYs(cres))).toBeLessThan(dy(rightYs(cres)));
+		expect(dy(leftYs(dec))).toBeGreaterThan(dy(rightYs(dec)));
+	});
+
+	it("strokes every wedge <line> with a defined (non-undefined) stroke-width", () => {
+		const svg = renderSvg(
+			buildLayoutModel(
+				song([note({ crescendo: "start" }), note({ crescendo: "stop" })]),
+				200,
+			),
+		);
+		const lines = svg.querySelectorAll('[data-span="crescendo"] line');
+		expect(lines.length).toBe(2);
+		for (const l of lines) {
+			const w = l.getAttribute("stroke-width");
+			expect(w).not.toBeNull();
+			expect(w).not.toBe("undefined");
+			expect(Number.isFinite(Number(w))).toBe(true);
+		}
+	});
+
+	it("draws a barline-crossing wedge as one continuous wedge from start X to end X (AC4)", () => {
+		// Two measures in one system: the crescendo starts in measure 1 and ends in
+		// measure 2, so its single wedge must span across the intervening barline.
+		const twoMeasures = {
+			metadata: { title: "Across the bar" },
+			sections: [
+				{
+					measures: [
+						{ rightHand: [note({ crescendo: "start" })] },
+						{ rightHand: [note({}), note({ crescendo: "stop" })] },
+					],
+				},
+			],
+		};
+		const model = buildLayoutModel(twoMeasures, 600);
+		// Confirm a single system holds both measures (one continuous wedge possible).
+		expect(model.systems).toHaveLength(1);
+		const wedge = model.systems[0].spans.find((s) => s.kind === "crescendo");
+		expect(wedge.crossSystem).toBe(false);
+		const svg = renderSvg(model);
+		const gs = svg.querySelectorAll('[data-span="crescendo"]');
+		expect(gs).toHaveLength(1); // one continuous wedge, not one per measure
+		const lines = linesOf(gs[0]);
+		// The wedge runs the full span as one primitive: x1 in measure 1 (before the
+		// barline), x2 on a note deeper into measure 2 (past the barline) — one
+		// continuous wedge across the bar, not one segment per measure.
+		const barX = model.systems[0].measures[1].x;
+		expect(wedge.x1).toBeLessThan(barX);
+		expect(wedge.x2).toBeGreaterThan(barX);
+		for (const l of lines) {
+			expect(l.x1).toBeCloseTo(wedge.x1, 6);
+			expect(l.x2).toBeCloseTo(wedge.x2, 6);
+			expect(l.x2).toBeGreaterThan(barX);
+		}
+	});
+
+	it("renders the wedge and point dynamics independently for start/end/both/neither (AC7)", () => {
+		// Four songs: a point dynamic at the span's start, end, both ends, or neither.
+		// In every case the wedge AND the dynamic text(s) must both render.
+		const cases = {
+			start: song([
+				note({ crescendo: "start", dynamic: "p" }),
+				note({ crescendo: "stop" }),
+			]),
+			end: song([
+				note({ crescendo: "start" }),
+				note({ crescendo: "stop", dynamic: "f" }),
+			]),
+			both: song([
+				note({ crescendo: "start", dynamic: "p" }),
+				note({ crescendo: "stop", dynamic: "f" }),
+			]),
+			neither: song([
+				note({ crescendo: "start" }),
+				note({ crescendo: "stop" }),
+			]),
+		};
+		const expectedDynamicCount = { start: 1, end: 1, both: 2, neither: 0 };
+		for (const [name, s] of Object.entries(cases)) {
+			const svg = renderSvg(buildLayoutModel(s, 200));
+			// The wedge always renders, independent of the point dynamics.
+			expect(svg.querySelector('[data-span="crescendo"] line')).not.toBeNull();
+			expect(svg.querySelectorAll('[data-span="crescendo"] line')).toHaveLength(
+				2,
+			);
+			// The point dynamic text(s) render independently of the wedge.
+			expect(svg.querySelectorAll('[data-text="dynamic"]')).toHaveLength(
+				expectedDynamicCount[name],
+			);
+		}
+	});
+
+	it("leaves ties/slurs as <path> Béziers and renders all markings coexisting (AC8)", () => {
+		// One song combining a tie, a slur, an ottava (octaveShift), point dynamics, and
+		// a hairpin. Every marking's selector must coexist in the rendered SVG.
+		const combined = {
+			metadata: { title: "All markings" },
+			defaults: { rightHand: { clef: "treble" }, leftHand: { clef: "bass" } },
+			sections: [
+				{
+					measures: [
+						{
+							rightHand: [
+								{
+									type: "note",
+									duration: "quarter",
+									dynamic: "mf",
+									tie: "start",
+									slur: "start",
+									crescendo: "start",
+									pitches: [{ step: "C", octave: 5 }],
+								},
+								{
+									type: "note",
+									duration: "quarter",
+									tie: "stop",
+									slur: "stop",
+									crescendo: "stop",
+									pitches: [{ step: "C", octave: 5 }],
+								},
+							],
+							leftHand: [
+								{
+									type: "note",
+									duration: "half",
+									pitches: [{ step: "C", octave: 3 }],
+								},
+							],
+						},
+					],
+				},
+				{
+					rightHand: { octaveShift: 1 },
+					measures: [
+						{
+							barlineEnd: "final",
+							rightHand: [
+								{
+									type: "note",
+									duration: "whole",
+									pitches: [{ step: "C", octave: 6 }],
+								},
+							],
+							leftHand: [
+								{
+									type: "note",
+									duration: "whole",
+									pitches: [{ step: "C", octave: 3 }],
+								},
+							],
+						},
+					],
+				},
+			],
+		};
+		const svg = renderSvg(buildLayoutModel(combined, 400));
+		// A tie stays a <path> Bézier — NOT converted to <line>s.
+		const tie = svg.querySelector('[data-span="tie"]');
+		expect(tie).not.toBeNull();
+		expect(tie.tagName.toLowerCase()).toBe("path");
+		expect(tie.getAttribute("d")).toContain("Q"); // a quadratic Bézier, not a line
+		// The slur is likewise a <path>.
+		const slur = svg.querySelector('[data-span="slur"]');
+		expect(slur).not.toBeNull();
+		expect(slur.tagName.toLowerCase()).toBe("path");
+		// The hairpin is a <g> of two <line>s.
+		const hairpin = svg.querySelector('[data-span="crescendo"]');
+		expect(hairpin.tagName.toLowerCase()).toBe("g");
+		expect(hairpin.querySelectorAll("line")).toHaveLength(2);
+		// The ottava and point dynamic coexist too.
+		expect(svg.querySelector('[data-text="ottava"]')).not.toBeNull();
+		expect(svg.querySelector('[data-text="dynamic"]')).not.toBeNull();
+	});
+
+	it("renders a left-hand wedge stamped data-hand=leftHand", () => {
+		const svg = renderSvg(
+			buildLayoutModel(
+				song(
+					[note({}, [{ step: "C", octave: 5 }])],
+					[
+						note({ crescendo: "start" }, [{ step: "C", octave: 3 }]),
+						note({ crescendo: "stop" }, [{ step: "E", octave: 3 }]),
+					],
+				),
+				200,
+			),
+		);
+		const g = svg.querySelector('[data-span="crescendo"]');
+		expect(g).not.toBeNull();
+		expect(g.getAttribute("data-hand")).toBe("leftHand");
+		expect(g.querySelectorAll("line")).toHaveLength(2);
+	});
+});

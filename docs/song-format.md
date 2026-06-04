@@ -169,7 +169,9 @@ event := {
   dynamic?,       // enum: pp | p | mp | mf | f | ff | sf | sfz
   notes?,         // array of per-event note objects (see "Notes (annotations)") — { text, placement }
   tie?,           // enum: start | stop
-  slur?           // enum: start | stop
+  slur?,          // enum: start | stop
+  crescendo?,     // enum: start | stop
+  decrescendo?    // enum: start | stop
 }
 ```
 
@@ -180,6 +182,9 @@ event := {
 - **`dynamic`** — one of `pp | p | mp | mf | f | ff | sf | sfz`.
 - **`notes`** — an optional array of **per-event notes**: free-text annotations attached to this event, each `{ "text": …, "placement": "above" | "below" }`. They render in the same horizontal column as this event, on the staff of the hand whose array this event lives in. See [Notes (annotations)](#notes-annotations) for the full field reference; per-event notes are the per-event half of the `notes` capability. Both a note event and a rest event may carry `notes`. Absent, or `notes: []`, means the event has no annotations.
 - **`tie`** and **`slur`** — event-level `start | stop` markers.
+- **`crescendo`** and **`decrescendo`** — event-level `start | stop` markers for a gradual-dynamic span (a crescendo grows louder, a decrescendo grows softer). You put `"start"` on the note where the span begins and `"stop"` on the note where it ends. **The direction is intrinsic to which field you use:** a crescendo and a decrescendo are two distinct markings, and the direction is never inferred from the surrounding `dynamic` values — to write a decrescendo you mark `decrescendo`, regardless of whether any point dynamics happen to fall around it.
+  - **A span is independent of, and additive to, the per-note `dynamic`.** The `dynamic` field places a fixed point dynamic on a single note; a crescendo/decrescendo span describes a gradual change over a run of notes. The two are unrelated mechanisms: a point dynamic may sit at a span's start, at its end, at both, or at neither, and **no point dynamic is required** for a span. For example, a span may begin at a `"p"` note and end at an `"f"` note, or carry no point dynamics at all.
+  - **The two fields are independent, and a single note may carry both at once.** Marking `crescendo: "stop"` and `decrescendo: "start"` on the same note expresses a *messa-di-voce hinge*: a crescendo span ends and a decrescendo span begins on that shared note, so the music swells and then recedes (`<>`) across the two adjacent spans.
 
 ```json
 { "type": "note", "duration": "half", "dots": 1, "dynamic": "mf",
@@ -285,6 +290,30 @@ That measure carries two standalone notes: `"rit."` above the right-hand staff a
 
 Older songs used a per-event `chordSymbol` string for the chord-symbol-above-the-staff case; that field is gone, replaced by `notes`. Rewrite each `"chordSymbol": "C"` as a per-event note `"notes": [{ "text": "C", "placement": "above" }]`. A leftover `chordSymbol` is still **valid** — it is an unknown key, so it is silently ignored — but it **no longer renders**, and nothing rewrites it for you: the migration is manual.
 
+## Gradual dynamics (crescendo and decrescendo spans)
+
+The per-note `dynamic` is a **point dynamic** — a single fixed level on one note. A **gradual-dynamic span** is the other kind of loudness marking: a change that unfolds *across a run of notes*. A **crescendo** grows louder, a **decrescendo** grows softer.
+
+A span runs from a **start note** to a *later* **end note within a single hand** — the right-hand stream or the left-hand stream, never across the two. You author it with the `crescendo` / `decrescendo` markers from the [Events](#events) section: put `"start"` on the first note and `"stop"` on the last. Each hand is marked independently; a span in one hand has no bearing on the other.
+
+**The rendered form is a hairpin wedge** on the grand staff: an opening wedge `<` for a crescendo and a closing wedge `>` for a decrescendo. The wedge spans horizontally from the start note's position to the end note's position, so the two directions are drawn distinctly — `<` widens toward the louder end, `>` narrows toward the softer end. If a span crosses one or more barlines within a single line of music, it is drawn as **one continuous wedge** across them, the same way a tie or slur is.
+
+**Placement.** Each wedge is drawn **per hand, below that hand's own staff** — the same below-staff region where that hand's point dynamics already sit.
+
+**Notation only — no sound.** Like every marking in this format, a gradual-dynamic span is visual notation; it has **no effect on how the song sounds**. There is no audio engine in the block, and the marking carries no loudness behavior — it only draws the wedge.
+
+### What v1 does and does not do
+
+This is what the gradual-dynamic span renders today. Be aware of these limits so you do not expect more than is drawn:
+
+- **Hairpin form only.** Only the wedge (`<` / `>`) is drawn. The alternative `cresc.` / `dim.` text-with-a-dashed-line form is not part of this version.
+- **Per-hand, below each hand's staff.** The wedge sits below the marked hand's staff. Drawing a single wedge *between* the two staves (the strict grand-staff convention) is a possible future refinement, not what is drawn today.
+- **Cross-line spans draw only their first line.** If a span's start note and its end note fall on two different rendered lines (the start wraps onto one line and the end onto the next), only the portion on the **start line** is drawn; the continuation onto the next line is not drawn in this version. The marking is still accepted and never breaks the rest of the rendering — only the carried-over piece is omitted.
+- **Overlapping same-kind spans are undefined.** Opening a second crescendo (or a second decrescendo) in one hand before the first has stopped is tolerated — it will not break the render — but the result is not defined, so do not rely on it. At most one span of a given kind should be open per hand at a time.
+- **A single-note span is not expressible.** A span needs a start note and a *different, later* end note; a hairpin shows change *across* notes, and one note has no horizontal extent. There is no way to mark a one-note crescendo or decrescendo.
+
+For where the rendered wedge appears in the published sheet music, see [What the front end shows](../README.md#4-what-the-front-end-shows) in the README.
+
 ## Pitches
 
 A **pitch** is a single sounding note name with its octave and optional accidental:
@@ -353,16 +382,17 @@ So a pitch's sounding result is its note name plus its effective alteration, pla
 
 The format **has no `version` field**. It starts minimal and grows by adding **optional** fields to existing objects. A song you write today stays valid as the format grows, because new fields are optional and older songs simply omit them.
 
-Two consequences you can observe as an author:
+Three consequences you can observe as an author:
 
-- **Unknown fields are ignored.** A misspelled *optional* field — for example `dynmic` instead of `dynamic` — is silently dropped from meaning, not flagged as an error. The value you typed is still stored, but it carries no meaning. (Double-check your spelling of optional fields; a typo will not warn you.)
-- **A misspelled enumerated value *is* an error.** The closed vocabularies — durations, clefs, dynamics, barlines, `tie`/`slur`, event `type`, `beatType` — are checked strictly. A value like `"quaver"` for a duration, `"treble-clef"` for a clef, or `"mezzo"` for a dynamic is a conformance error.
+- **Unknown fields are ignored.** A misspelled *optional* field — for example `dynmic` instead of `dynamic`, or `cresendo` instead of `crescendo` — is silently dropped from meaning, not flagged as an error. The value you typed is still stored, but it carries no meaning. (Double-check your spelling of optional fields; a typo will not warn you.) This is why an older song that uses no gradual dynamics stays valid and unchanged as new optional fields like `crescendo` and `decrescendo` are added: the song simply omits them.
+- **A misspelled enumerated value *is* an error.** The closed vocabularies — durations, clefs, dynamics, barlines, `tie`/`slur`, `crescendo`/`decrescendo`, event `type`, `beatType` — are checked strictly. A value like `"quaver"` for a duration, `"treble-clef"` for a clef, `"mezzo"` for a dynamic, or anything other than `"start"` or `"stop"` for `crescendo` or `decrescendo` is a conformance error.
+- **Span pairing is not checked.** The start/stop markers that open and close a span — `tie`, `slur`, `crescendo`, and `decrescendo` — are validated only as individual `start | stop` values; their *pairing* is not. A lone `"start"` with no matching `"stop"` (or the reverse) is **not** a conformance error: the song still validates. Pairing is resolved best-effort at render time, so a dangling marker is simply drawn as far as it can be, never rejected.
 
 ## Annotated example song
 
 The following is a **complete, copy-pasteable example** — valid song JSON (no comments) you can paste straight into the block's song field and adapt.
 
-It exercises a broad spread of elements: notes and rests in both hands, a three-pitch chord, a dotted duration, a per-note accidental, mixed English and Spanish note names, per-hand clef / default accidentals / octave shift, a Section 2 mid-song tempo / time-signature / clef / accidental change, dynamics, free-text note annotations (a per-event chord symbol above and a fingering below, plus a standalone `"rit."` on a measure), a tie, repeat and final barlines, and title/composer metadata.
+It exercises a broad spread of elements: notes and rests in both hands, a three-pitch chord, a dotted duration, a per-note accidental, mixed English and Spanish note names, per-hand clef / default accidentals / octave shift, a Section 2 mid-song tempo / time-signature / clef / accidental change, dynamics, free-text note annotations (a per-event chord symbol above and a fingering below, plus a standalone `"rit."` on a measure), a tie, a crescendo span and a separate decrescendo span that meet on a shared messa-di-voce hinge note (carrying both `crescendo: "stop"` and `decrescendo: "start"`), repeat and final barlines, and title/composer metadata.
 
 ```json
 {
@@ -442,10 +472,13 @@ It exercises a broad spread of elements: notes and rests in both hands, a three-
           ],
           "rightHand": [
             { "type": "note", "duration": "quarter", "dynamic": "p",
+              "crescendo": "start",
               "pitches": [ { "step": "F", "octave": 5 } ] },
             { "type": "note", "duration": "quarter",
+              "crescendo": "stop", "decrescendo": "start",
               "pitches": [ { "step": "la", "octave": 5 } ] },
-            { "type": "rest", "duration": "quarter" }
+            { "type": "note", "duration": "quarter", "decrescendo": "stop",
+              "pitches": [ { "step": "C", "octave": 6 } ] }
           ],
           "leftHand": [
             { "type": "note", "duration": "half", "dots": 1,
