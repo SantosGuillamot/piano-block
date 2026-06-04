@@ -101,6 +101,16 @@ export const GLYPHS = {
 	// ── Grand-staff brace (font; design §6.3). Spans both staves at the left. ───
 	brace: { codepoint: "" }, // SMuFL brace U+E000
 
+	// ── Metronome note glyphs (font; design §6.7). The small note-value glyph in a
+	// tempo mark "[note-glyph] = [bpm]"; a missing beatUnit defaults to the quarter
+	// glyph. Keyed by note value via `TEMPO_NOTE_GLYPH` in the layout layer. ──────
+	metNoteWhole: { codepoint: "" }, // SMuFL metNoteWhole U+ECA2
+	metNoteHalf: { codepoint: "" }, // SMuFL metNoteHalfUp U+ECA3
+	metNoteQuarter: { codepoint: "" }, // SMuFL metNoteQuarterUp U+ECA5
+	metNoteEighth: { codepoint: "" }, // SMuFL metNote8thUp U+ECA7
+	metNoteSixteenth: { codepoint: "" }, // SMuFL metNote16thUp U+ECA9
+	metNote32nd: { codepoint: "" }, // SMuFL metNote32ndUp U+ECAB
+
 	// ── Time-signature digits 0–9 (font; design §6.7). The layout layer composes
 	// `beats` / `beatType` from these per-digit glyphs. ─────────────────────────
 	timeSig0: { codepoint: "" }, // SMuFL timeSig0 U+E080

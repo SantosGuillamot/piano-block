@@ -24,16 +24,24 @@ import {
 	ACCIDENTAL_COL_STEP,
 	ACCIDENTAL_GAP,
 	ADV_K,
+	BARLINE_THICK,
+	BARLINE_THIN,
 	BASE_DUR,
 	BEAM_COUNT,
 	DOT_GAP,
 	DOT_MUL,
 	DOT_OFFSET,
 	EMPTY_MEASURE_WIDTH,
+	INTER_SYSTEM_GAP,
+	INTRA_STAFF_GAP,
 	LEDGER_WIDTH,
+	MAX_STRETCH,
 	MIN_ADV,
 	NOTEHEAD_RX,
+	STAFF_HEIGHT_SP,
 	STEM_LENGTH,
+	SYSTEM_BOTTOM_MARGIN,
+	SYSTEM_TOP_MARGIN,
 } from "./constants.js";
 import { ACCIDENTAL_GLYPHS } from "./glyphs.js";
 
@@ -816,4 +824,1319 @@ export function measureLayout(rightEvents, leftEvents, options = {}) {
 		width: leadingPad + contentWidth + trailingPad,
 		hands,
 	};
+}
+
+// ── T6: section context resolution + diff (design §6.6) ─────────────────────────
+//
+// A single pre-pass resolves each section's EFFECTIVE musical context from the
+// inheritance model — every field inherits from `defaults` independently, `alters`
+// replaces wholesale, `octaveShift` defaults to 0 — then each section is diffed
+// against the previous so the renderer redraws ONLY what changed (the first section
+// draws everything). The diff drives mid-song changes (AC4); the per-system
+// restatement (§6.3) separately redraws the current clef + alters on every system.
+
+/** The two hands, in render order, keyed as they appear in the song format. */
+const HANDS = ["rightHand", "leftHand"];
+
+/** The default clef per hand when neither the section nor `defaults` sets one. */
+const DEFAULT_HAND_CLEF = { rightHand: "treble", leftHand: "bass" };
+
+/**
+ * Resolve one hand's effective `handConfig` for a section against the song-wide
+ * `defaults` (design §6.6). Each field inherits independently: `clef` falls back
+ * to the default hand clef, `alters` REPLACES wholesale (a present section `alters`
+ * — even `{}` — wins; only an absent one inherits), and `octaveShift` defaults to 0.
+ *
+ * @param {string} hand The hand key (`rightHand` | `leftHand`).
+ * @param {object} [sectionCfg] The section's handConfig for this hand.
+ * @param {object} [defaultsCfg] The `defaults` handConfig for this hand.
+ * @return {{ clef: string, alters: Record<string, number>, octaveShift: number }}
+ *   The resolved per-hand context.
+ */
+export function resolveHandContext(hand, sectionCfg, defaultsCfg) {
+	const sec = sectionCfg ?? {};
+	const def = defaultsCfg ?? {};
+	const clef = sec.clef ?? def.clef ?? DEFAULT_HAND_CLEF[hand];
+	// `alters` replaces wholesale: a present section value wins even when empty.
+	const alters = sec.alters ?? def.alters ?? {};
+	const octaveShift = sec.octaveShift ?? def.octaveShift ?? 0;
+	return { clef, alters, octaveShift };
+}
+
+/**
+ * Resolve every section's effective context via the inheritance model (design
+ * §6.6): `tempo` and `timeSignature` inherit from `defaults` as whole objects; each
+ * hand's `clef`/`alters`/`octaveShift` resolves through `resolveHandContext`. The
+ * result is one effective-context record per section, in order.
+ *
+ * @param {{ defaults?: object, sections?: object[] }} song The parsed song.
+ * @return {{ tempo: ?object, timeSignature: ?object,
+ *   rightHand: object, leftHand: object }[]} One resolved context per section.
+ */
+export function resolveSectionContexts(song) {
+	const defaults = song?.defaults ?? {};
+	const sections = Array.isArray(song?.sections) ? song.sections : [];
+	return sections.map((section) => ({
+		tempo: section?.tempo ?? defaults.tempo ?? null,
+		timeSignature: section?.timeSignature ?? defaults.timeSignature ?? null,
+		rightHand: resolveHandContext(
+			"rightHand",
+			section?.rightHand,
+			defaults.rightHand,
+		),
+		leftHand: resolveHandContext(
+			"leftHand",
+			section?.leftHand,
+			defaults.leftHand,
+		),
+	}));
+}
+
+/** Shallow structural equality for the small plain context sub-objects. */
+function shallowEqual(a, b) {
+	if (a === b) {
+		return true;
+	}
+	if (!a || !b || typeof a !== "object" || typeof b !== "object") {
+		return false;
+	}
+	const ka = Object.keys(a);
+	const kb = Object.keys(b);
+	if (ka.length !== kb.length) {
+		return false;
+	}
+	return ka.every((k) => a[k] === b[k]);
+}
+
+/**
+ * Diff one resolved section context against the previous one (design §6.6),
+ * marking ONLY what changed so the renderer redraws just those symbols. With no
+ * previous context (the first section) EVERYTHING is marked changed — the first
+ * section draws its full context.
+ *
+ * @param {object} curr The current section's resolved context.
+ * @param {?object} [prev] The previous section's resolved context, or `null`.
+ * @return {{ tempo: boolean, timeSignature: boolean,
+ *   rightHand: { clef: boolean, alters: boolean, octaveShift: boolean },
+ *   leftHand: { clef: boolean, alters: boolean, octaveShift: boolean } }} The
+ *   per-field change flags.
+ */
+export function diffContext(curr, prev = null) {
+	const diffHand = (hand) => {
+		const c = curr[hand];
+		const p = prev ? prev[hand] : null;
+		return {
+			clef: !p || c.clef !== p.clef,
+			alters: !p || !shallowEqual(c.alters, p.alters),
+			octaveShift: !p || c.octaveShift !== p.octaveShift,
+		};
+	};
+	return {
+		tempo: !prev || !shallowEqual(curr.tempo, prev.tempo),
+		timeSignature:
+			!prev || !shallowEqual(curr.timeSignature, prev.timeSignature),
+		rightHand: diffHand("rightHand"),
+		leftHand: diffHand("leftHand"),
+	};
+}
+
+// ── T6: `alters` as a key-signature-like cluster (design §6.4) ──────────────────
+//
+// The hand's `alters` map renders as a key-signature cluster: one glyph per altered
+// note name at that letter's standard key-sig register for the active clef (a fixed
+// per-clef 7-register table). Standard sharp/flat sets draw in conventional order
+// (sharps F C G D A E B, flats B E A D G C F); anything outside those orders is
+// appended in note-name order. The renderer does NOT detect a circle-of-fifths key —
+// `alters` is an arbitrary map, so odd/partial/double sets just draw faithfully.
+
+/**
+ * Fixed per-clef key-signature registers as `sFromBottom` for each canonical letter
+ * (design §6.4). These are the conventional engraved positions: the treble row is
+ * the standard treble key-sig placement, and the others place each letter on the
+ * register that keeps the cluster on/near that clef's staff.
+ */
+const KEY_SIG_REGISTER = {
+	treble: { A: 3, B: 4, C: 5, D: 6, E: 7, F: 8, G: 9 },
+	bass: { A: 1, B: 2, C: 3, D: 4, E: 5, F: 6, G: 7 },
+	alto: { A: 2, B: 3, C: 4, D: 5, E: 6, F: 7, G: 8 },
+	tenor: { A: 4, B: 5, C: 6, D: 7, E: 8, F: 2, G: 3 },
+};
+
+/** Conventional accidental order for sharps and flats (design §6.4). */
+const SHARP_ORDER = ["F", "C", "G", "D", "A", "E", "B"];
+const FLAT_ORDER = ["B", "E", "A", "D", "G", "C", "F"];
+
+/**
+ * The conventional draw order for one altered letter (design §6.4): sharps (and
+ * double-sharps) rank by the sharp sequence, flats (and double-flats) by the flat
+ * sequence; a letter outside the relevant order ranks last and falls back to
+ * note-name (alphabetical) order. Sharps are grouped before flats.
+ */
+function alterRank(letter, alter) {
+	if (alter > 0) {
+		const i = SHARP_ORDER.indexOf(letter);
+		return [0, i < 0 ? SHARP_ORDER.length : i, letter];
+	}
+	const i = FLAT_ORDER.indexOf(letter);
+	return [1, i < 0 ? FLAT_ORDER.length : i, letter];
+}
+
+/**
+ * Build the key-signature-like cluster for a hand's `alters` (design §6.4). Each
+ * altered note name becomes one accidental glyph at its standard key-sig register
+ * for the active clef, ordered conventionally (sharps then flats, each in its
+ * canonical sequence; unknowns appended in note-name order). Zero-alteration
+ * entries draw nothing (a key sig has no naturals). Doubles draw the double glyph.
+ *
+ * The cluster is laid out left→right; each glyph advances by `step` sp. The caller
+ * positions the whole cluster (its `width` is the total advance) in the leading
+ * reserve or inline at a section change.
+ *
+ * @param {Record<string, number>} alters The hand's RAW `alters` map.
+ * @param {string} clef The active clef for this hand.
+ * @param {{ step?: number, bottomLineY?: number }} [options] `step` per-glyph
+ *   advance (sp), `bottomLineY` the staff's bottom-line Y (sp).
+ * @return {{ glyphs: { letter: string, glyph: string, alter: number,
+ *   sFromBottom: number, x: number, y: number }[], width: number }} The cluster.
+ */
+export function keySignatureCluster(alters, clef, options = {}) {
+	const { step = ACCIDENTAL_COL_STEP, bottomLineY = 0 } = options;
+	const register = KEY_SIG_REGISTER[clef] ?? KEY_SIG_REGISTER.treble;
+
+	// Normalize keys to canonical letters and drop zero/unrecognised entries.
+	const entries = [];
+	for (const [key, value] of Object.entries(alters ?? {})) {
+		const letter = normalizeStep(key);
+		if (letter === null || !value) {
+			continue;
+		}
+		entries.push({ letter, alter: value });
+	}
+
+	// Conventional order: sharps before flats, each in its canonical sequence.
+	entries.sort((a, b) => {
+		const ra = alterRank(a.letter, a.alter);
+		const rb = alterRank(b.letter, b.alter);
+		if (ra[0] !== rb[0]) {
+			return ra[0] - rb[0];
+		}
+		if (ra[1] !== rb[1]) {
+			return ra[1] - rb[1];
+		}
+		return ra[2] < rb[2] ? -1 : ra[2] > rb[2] ? 1 : 0;
+	});
+
+	const glyphs = entries.map((e, i) => {
+		const sFromBottom = register[e.letter];
+		return {
+			letter: e.letter,
+			glyph: ACCIDENTAL_GLYPHS[e.alter + 2],
+			alter: e.alter,
+			sFromBottom,
+			x: i * step,
+			y: staffStepToY(sFromBottom, bottomLineY),
+		};
+	});
+
+	return { glyphs, width: glyphs.length * step };
+}
+
+// ── T6: octaveShift → ottava bracket (design §5.3) ──────────────────────────────
+
+/** Ottava labels keyed by `octaveShift` (design §5.3). */
+const OTTAVA_LABELS = { 1: "8va", 2: "15ma", "-1": "8vb", "-2": "15mb" };
+
+/**
+ * The ottava marking for an `octaveShift` (design §5.3): the bracket LABEL and
+ * whether it sits above (positive shift) or below (negative). `octaveShift` is a
+ * bracket, NOT a vertical move — notes are still placed by their written octave —
+ * so this only describes the dashed bracket + label that spans the affected hand's
+ * section notes. Returns `null` for no shift (0 or absent).
+ *
+ * @param {number} octaveShift The resolved per-hand octave shift (−2..2).
+ * @return {{ label: string, placement: "above"|"below" } | null} The ottava, or
+ *   `null` when there is no shift.
+ */
+export function ottavaFor(octaveShift) {
+	if (!octaveShift) {
+		return null;
+	}
+	const label = OTTAVA_LABELS[String(octaveShift)];
+	if (!label) {
+		return null;
+	}
+	return { label, placement: octaveShift > 0 ? "above" : "below" };
+}
+
+// ── T6: ties + slurs — stack-based, dangling-safe (design §6.7) ─────────────────
+//
+// Per hand, a `tie:start` / `slur:start` opens a pending span closed by the next
+// matching `stop`. The matching is robust to malformed data: a dangling start (incl.
+// end-of-hand), a dangling stop, or a second start before a stop is best-effort or
+// skipped — it NEVER throws. The result is a flat list of {startRef, stopRef} pairs
+// (each an opaque event locator the caller resolves to laid-out positions, so a span
+// across barlines/systems is drawn between its actual positions, clipped by the emit
+// layer to system edges).
+
+/**
+ * Match one marker kind (`tie` or `slur`) across one hand's flattened event stream
+ * into start/stop pairs (design §6.7). The stream is a flat list of event locators
+ * in playing order across the whole hand (every measure), each carrying its `tie` /
+ * `slur` marker. Stack-based with a single pending start (monophonic-per-hand): a
+ * new start while one is pending CLOSES nothing and replaces the pending start
+ * (the earlier one dangles and is dropped); a stop with no pending start is dropped.
+ * Both behaviours are silent — never a throw.
+ *
+ * @param {{ marker?: "start"|"stop" }[]} stream The hand's event locators in order,
+ *   each with the relevant marker (`tie` or `slur`) projected onto `marker`.
+ * @return {{ startIndex: number, stopIndex: number }[]} The matched index pairs
+ *   (indices into `stream`), in start order. Dangling markers are omitted.
+ */
+export function matchSpans(stream) {
+	const pairs = [];
+	let pendingStart = null;
+	for (let i = 0; i < (stream?.length ?? 0); i++) {
+		const marker = stream[i]?.marker;
+		if (marker === "start") {
+			// A second start before a stop drops the earlier (dangling) start.
+			pendingStart = i;
+		} else if (marker === "stop") {
+			if (pendingStart !== null) {
+				pairs.push({ startIndex: pendingStart, stopIndex: i });
+				pendingStart = null;
+			}
+			// A stop with no pending start is a dangling stop → dropped.
+		}
+	}
+	// A leftover pendingStart is a dangling start → dropped (no throw).
+	return pairs;
+}
+
+/**
+ * Project a hand's flat event stream onto one marker kind for `matchSpans`
+ * (design §6.7): keeps every event's identity (its index) and pulls the chosen
+ * marker (`tie` or `slur`) onto `marker`. Events without that marker carry
+ * `marker: undefined` and simply pass through the matcher untouched.
+ *
+ * @param {{ tie?: string, slur?: string }[]} events The hand's flat event stream.
+ * @param {"tie"|"slur"} kind Which marker to project.
+ * @return {{ marker?: string }[]} The projected stream, same length/order.
+ */
+export function projectMarker(events, kind) {
+	return (events ?? []).map((e) => ({ marker: e?.[kind] }));
+}
+
+// ── T6: tempo text (design §6.7) ────────────────────────────────────────────────
+
+/** Note-value → its SMuFL metronome note glyph name (design §6.7). */
+const TEMPO_NOTE_GLYPH = {
+	whole: "metNoteWhole",
+	half: "metNoteHalf",
+	quarter: "metNoteQuarter",
+	eighth: "metNoteEighth",
+	sixteenth: "metNoteSixteenth",
+	"thirty-second": "metNote32nd",
+};
+
+/**
+ * The tempo marking for a section (design §6.7): "[beatUnit note-glyph] = [bpm]"
+ * (e.g. ♩ = 120). A missing `beatUnit` defaults to the quarter glyph — the glyph +
+ * " = " + the bpm number is the recognizable metronome mark, so the glyph is never
+ * omitted. Returns `null` when there is no tempo (so nothing is drawn).
+ *
+ * @param {{ bpm?: number, beatUnit?: string }} [tempo] The resolved section tempo.
+ * @return {{ glyph: string, bpm: number } | null} The tempo mark's note glyph name
+ *   and bpm, or `null` when absent.
+ */
+export function tempoMark(tempo) {
+	if (!tempo || typeof tempo.bpm !== "number") {
+		return null;
+	}
+	const glyph = TEMPO_NOTE_GLYPH[tempo.beatUnit] ?? TEMPO_NOTE_GLYPH.quarter;
+	return { glyph, bpm: tempo.bpm };
+}
+
+// ── T6: barlines (design §6.7) ──────────────────────────────────────────────────
+//
+// A barline spans both staves of the grand staff (the emit layer draws each stroke
+// from the top of the RH staff to the bottom of the LH staff). This returns the
+// stroke + dot specs at a given X; the shared placement rule (always draw the
+// right barline; draw a left one only for `repeat-start`; the score's first measure
+// has no left barline) is applied by `buildLayoutModel`, not here.
+
+/** Gap between the two thin strokes of a double bar / the strokes of a repeat. */
+const DOUBLE_BAR_GAP = 0.5;
+/** Gap between a barline stroke and its repeat dots. */
+const REPEAT_DOT_GAP = 0.6;
+
+/**
+ * The stroke + dot specs for one barline of a given type at X `x` (design §6.7),
+ * laid out left→right from `x`:
+ *
+ * - `regular` → one thin stroke;
+ * - `double` → two thin strokes ~`DOUBLE_BAR_GAP` apart;
+ * - `final` → thin then thick;
+ * - `repeat-start` → thick + thin, then two dots to the right;
+ * - `repeat-end` → two dots to the left, then thin + thick.
+ *
+ * Strokes carry their `thickness`; dots carry an `sFromBottom` register (2nd/3rd
+ * spaces — `dotSteps`) the emit layer turns into one dot per staff. `width` is the
+ * total horizontal extent so the caller can reserve trailing/leading room.
+ *
+ * @param {string} type One of regular | double | final | repeat-start |
+ *   repeat-end (anything else → regular).
+ * @param {number} [x] The left X of the barline group, in sp.
+ * @return {{ strokes: { x: number, thickness: number }[],
+ *   dots: { x: number, dotSteps: number[] }[], width: number }} The barline spec.
+ */
+export function barlineSpec(type, x = 0) {
+	const strokes = [];
+	const dots = [];
+	// Repeat dots straddle the middle: the 2nd space (sFromBottom 3) and 3rd space
+	// (sFromBottom 5) of each staff (the emit layer mirrors them onto both staves).
+	const dotSteps = [3, 5];
+	let cursor = x;
+
+	const thin = () => {
+		strokes.push({ x: cursor, thickness: BARLINE_THIN });
+		cursor += BARLINE_THIN;
+	};
+	const thick = () => {
+		strokes.push({ x: cursor, thickness: BARLINE_THICK });
+		cursor += BARLINE_THICK;
+	};
+	const gap = (g) => {
+		cursor += g;
+	};
+
+	switch (type) {
+		case "double":
+			thin();
+			gap(DOUBLE_BAR_GAP);
+			thin();
+			break;
+		case "final":
+			thin();
+			gap(DOUBLE_BAR_GAP);
+			thick();
+			break;
+		case "repeat-start":
+			thick();
+			gap(BARLINE_THIN);
+			thin();
+			gap(REPEAT_DOT_GAP);
+			dots.push({ x: cursor, dotSteps });
+			cursor += REPEAT_DOT_GAP;
+			break;
+		case "repeat-end":
+			dots.push({ x: cursor, dotSteps });
+			cursor += REPEAT_DOT_GAP;
+			gap(REPEAT_DOT_GAP);
+			thin();
+			gap(BARLINE_THIN);
+			thick();
+			break;
+		default:
+			thin();
+			break;
+	}
+
+	return { strokes, dots, width: cursor - x };
+}
+
+/**
+ * The trailing horizontal room a measure must reserve for its right barline
+ * (design §6.2/§6.7): the barline group's own width plus a small pad so the last
+ * notehead does not touch the bar.
+ *
+ * @param {string} [barlineEnd] The measure's `barlineEnd` type (default regular).
+ * @return {number} The trailing pad, in sp.
+ */
+export function barlineTrailingPad(barlineEnd) {
+	return barlineSpec(barlineEnd ?? "regular").width + MIN_ADV * 0.5;
+}
+
+// ── T6: leading reserve + system wrapping / justify (design §6.3) ───────────────
+//
+// Each system restates a leading reserve (the brace, both clefs, and each hand's
+// `alters` cluster, plus the time signature on system 1 / on a change) before its
+// first measure. Measures are then greedily packed into width-fitted stacked
+// systems, justified by scaling the internal grid ADVANCES only — never the reserve,
+// glyphs, stems, or noteheads — with an over-wide single measure downscaling its
+// whole system so nothing overflows.
+
+/** Approximate widths of the leading-reserve glyphs, in sp (design §6.3). */
+const BRACE_WIDTH = 1.5;
+const CLEF_WIDTH = 3;
+const TIME_SIG_WIDTH = 2.5;
+/** Pad after the reserve before the first notehead. */
+const RESERVE_PAD = 1;
+
+/**
+ * The per-system leading reserve in sp (design §6.3): brace + both clefs + each
+ * hand's `alters` cluster (its glyph count × the cluster step), plus the time
+ * signature when `withTimeSig`. Computed from the glyphs ACTUALLY printed, so it
+ * varies with the number of alters. This reserve is subtracted from the container
+ * to get the content budget and is NEVER scaled by justify.
+ *
+ * @param {{ clef: string, alters: object }} rightCtx The RH resolved context.
+ * @param {{ clef: string, alters: object }} leftCtx The LH resolved context.
+ * @param {boolean} withTimeSig Whether a time signature prints on this system.
+ * @return {number} The leading reserve, in sp.
+ */
+export function leadingReserveFor(rightCtx, leftCtx, withTimeSig) {
+	const altersWidth = (ctx) => keySignatureCluster(ctx.alters, ctx.clef).width;
+	let reserve = BRACE_WIDTH + 2 * CLEF_WIDTH;
+	reserve += Math.max(altersWidth(rightCtx), altersWidth(leftCtx));
+	if (withTimeSig) {
+		reserve += TIME_SIG_WIDTH;
+	}
+	return reserve + RESERVE_PAD;
+}
+
+/**
+ * Greedily pack measures into width-fitted stacked systems (design §6.3). Fill a
+ * system until the next measure's content width would exceed the available content
+ * width (`availSp`), then break; ALWAYS keep ≥ 1 measure per system (so a measure
+ * wider than the container still goes, alone, on its own system — preventing an
+ * infinite loop). `availSp` is recomputed per candidate system from its own leading
+ * reserve, since the reserve varies with the leading measure's context + whether a
+ * time signature prints there.
+ *
+ * @param {{ contentWidth: number, reserve: number }[]} measures Per-measure packing
+ *   inputs: the intrinsic content width (grid advances + trailing barline) and the
+ *   leading reserve to use IF this measure starts a system.
+ * @param {number} budgetSp The full container width, in sp.
+ * @return {{ start: number, count: number }[]} The packed systems as index ranges
+ *   into `measures`.
+ */
+export function packSystems(measures, budgetSp) {
+	const systems = [];
+	let i = 0;
+	const n = measures.length;
+	while (i < n) {
+		const reserve = measures[i].reserve;
+		const availSp = Math.max(budgetSp - reserve, 0);
+		// Always take at least the first measure (even if it overflows alone).
+		let used = measures[i].contentWidth;
+		let count = 1;
+		while (i + count < n) {
+			const next = measures[i + count].contentWidth;
+			if (used + next > availSp) {
+				break;
+			}
+			used += next;
+			count += 1;
+		}
+		systems.push({ start: i, count });
+		i += count;
+	}
+	return systems;
+}
+
+/**
+ * The justify / downscale factor for one packed system (design §6.3). Normally the
+ * internal grid advances are stretched to fill the width — `scale =
+ * clamp(availSp/contentSp, 1, MAX_STRETCH)` — but NOT the last system of the whole
+ * score (the conventional ragged last line) and NOT an over-wide system (scale < 1
+ * is left ragged-right, never compressed by the advance stretch). A single measure
+ * wider than the container instead downscales the WHOLE system uniformly
+ * (`downscaleFactor = min(1, availSp/contentSp)`, applied to glyphs too) so nothing
+ * overflows.
+ *
+ * @param {number} contentSp The system's total content width (sum of measure
+ *   content widths), in sp.
+ * @param {number} availSp The system's available content width (budget − reserve).
+ * @param {{ isLast?: boolean }} [options] `isLast` whether this is the score's last
+ *   system (not justified).
+ * @return {{ advanceScale: number, downscaleFactor: number }} `advanceScale` to
+ *   apply to grid advances only; `downscaleFactor` to apply as a transform on the
+ *   whole system group (1 unless the content overflows the available width).
+ */
+export function systemScale(contentSp, availSp, { isLast = false } = {}) {
+	// Over-wide: the content cannot fit even unstretched → downscale the whole
+	// system (glyphs included) so it fits; no advance stretch.
+	if (contentSp > availSp && availSp > 0) {
+		return { advanceScale: 1, downscaleFactor: availSp / contentSp };
+	}
+	// The last system stays ragged-right (no justify); fits as-is.
+	if (isLast || contentSp <= 0) {
+		return { advanceScale: 1, downscaleFactor: 1 };
+	}
+	// Justify by stretching whitespace (advances) only, capped at MAX_STRETCH.
+	const raw = availSp / contentSp;
+	const advanceScale = Math.min(Math.max(raw, 1), MAX_STRETCH);
+	return { advanceScale, downscaleFactor: 1 };
+}
+
+// ── T6: full model assembly — buildLayoutModel (design §5.3, §6.3, §6.6, §6.7) ──
+//
+// The single pure entry point. It walks the resolved sections, lays out each
+// measure's two hands onto the union grid (§6.2), packs measures into systems
+// (§6.3), and assembles the positioned-primitive model: systems → grand-staff bands
+// → (staff lines, clefs, key sig, time sig, barlines, brace) + per-event primitives
+// + spans (ties/slurs) + texts (dynamics, chord symbols, tempo, measure numbers,
+// ottava). Everything is in sp units — NO DOM, NO sp→px. Resize re-runs only the
+// packing/justify because the per-measure intrinsic widths and pitch Ys are
+// sp-relative invariants.
+
+/**
+ * Lay out one hand's events within a measure into positioned primitives at the
+ * given per-onset column X map (design §6.1/§6.4). Reuses the T4 geometry: chord
+ * stacking, stems, beams (or flags), dots, accidentals, and ledger lines. All X are
+ * relative to the measure's left edge; Y are relative to this staff's bottom line.
+ *
+ * @param {object[]} [events] The hand's events for this measure.
+ * @param {Map<number, number>} columnX Onset → relative X within the measure.
+ * @param {number[]} onsets This hand's per-event onsets (`handOnsets`).
+ * @param {{ clef: string, alters: object }} ctx The hand's resolved context.
+ * @param {object} [timeSignature] For beam grouping ONLY (never for positions).
+ * @return {{ notes: object[], rests: object[], texts: object[] }} The hand's
+ *   positioned primitives.
+ */
+function layoutHand(events, columnX, onsets, ctx, timeSignature) {
+	const list = events ?? [];
+	const normAlters = normalizeAlters(ctx.alters);
+	const groups = beamGroups(list, timeSignature);
+	// Map each event index to its beam group (so a grouped note draws no flag).
+	const groupOf = new Map();
+	for (const g of groups) {
+		for (const idx of g.indices) {
+			groupOf.set(idx, g);
+		}
+	}
+
+	const notes = [];
+	const rests = [];
+	const texts = [];
+
+	list.forEach((event, idx) => {
+		const x = columnX.get(onsets[idx]) ?? 0;
+		const dotCount = event?.dots ?? 0;
+
+		if (event?.type === "rest") {
+			rests.push({
+				eventIndex: idx,
+				x,
+				duration: event.duration,
+				dots: dotCount,
+			});
+			collectEventTexts(event, x, texts);
+			return;
+		}
+
+		const pitches = Array.isArray(event?.pitches) ? event.pitches : [];
+		const positions = pitches
+			.map((p) => pitchToStaffStep(p, ctx.clef))
+			.filter((s) => s !== null);
+		if (positions.length === 0) {
+			collectEventTexts(event, x, texts);
+			return;
+		}
+
+		const decoded = decodeDuration(event.duration);
+		const direction = stemDirectionForChord(positions);
+		const heads = stackChord(positions, direction);
+
+		// Accidentals: resolve per pitch, then column-stack the ones that draw.
+		const accInputs = [];
+		pitches.forEach((p, pi) => {
+			const sFromBottom = positions[pi];
+			if (sFromBottom === undefined) {
+				return;
+			}
+			const { glyph } = resolveAccidental(p, normAlters);
+			if (glyph) {
+				accInputs.push({ sFromBottom, glyph });
+			}
+		});
+		const accidentals = stackAccidentals(accInputs);
+
+		// Ledger lines: the union over all chord noteheads (dedup by sFromBottom).
+		const ledgerSet = new Map();
+		for (const s of positions) {
+			for (const l of ledgerLinesFor(s)) {
+				ledgerSet.set(l.sFromBottom, l);
+			}
+		}
+		const ledgers = [...ledgerSet.values()];
+
+		// Dots: one per notehead (use the chord's positions).
+		const dotSpecs = [];
+		if (dotCount > 0) {
+			for (const s of positions) {
+				for (const d of dotPositions(s, dotCount)) {
+					dotSpecs.push({ sFromBottom: s, dx: d.dx, y: d.y });
+				}
+			}
+		}
+
+		const group = groupOf.get(idx);
+		const beamed = !!group && group.isBeam;
+
+		notes.push({
+			eventIndex: idx,
+			x,
+			duration: event.duration,
+			dots: dotCount,
+			notehead: decoded.notehead,
+			hasStem: decoded.hasStem,
+			direction,
+			heads,
+			// A note is either flagged or beamed, never both (design §6.1).
+			flagCount: beamed ? 0 : decoded.flagCount,
+			beamCount: decoded.beamCount,
+			beamed,
+			accidentals,
+			ledgers,
+			dotSpecs,
+			topStep: Math.max(...positions),
+			bottomStep: Math.min(...positions),
+		});
+
+		collectEventTexts(event, x, texts);
+	});
+
+	// Beam geometry per multi-note group (single-note groups draw a flag instead).
+	const beams = [];
+	for (const g of groups) {
+		if (!g.isBeam) {
+			continue;
+		}
+		const members = g.indices
+			.map((idx) => {
+				const note = notes.find((n) => n.eventIndex === idx);
+				return note
+					? {
+							x: note.x,
+							topStep: note.topStep,
+							bottomStep: note.bottomStep,
+							beamCount: note.beamCount,
+						}
+					: null;
+			})
+			.filter(Boolean);
+		if (members.length >= 2) {
+			beams.push({ indices: g.indices, ...beamGeometry(members) });
+		}
+	}
+
+	return { notes, rests, beams, texts };
+}
+
+/**
+ * Collect an event's per-event text primitives (dynamic + chord symbol) at X `x`
+ * (design §6.7). Dynamics render below the hand's staff; chord symbols above the RH
+ * staff. The hand placement (RH vs LH offset) is applied later by the band assembly.
+ *
+ * @param {{ dynamic?: string, chordSymbol?: string }} event The event.
+ * @param {number} x The event's relative X.
+ * @param {object[]} out The list to push texts onto.
+ */
+function collectEventTexts(event, x, out) {
+	if (event?.dynamic) {
+		out.push({ kind: "dynamic", x, text: event.dynamic });
+	}
+	if (typeof event?.chordSymbol === "string" && event.chordSymbol.length > 0) {
+		out.push({ kind: "chordSymbol", x, text: event.chordSymbol });
+	}
+}
+
+/**
+ * Build the FULL positioned-primitive layout model for a song (design §5.3, §6.3,
+ * §6.6, §6.7) — the single pure entry point. Pure, DOM-free, sp-only: it returns
+ * `{ systems }`, where each system carries its Y band layout, leading reserve
+ * (brace + clefs + key sig + optional time sig), per-measure barlines, both hands'
+ * per-event primitives + beams, the resolved spans (ties/slurs), and the texts
+ * (tempo, measure number, dynamics, chord symbols, ottava). Resize need only re-run
+ * the packing/justify — the intrinsic widths and pitch Ys are sp-relative invariants.
+ *
+ * @param {{ defaults?: object, sections?: object[] }} song The parsed, conformant
+ *   song (the validator is the gate upstream; this stays defensive but assumes
+ *   conformant shape).
+ * @param {number} availableWidthInSp The live container width, in staff spaces.
+ * @return {{ systems: object[], width: number }} The layout model in sp units.
+ */
+export function buildLayoutModel(song, availableWidthInSp) {
+	const budgetSp = Math.max(availableWidthInSp ?? 0, 0);
+	const contexts = resolveSectionContexts(song);
+	const sections = Array.isArray(song?.sections) ? song.sections : [];
+
+	// ── Flatten every measure into a sequential list, tagging each with its
+	// resolved context, the section diff (only the first measure of a section
+	// carries the inline changes), and a sequential 1..N measure number. ──────────
+	const flat = [];
+	let measureNumber = 0;
+	contexts.forEach((ctx, si) => {
+		const prevCtx = si > 0 ? contexts[si - 1] : null;
+		const diff = diffContext(ctx, prevCtx);
+		const measures = Array.isArray(sections[si]?.measures)
+			? sections[si].measures
+			: [];
+		measures.forEach((measure, mi) => {
+			measureNumber += 1;
+			flat.push({
+				measure,
+				ctx,
+				sectionIndex: si,
+				isSectionStart: mi === 0,
+				diff: mi === 0 ? diff : null,
+				number: measureNumber,
+				isFirstOfScore: flat.length === 0,
+			});
+		});
+	});
+
+	// ── Per-measure intrinsic layout (content width + the grid), purely from
+	// event durations (never the time signature). The leading reserve for a
+	// measure that COULD start a system depends on its context + whether a time
+	// signature prints there (system 1, or a section change). ─────────────────────
+	const packing = flat.map((m, idx) => {
+		const trailingPad = barlineTrailingPad(m.measure?.barlineEnd);
+		const ml = measureLayout(m.measure?.rightHand, m.measure?.leftHand, {
+			trailingPad,
+		});
+		// A time signature prints at the very first system and wherever it changes.
+		const withTimeSig = idx === 0 || (m.diff ? m.diff.timeSignature : false);
+		const reserve = leadingReserveFor(
+			m.ctx.rightHand,
+			m.ctx.leftHand,
+			withTimeSig,
+		);
+		m.layout = ml;
+		m.contentWidth = ml.width;
+		return { contentWidth: ml.width, reserve };
+	});
+
+	const systemRanges = packSystems(packing, budgetSp);
+
+	// ── Assemble each system. ─────────────────────────────────────────────────────
+	const systems = [];
+	let yCursor = 0;
+	// Ties/slurs are matched across the WHOLE hand (across systems) and resolved to
+	// laid-out positions after every measure has an absolute X. Each entry remembers
+	// where a marker's note landed so a matched pair can be drawn between its actual
+	// positions, clipped to system edges by the emit layer.
+	const placedEvents = { rightHand: [], leftHand: [] };
+
+	systemRanges.forEach((range, sysIdx) => {
+		const isLastSystem = sysIdx === systemRanges.length - 1;
+		const members = flat.slice(range.start, range.start + range.count);
+
+		// The leading reserve uses the FIRST measure's context (the one restated at
+		// the system head) and whether a time signature prints on this system.
+		const head = members[0];
+		const systemHasTimeSig =
+			range.start === 0 || (head.diff ? head.diff.timeSignature : false);
+		const reserve = leadingReserveFor(
+			head.ctx.rightHand,
+			head.ctx.leftHand,
+			systemHasTimeSig,
+		);
+		const availSp = Math.max(budgetSp - reserve, 0);
+
+		const contentSp = members.reduce((sum, m) => sum + m.contentWidth, 0);
+		const { advanceScale, downscaleFactor } = systemScale(contentSp, availSp, {
+			isLast: isLastSystem,
+		});
+
+		// ── Vertical band layout for this system (computed from content). ───────────
+		const topMargin = SYSTEM_TOP_MARGIN + ledgerTopExtent(members);
+		const bottomMargin = SYSTEM_BOTTOM_MARGIN + ledgerBottomExtent(members);
+		const rhBottomY = topMargin + STAFF_HEIGHT_SP;
+		const lhTopY = rhBottomY + INTRA_STAFF_GAP;
+		const lhBottomY = lhTopY + STAFF_HEIGHT_SP;
+		const systemHeight = lhBottomY + bottomMargin;
+
+		const band = {
+			topMargin,
+			bottomMargin,
+			rightStaffTopY: topMargin,
+			rightStaffBottomY: rhBottomY,
+			leftStaffTopY: lhTopY,
+			leftStaffBottomY: lhBottomY,
+			height: systemHeight,
+		};
+
+		// ── Leading reserve content: brace + clefs + key sigs (+ time sig). ─────────
+		const headCtx = head.ctx;
+		const reserveModel = {
+			width: reserve,
+			brace: { x: 0 },
+			clefs: {
+				right: {
+					glyph: clefGlyph(headCtx.rightHand.clef),
+					clef: headCtx.rightHand.clef,
+				},
+				left: {
+					glyph: clefGlyph(headCtx.leftHand.clef),
+					clef: headCtx.leftHand.clef,
+				},
+			},
+			keySig: {
+				right: keySignatureCluster(
+					headCtx.rightHand.alters,
+					headCtx.rightHand.clef,
+					{ bottomLineY: rhBottomY },
+				),
+				left: keySignatureCluster(
+					headCtx.leftHand.alters,
+					headCtx.leftHand.clef,
+					{ bottomLineY: lhBottomY },
+				),
+			},
+			timeSignature: systemHasTimeSig ? headCtx.timeSignature : null,
+		};
+
+		// ── Walk the measures, placing each at its absolute X. ──────────────────────
+		const measureModels = [];
+		let x = reserve;
+		members.forEach((m, localIdx) => {
+			const ml = m.layout;
+			const ts = m.ctx.timeSignature;
+
+			// Scale the grid advances (justify) → relative column X within the
+			// measure. The leading reserve already lives outside the measure, so the
+			// measure's own internal `leadingPad` is 0; the first column sits at 0.
+			const columnX = new Map();
+			let cx = 0;
+			ml.columns.forEach((col) => {
+				columnX.set(col.onset, cx);
+				cx += col.advance * advanceScale;
+			});
+			// The scaled measure content width (advances stretched, pads not).
+			const scaledContent =
+				(ml.contentWidth || EMPTY_MEASURE_WIDTH) * advanceScale;
+
+			const right = layoutHand(
+				m.measure?.rightHand,
+				columnX,
+				ml.hands.right.onsets,
+				m.ctx.rightHand,
+				ts,
+			);
+			const left = layoutHand(
+				m.measure?.leftHand,
+				columnX,
+				ml.hands.left.onsets,
+				m.ctx.leftHand,
+				ts,
+			);
+
+			// Right barline (always) at the measure's right edge; a left barline only
+			// for repeat-start, and never on the score's very first measure.
+			const measureRightX = x + scaledContent;
+			const barlines = [];
+			const startType = m.measure?.barlineStart;
+			if (startType === "repeat-start" && !m.isFirstOfScore) {
+				barlines.push({
+					side: "start",
+					type: startType,
+					...barlineSpec(startType, x),
+				});
+			}
+			const endType = m.measure?.barlineEnd ?? "regular";
+			barlines.push({
+				side: "end",
+				type: endType,
+				...barlineSpec(endType, measureRightX),
+			});
+
+			// Inline section-change cautionary symbols at a mid-system section start.
+			const inline =
+				m.isSectionStart && localIdx > 0 && m.diff
+					? inlineSectionChange(m, x)
+					: null;
+
+			// Record tie/slur markers + the laid-out note X for span resolution.
+			recordSpanMarkers(m.measure?.rightHand, right, {
+				measureX: x,
+				hand: "rightHand",
+				placedEvents,
+				staffBottomY: band.rightStaffBottomY,
+				systemIndex: sysIdx,
+			});
+			recordSpanMarkers(m.measure?.leftHand, left, {
+				measureX: x,
+				hand: "leftHand",
+				placedEvents,
+				staffBottomY: band.leftStaffBottomY,
+				systemIndex: sysIdx,
+			});
+
+			measureModels.push({
+				number: m.number,
+				x,
+				width: scaledContent,
+				isSectionStart: m.isSectionStart,
+				right,
+				left,
+				barlines,
+				inline,
+			});
+
+			x = measureRightX;
+		});
+
+		// ── System-level texts: tempo + measure number + ottava. ────────────────────
+		const texts = buildSystemTexts(members, measureModels, band, reserve);
+
+		systems.push({
+			index: sysIdx,
+			y: yCursor,
+			height: systemHeight,
+			width: budgetSp,
+			advanceScale,
+			downscaleFactor,
+			band,
+			reserve: reserveModel,
+			measures: measureModels,
+			texts,
+			// Filled by the span-resolution pass below (after all measures are placed).
+			spans: [],
+		});
+
+		yCursor += systemHeight * downscaleFactor + INTER_SYSTEM_GAP;
+	});
+
+	// ── Resolve ties/slurs into drawn spans between actual laid-out positions. ──────
+	const spans = resolveAllSpans(placedEvents);
+	for (const sp of spans) {
+		const sys = systems[sp.systemIndex];
+		if (sys) {
+			sys.spans.push(sp);
+		}
+	}
+
+	return {
+		systems,
+		width: budgetSp,
+		height: Math.max(yCursor - INTER_SYSTEM_GAP, 0),
+	};
+}
+
+// ── buildLayoutModel helpers ────────────────────────────────────────────────────
+
+/** The symbolic clef glyph name for a clef (alto + tenor share the C-clef). */
+function clefGlyph(clef) {
+	if (clef === "bass") {
+		return "fClef";
+	}
+	if (clef === "alto" || clef === "tenor") {
+		return "cClef";
+	}
+	return "gClef";
+}
+
+/**
+ * The highest notehead position (largest `sFromBottom`) above the RH staff top
+ * across a system's measures, converted to an extra top margin in sp. Drives the
+ * per-system top margin so tall ledger stacks do not collide with the system above
+ * (design §6.3). The RH staff top is `sFromBottom = 8`.
+ */
+function ledgerTopExtent(members) {
+	let maxAbove = 8;
+	for (const m of members) {
+		for (const s of measureMaxRightSteps(m.measure)) {
+			if (s > maxAbove) {
+				maxAbove = s;
+			}
+		}
+	}
+	// Each staff-step above the top line is 0.5 sp; clamp to a non-negative extent.
+	return Math.max(0, (maxAbove - 8) * 0.5);
+}
+
+/**
+ * The lowest notehead position (smallest `sFromBottom`) below the LH staff bottom
+ * across a system's measures, converted to an extra bottom margin in sp. The LH
+ * staff bottom is `sFromBottom = 0` (in its own staff frame).
+ */
+function ledgerBottomExtent(members) {
+	let minBelow = 0;
+	for (const m of members) {
+		for (const s of measureMinLeftSteps(m.measure)) {
+			if (s < minBelow) {
+				minBelow = s;
+			}
+		}
+	}
+	return Math.max(0, -minBelow * 0.5);
+}
+
+/** The RH chord notehead positions in a measure (for the top-extent scan). */
+function measureMaxRightSteps(measure) {
+	return handStepsFor(measure?.rightHand, "treble");
+}
+
+/** The LH chord notehead positions in a measure (for the bottom-extent scan). */
+function measureMinLeftSteps(measure) {
+	return handStepsFor(measure?.leftHand, "bass");
+}
+
+/** Every laid-out `sFromBottom` for a hand's notes (rests/unknowns skipped). */
+function handStepsFor(events, clef) {
+	const out = [];
+	for (const e of events ?? []) {
+		if (e?.type !== "note") {
+			continue;
+		}
+		for (const p of e.pitches ?? []) {
+			const s = pitchToStaffStep(p, clef);
+			if (s !== null) {
+				out.push(s);
+			}
+		}
+	}
+	return out;
+}
+
+/**
+ * The inline cautionary symbols drawn at a mid-system section change (design §6.6):
+ * only what the diff marks changed — a per-hand clef, a per-hand key-sig cluster, a
+ * time-signature glyph — placed at the boundary measure's left X. (Tempo and ottava
+ * changes surface as system texts / spans, not inline glyphs here.)
+ *
+ * @param {object} member The flattened measure entry (carries `ctx` + `diff`).
+ * @param {number} x The boundary measure's absolute left X, in sp.
+ * @return {{ clefs: object, keySig: object, timeSignature: ?object }} The inline
+ *   changes (empty sub-objects where nothing changed).
+ */
+function inlineSectionChange(member, x) {
+	const { ctx, diff } = member;
+	const clefs = {};
+	const keySig = {};
+	if (diff.rightHand.clef) {
+		clefs.right = {
+			glyph: clefGlyph(ctx.rightHand.clef),
+			clef: ctx.rightHand.clef,
+		};
+	}
+	if (diff.leftHand.clef) {
+		clefs.left = {
+			glyph: clefGlyph(ctx.leftHand.clef),
+			clef: ctx.leftHand.clef,
+		};
+	}
+	if (diff.rightHand.alters) {
+		keySig.right = keySignatureCluster(
+			ctx.rightHand.alters,
+			ctx.rightHand.clef,
+		);
+	}
+	if (diff.leftHand.alters) {
+		keySig.left = keySignatureCluster(ctx.leftHand.alters, ctx.leftHand.clef);
+	}
+	return {
+		x,
+		clefs,
+		keySig,
+		timeSignature: diff.timeSignature ? ctx.timeSignature : null,
+	};
+}
+
+/**
+ * Record one measure's tie/slur markers + the laid-out geometry of each marked
+ * note, into the per-hand cross-measure streams (design §6.7). Each entry keeps the
+ * event's marker projections and the absolute anchor (X + a notehead Y + stem
+ * direction + the current system index) so a matched pair can later be drawn between
+ * its actual positions, even across barlines/systems.
+ *
+ * @param {object[]} [events] The hand's events for this measure.
+ * @param {{ notes: object[] }} laidOut The hand's laid-out primitives (`layoutHand`).
+ * @param {{ measureX: number, hand: string, placedEvents: object,
+ *   staffBottomY: number, systemIndex: number }} options The recording context: the
+ *   measure's absolute X, the hand key, the accumulating per-hand anchor list, the
+ *   hand's staff bottom Y, and the current system index.
+ */
+function recordSpanMarkers(events, laidOut, options) {
+	const { measureX, hand, placedEvents, staffBottomY, systemIndex } = options;
+	const list = events ?? [];
+	list.forEach((event, idx) => {
+		const note = laidOut.notes.find((n) => n.eventIndex === idx);
+		// Anchor the span at the note's stem-side notehead Y (best-effort for chords:
+		// the extreme notehead). Missing geometry (a rest, an unplaceable note) still
+		// records the markers so matching never desyncs — it just has no anchor.
+		let anchor = null;
+		if (note) {
+			const anchorStep =
+				note.direction === "up" ? note.bottomStep : note.topStep;
+			anchor = {
+				x: measureX + note.x,
+				y: staffBottomY + staffStepToY(anchorStep),
+				direction: note.direction,
+			};
+		}
+		placedEvents[hand].push({
+			tie: event?.tie,
+			slur: event?.slur,
+			anchor,
+			systemIndex,
+		});
+	});
+}
+
+/**
+ * Resolve every hand's tie and slur markers into drawn span specs between the
+ * actual laid-out positions (design §6.7). Uses the stack-based `matchSpans` on each
+ * hand's cross-measure stream; a dangling start/stop or double-start is dropped
+ * (never throws). Each resolved span carries its Bézier control points and the
+ * system it belongs to (the start's system; the emit layer clips a cross-system arc
+ * to the system edges).
+ *
+ * @param {{ rightHand: object[], leftHand: object[] }} placedEvents The per-hand
+ *   placed-anchor streams.
+ * @return {object[]} The resolved span specs.
+ */
+function resolveAllSpans(placedEvents) {
+	const spans = [];
+	for (const hand of HANDS) {
+		const stream = placedEvents[hand];
+		for (const kind of ["tie", "slur"]) {
+			const projected = stream.map((e) => ({ marker: e[kind] }));
+			const pairs = matchSpans(projected);
+			for (const pair of pairs) {
+				const start = stream[pair.startIndex];
+				const stop = stream[pair.stopIndex];
+				// Both anchors must have landed to draw between real positions; a
+				// missing anchor (rest/unplaceable) is skipped, never thrown on.
+				if (!start.anchor || !stop.anchor) {
+					continue;
+				}
+				spans.push(buildSpanSpec(kind, start, stop, hand));
+			}
+		}
+	}
+	return spans;
+}
+
+/**
+ * The Bézier geometry for one resolved span (design §6.7). A tie is a short, shallow
+ * arc near the notehead Y bulging OPPOSITE the stem; a slur is a longer arc OVER the
+ * phrase (above the stems). The same quadratic-Bézier primitive serves both; only
+ * the reach, side, and bulge differ.
+ *
+ * @param {"tie"|"slur"} kind The span kind.
+ * @param {{ anchor: object }} start The start anchor.
+ * @param {{ anchor: object }} stop The stop anchor.
+ * @param {string} hand The hand key.
+ * @return {object} The span spec (endpoints + control point + the start system).
+ */
+function buildSpanSpec(kind, start, stop, hand) {
+	const a = start.anchor;
+	const b = stop.anchor;
+	const x1 = a.x + NOTEHEAD_RX;
+	const x2 = b.x - NOTEHEAD_RX;
+	const midX = (x1 + x2) / 2;
+	// A tie bulges opposite the start note's stem; a slur always arcs above.
+	const bulge = kind === "slur" ? -1.2 : a.direction === "up" ? 1 : -1;
+	const baseY = kind === "slur" ? Math.min(a.y, b.y) : a.y;
+	const cx = midX;
+	const cy = baseY + bulge;
+	return {
+		kind,
+		hand,
+		systemIndex: start.systemIndex,
+		x1,
+		y1: a.y,
+		x2,
+		y2: b.y,
+		cx,
+		cy,
+		// True when the pair spans two systems: the emit layer clips to system edges.
+		crossSystem: start.systemIndex !== stop.systemIndex,
+	};
+}
+
+/**
+ * Build a system's text primitives: the tempo marks + the measure number, plus the
+ * ottava brackets (design §5.3, §6.7).
+ *
+ * - **Tempo** prints above the first measure of the section at the song start and at
+ *   any tempo change — so it is emitted at every measure in this system that is a
+ *   section start whose diff marks `tempo` changed (and always at the score start).
+ * - **Measure number** sits above-left of the system's first measure (sequential
+ *   1..N across the whole song, never reset by section boundaries).
+ * - **Ottava** is restated per wrapped system: for each hand, one bracket per
+ *   contiguous run of this system's measures sharing a non-zero `octaveShift`,
+ *   spanning that run's notes (the bracket is a marking, not a vertical move).
+ *
+ * @param {object[]} members The system's flattened measure entries.
+ * @param {object[]} measureModels The system's positioned measure models.
+ * @param {object} band The system's band Y layout.
+ * @param {number} reserve The leading reserve width, in sp.
+ * @return {{ tempos: object[], measureNumber: object, ottavas: object[] }} The texts.
+ */
+function buildSystemTexts(members, measureModels, band, reserve) {
+	const head = members[0];
+
+	// Tempo: at the score start and at any in-system tempo change (a section start
+	// whose diff marks tempo changed). Each prints above its measure's left edge.
+	const tempos = [];
+	members.forEach((m, i) => {
+		const isScoreStart = m.isFirstOfScore;
+		const isTempoChange = m.diff ? m.diff.tempo : false;
+		if ((isScoreStart || isTempoChange) && m.ctx.tempo) {
+			const mark = tempoMark(m.ctx.tempo);
+			if (mark) {
+				tempos.push({
+					...mark,
+					x: i === 0 ? reserve : measureModels[i].x,
+					y: band.topMargin - 1,
+				});
+			}
+		}
+	});
+
+	const measureNumber = {
+		text: String(head.number),
+		x: Math.max(reserve - 1, 0),
+		y: band.rightStaffTopY - 1,
+	};
+
+	// Ottava: per hand, one bracket per contiguous run sharing a non-zero shift.
+	const ottavas = [];
+	for (const hand of HANDS) {
+		let run = null;
+		const flush = () => {
+			if (!run) {
+				return;
+			}
+			const ott = ottavaFor(run.shift);
+			if (ott && run.xs.length > 0) {
+				const staffTopY =
+					hand === "rightHand" ? band.rightStaffTopY : band.leftStaffTopY;
+				const staffBottomY =
+					hand === "rightHand" ? band.rightStaffBottomY : band.leftStaffBottomY;
+				ottavas.push({
+					hand,
+					label: ott.label,
+					placement: ott.placement,
+					x1: Math.min(...run.xs) - NOTEHEAD_RX,
+					x2: Math.max(...run.xs) + NOTEHEAD_RX,
+					y: ott.placement === "above" ? staffTopY - 2 : staffBottomY + 2,
+				});
+			}
+			run = null;
+		};
+		members.forEach((m, i) => {
+			const shift = m.ctx[hand].octaveShift;
+			if (!shift) {
+				flush();
+				return;
+			}
+			if (!run || run.shift !== shift) {
+				flush();
+				run = { shift, xs: [] };
+			}
+			const laid =
+				hand === "rightHand" ? measureModels[i].right : measureModels[i].left;
+			for (const n of laid.notes) {
+				run.xs.push(measureModels[i].x + n.x);
+			}
+		});
+		flush();
+	}
+
+	return { tempos, measureNumber, ottavas };
 }

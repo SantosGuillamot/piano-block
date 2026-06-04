@@ -9,31 +9,42 @@
  * DOM-free plain data in staff-space (sp) units; later parts (T5/T6) extend this
  * same file.
  */
-import { EMPTY_MEASURE_WIDTH, MIN_ADV } from "../constants.js";
+import { EMPTY_MEASURE_WIDTH, MAX_STRETCH, MIN_ADV } from "../constants.js";
 import {
 	advanceFor,
+	barlineSpec,
 	beamCountFor,
 	beamGeometry,
 	beamGroups,
 	beatGroupLength,
+	buildLayoutModel,
 	decodeDuration,
 	diatonicIndex,
+	diffContext,
 	dotPositions,
 	eventDuration,
 	handEnd,
 	handOnsets,
 	isBeamable,
+	keySignatureCluster,
 	ledgerLinesFor,
+	matchSpans,
 	measureLayout,
 	normalizeAlters,
+	ottavaFor,
+	packSystems,
 	pitchToStaffStep,
 	resolveAccidental,
+	resolveHandContext,
+	resolveSectionContexts,
 	stackAccidentals,
 	stackChord,
 	staffStepToY,
 	stemDirectionForChord,
 	stemDirectionForStep,
 	stepIndex,
+	systemScale,
+	tempoMark,
 	unionGrid,
 } from "../layout.js";
 
@@ -788,5 +799,656 @@ describe("measureLayout (design §6.2 — the AC8/AC9 battery)", () => {
 		expect(padded.width).toBeGreaterThan(plain.width);
 		// Everything from that column rightward shifts by the extra room.
 		expect(padded.columns[1].x).toBeCloseTo(plain.columns[1].x + 2, 10);
+	});
+});
+
+// ── T6: section resolution + diff, wrapping/justify, spans/texts/barlines/ottava,
+// and the full buildLayoutModel (design §5.3, §6.3, §6.4, §6.6, §6.7) ────────────
+//
+// The §6.6 diff fixture below is the `docs/song-format.md` annotated 2-section
+// example, transcribed verbatim (and identical to the validator's COMPREHENSIVE
+// fixture). It is the shared full-coverage song.
+
+/**
+ * The annotated comprehensive example song (design §9 / `docs/song-format.md`),
+ * transcribed verbatim. It exercises every element and is the §6.6-verified
+ * 2-section diff fixture: tempo 120→90, time sig 4/4→3/4, RH clef treble unchanged,
+ * LH clef bass→tenor, RH alters {}→{F,C}, LH alters {B:-1}→{}, RH octaveShift 0→1,
+ * LH octaveShift unchanged.
+ */
+const COMPREHENSIVE_SONG = {
+	metadata: { title: "Example", composer: "A. Composer" },
+	defaults: {
+		tempo: { bpm: 120, beatUnit: "quarter" },
+		timeSignature: { beats: 4, beatType: 4 },
+		rightHand: { clef: "treble" },
+		leftHand: { clef: "bass", alters: { B: -1 } },
+	},
+	sections: [
+		{
+			measures: [
+				{
+					barlineStart: "repeat-start",
+					rightHand: [
+						{
+							type: "note",
+							duration: "half",
+							dots: 1,
+							dynamic: "mf",
+							chordSymbol: "C",
+							slur: "start",
+							tie: "start",
+							pitches: [
+								{ step: "C", octave: 5 },
+								{ step: "E", octave: 5 },
+								{ step: "G", octave: 5 },
+							],
+						},
+						{ type: "rest", duration: "quarter" },
+					],
+					leftHand: [
+						{
+							type: "note",
+							duration: "quarter",
+							pitches: [{ step: "do", octave: 3 }],
+						},
+						{
+							type: "note",
+							duration: "quarter",
+							pitches: [{ step: "sol", octave: 3 }],
+						},
+						{
+							type: "note",
+							duration: "half",
+							pitches: [{ step: "si", octave: 2 }],
+						},
+					],
+				},
+				{
+					barlineEnd: "repeat-end",
+					rightHand: [
+						{
+							type: "note",
+							duration: "whole",
+							tie: "stop",
+							slur: "stop",
+							pitches: [{ step: "C", octave: 5 }],
+						},
+					],
+					leftHand: [
+						{
+							type: "note",
+							duration: "whole",
+							pitches: [{ step: "F", octave: 2, alter: 1 }],
+						},
+					],
+				},
+			],
+		},
+		{
+			tempo: { bpm: 90, beatUnit: "quarter" },
+			timeSignature: { beats: 3, beatType: 4 },
+			rightHand: { octaveShift: 1, alters: { F: 1, C: 1 } },
+			leftHand: { clef: "tenor", alters: {} },
+			measures: [
+				{
+					barlineEnd: "final",
+					rightHand: [
+						{
+							type: "note",
+							duration: "quarter",
+							dynamic: "p",
+							pitches: [{ step: "F", octave: 5 }],
+						},
+						{
+							type: "note",
+							duration: "quarter",
+							pitches: [{ step: "C", octave: 6 }],
+						},
+						{ type: "rest", duration: "quarter" },
+					],
+					leftHand: [
+						{
+							type: "note",
+							duration: "half",
+							dots: 1,
+							pitches: [{ step: "C", octave: 3 }],
+						},
+					],
+				},
+			],
+		},
+	],
+};
+
+describe("resolveHandContext / resolveSectionContexts (design §6.6)", () => {
+	it("inherits each field from defaults independently", () => {
+		const ctx = resolveHandContext(
+			"rightHand",
+			{ octaveShift: 1 },
+			{ clef: "treble" },
+		);
+		// clef inherited from defaults, octaveShift from the section, alters default.
+		expect(ctx).toEqual({ clef: "treble", alters: {}, octaveShift: 1 });
+	});
+
+	it("replaces alters wholesale — a present empty alters wins over defaults", () => {
+		const ctx = resolveHandContext(
+			"leftHand",
+			{ alters: {} },
+			{ clef: "bass", alters: { B: -1 } },
+		);
+		expect(ctx.alters).toEqual({});
+		expect(ctx.clef).toBe("bass"); // clef still inherited
+	});
+
+	it("defaults octaveShift to 0 and the clef to the hand default", () => {
+		expect(resolveHandContext("rightHand").octaveShift).toBe(0);
+		expect(resolveHandContext("rightHand").clef).toBe("treble");
+		expect(resolveHandContext("leftHand").clef).toBe("bass");
+	});
+
+	it("resolves every section's effective context for the comprehensive song", () => {
+		const ctxs = resolveSectionContexts(COMPREHENSIVE_SONG);
+		expect(ctxs).toHaveLength(2);
+		// Section 1 inherits all defaults.
+		expect(ctxs[0].tempo).toEqual({ bpm: 120, beatUnit: "quarter" });
+		expect(ctxs[0].rightHand).toEqual({
+			clef: "treble",
+			alters: {},
+			octaveShift: 0,
+		});
+		expect(ctxs[0].leftHand).toEqual({
+			clef: "bass",
+			alters: { B: -1 },
+			octaveShift: 0,
+		});
+		// Section 2 overrides tempo / timesig / RH octaveShift+alters / LH clef+alters.
+		expect(ctxs[1].tempo).toEqual({ bpm: 90, beatUnit: "quarter" });
+		expect(ctxs[1].timeSignature).toEqual({ beats: 3, beatType: 4 });
+		expect(ctxs[1].rightHand).toEqual({
+			clef: "treble",
+			alters: { F: 1, C: 1 },
+			octaveShift: 1,
+		});
+		expect(ctxs[1].leftHand).toEqual({
+			clef: "tenor",
+			alters: {},
+			octaveShift: 0,
+		});
+	});
+});
+
+describe("diffContext — the §6.6-verified 2-section diff fixture", () => {
+	it("marks ONLY what changed between the two sections", () => {
+		const ctxs = resolveSectionContexts(COMPREHENSIVE_SONG);
+		const diff = diffContext(ctxs[1], ctxs[0]);
+		expect(diff.tempo).toBe(true); // 120 → 90
+		expect(diff.timeSignature).toBe(true); // 4/4 → 3/4
+		expect(diff.rightHand.clef).toBe(false); // treble unchanged
+		expect(diff.rightHand.alters).toBe(true); // {} → {F,C}
+		expect(diff.rightHand.octaveShift).toBe(true); // 0 → 1 (starts 8va)
+		expect(diff.leftHand.clef).toBe(true); // bass → tenor
+		expect(diff.leftHand.alters).toBe(true); // {B:-1} → {}
+		expect(diff.leftHand.octaveShift).toBe(false); // unchanged
+	});
+
+	it("marks everything changed for the first section (no previous)", () => {
+		const ctxs = resolveSectionContexts(COMPREHENSIVE_SONG);
+		const diff = diffContext(ctxs[0], null);
+		expect(diff.tempo).toBe(true);
+		expect(diff.timeSignature).toBe(true);
+		expect(diff.rightHand.clef).toBe(true);
+		expect(diff.rightHand.alters).toBe(true);
+		expect(diff.leftHand.clef).toBe(true);
+	});
+});
+
+describe("keySignatureCluster (design §6.4)", () => {
+	it("renders one glyph per altered note at its key-sig register, in sharp order", () => {
+		// {F,C} sharps → conventional sharp order F then C, at the treble registers.
+		const cluster = keySignatureCluster({ F: 1, C: 1 }, "treble");
+		expect(cluster.glyphs.map((g) => g.letter)).toEqual(["F", "C"]);
+		expect(cluster.glyphs.every((g) => g.glyph === "accSharp")).toBe(true);
+		expect(cluster.glyphs[0].sFromBottom).toBe(8); // F# at the treble top line
+		expect(cluster.glyphs[1].sFromBottom).toBe(5); // C# at the 3rd space
+	});
+
+	it("orders flats in conventional flat order (B E A D G C F)", () => {
+		const cluster = keySignatureCluster({ E: -1, B: -1, A: -1 }, "treble");
+		expect(cluster.glyphs.map((g) => g.letter)).toEqual(["B", "E", "A"]);
+		expect(cluster.glyphs.every((g) => g.glyph === "accFlat")).toBe(true);
+	});
+
+	it("normalizes Spanish keys and skips zero/unrecognised entries", () => {
+		const cluster = keySignatureCluster({ si: -1, F: 0, H: 1 }, "bass");
+		expect(cluster.glyphs.map((g) => g.letter)).toEqual(["B"]); // si→B; F:0 + H dropped
+		expect(cluster.glyphs[0].glyph).toBe("accFlat");
+	});
+
+	it("draws the double glyph for a double alteration (data-faithful)", () => {
+		const cluster = keySignatureCluster({ C: 2, B: -2 }, "treble");
+		const byLetter = Object.fromEntries(
+			cluster.glyphs.map((g) => [g.letter, g.glyph]),
+		);
+		expect(byLetter.C).toBe("accDoubleSharp");
+		expect(byLetter.B).toBe("accDoubleFlat");
+	});
+
+	it("is empty (width 0) for no alters", () => {
+		expect(keySignatureCluster({}, "treble")).toEqual({ glyphs: [], width: 0 });
+	});
+
+	it("uses a per-clef register table (same letter, different position by clef)", () => {
+		const treble = keySignatureCluster({ F: 1 }, "treble").glyphs[0]
+			.sFromBottom;
+		const bass = keySignatureCluster({ F: 1 }, "bass").glyphs[0].sFromBottom;
+		expect(treble).not.toBe(bass);
+	});
+});
+
+describe("ottavaFor (design §5.3)", () => {
+	it("maps each octave shift to its label + placement", () => {
+		expect(ottavaFor(1)).toEqual({ label: "8va", placement: "above" });
+		expect(ottavaFor(2)).toEqual({ label: "15ma", placement: "above" });
+		expect(ottavaFor(-1)).toEqual({ label: "8vb", placement: "below" });
+		expect(ottavaFor(-2)).toEqual({ label: "15mb", placement: "below" });
+	});
+
+	it("returns null for no shift (0 / absent)", () => {
+		expect(ottavaFor(0)).toBeNull();
+		expect(ottavaFor()).toBeNull();
+	});
+});
+
+describe("tempoMark (design §6.7)", () => {
+	it("uses the beatUnit note glyph + bpm", () => {
+		expect(tempoMark({ bpm: 120, beatUnit: "half" })).toEqual({
+			glyph: "metNoteHalf",
+			bpm: 120,
+		});
+	});
+
+	it("defaults a missing beatUnit to the quarter glyph (never omits the glyph)", () => {
+		expect(tempoMark({ bpm: 90 })).toEqual({
+			glyph: "metNoteQuarter",
+			bpm: 90,
+		});
+	});
+
+	it("returns null when there is no tempo / bpm", () => {
+		expect(tempoMark()).toBeNull();
+		expect(tempoMark({ beatUnit: "quarter" })).toBeNull();
+	});
+});
+
+describe("barlineSpec (design §6.7)", () => {
+	it("regular = one thin stroke", () => {
+		const b = barlineSpec("regular");
+		expect(b.strokes).toHaveLength(1);
+		expect(b.dots).toHaveLength(0);
+	});
+
+	it("double = two thin strokes", () => {
+		const b = barlineSpec("double");
+		expect(b.strokes).toHaveLength(2);
+		expect(b.strokes.every((s) => s.thickness < 0.3)).toBe(true);
+	});
+
+	it("final = thin then thick", () => {
+		const b = barlineSpec("final");
+		expect(b.strokes).toHaveLength(2);
+		expect(b.strokes[0].thickness).toBeLessThan(b.strokes[1].thickness);
+	});
+
+	it("repeat-start = thick + thin then dots to the right", () => {
+		const b = barlineSpec("repeat-start", 0);
+		expect(b.strokes).toHaveLength(2);
+		expect(b.strokes[0].thickness).toBeGreaterThan(b.strokes[1].thickness);
+		expect(b.dots).toHaveLength(1);
+		// The dots sit to the RIGHT of both strokes.
+		expect(b.dots[0].x).toBeGreaterThan(b.strokes[1].x);
+	});
+
+	it("repeat-end = dots to the left then thin + thick", () => {
+		const b = barlineSpec("repeat-end", 0);
+		expect(b.strokes).toHaveLength(2);
+		expect(b.dots).toHaveLength(1);
+		// The dots sit to the LEFT of the strokes.
+		expect(b.dots[0].x).toBeLessThan(b.strokes[0].x);
+		expect(b.strokes[0].thickness).toBeLessThan(b.strokes[1].thickness);
+	});
+
+	it("unknown barline type falls back to regular", () => {
+		expect(barlineSpec("nonsense").strokes).toHaveLength(1);
+	});
+});
+
+describe("matchSpans — stack-based, dangling-safe (design §6.7)", () => {
+	it("matches a start with the next stop", () => {
+		expect(matchSpans([{ marker: "start" }, {}, { marker: "stop" }])).toEqual([
+			{ startIndex: 0, stopIndex: 2 },
+		]);
+	});
+
+	it("drops a dangling start (no throw)", () => {
+		expect(matchSpans([{ marker: "start" }, {}])).toEqual([]);
+	});
+
+	it("drops a dangling stop (no throw)", () => {
+		expect(matchSpans([{}, { marker: "stop" }])).toEqual([]);
+	});
+
+	it("a second start before a stop drops the earlier start", () => {
+		// double-start: only the most recent start pairs with the stop.
+		expect(
+			matchSpans([
+				{ marker: "start" },
+				{ marker: "start" },
+				{ marker: "stop" },
+			]),
+		).toEqual([{ startIndex: 1, stopIndex: 2 }]);
+	});
+
+	it("matches several spans in order", () => {
+		expect(
+			matchSpans([
+				{ marker: "start" },
+				{ marker: "stop" },
+				{ marker: "start" },
+				{ marker: "stop" },
+			]),
+		).toEqual([
+			{ startIndex: 0, stopIndex: 1 },
+			{ startIndex: 2, stopIndex: 3 },
+		]);
+	});
+
+	it("never throws on an empty / absent stream", () => {
+		expect(() => matchSpans()).not.toThrow();
+		expect(matchSpans([])).toEqual([]);
+	});
+});
+
+describe("packSystems + systemScale (design §6.3)", () => {
+	const measures = (widths) =>
+		widths.map((contentWidth) => ({ contentWidth, reserve: 10 }));
+
+	it("packs more measures per system at a wide budget than a narrow one", () => {
+		const ms = measures([10, 10, 10, 10, 10, 10]);
+		const wide = packSystems(ms, 200);
+		const narrow = packSystems(ms, 30);
+		// Wide fits everything in fewer systems; narrow needs more.
+		expect(wide.length).toBeLessThan(narrow.length);
+		// Every system is non-empty and the ranges cover all measures.
+		const totalWide = wide.reduce((s, r) => s + r.count, 0);
+		const totalNarrow = narrow.reduce((s, r) => s + r.count, 0);
+		expect(totalWide).toBe(6);
+		expect(totalNarrow).toBe(6);
+		expect(wide.every((r) => r.count >= 1)).toBe(true);
+		expect(narrow.every((r) => r.count >= 1)).toBe(true);
+	});
+
+	it("always keeps ≥ 1 measure per system, even for an over-wide measure", () => {
+		// First measure (100) exceeds the budget alone, yet still gets its own system.
+		const ms = [
+			{ contentWidth: 100, reserve: 10 },
+			{ contentWidth: 5, reserve: 10 },
+		];
+		const packed = packSystems(ms, 30);
+		expect(packed[0].count).toBe(1);
+		expect(packed.every((r) => r.count >= 1)).toBe(true);
+	});
+
+	it("does not justify the last system of the score", () => {
+		expect(systemScale(20, 50, { isLast: true })).toEqual({
+			advanceScale: 1,
+			downscaleFactor: 1,
+		});
+	});
+
+	it("justifies an interior system, capped at MAX_STRETCH", () => {
+		// availSp/contentSp = 50/40 = 1.25 → stretched, within the cap.
+		expect(systemScale(40, 50, { isLast: false }).advanceScale).toBeCloseTo(
+			1.25,
+			10,
+		);
+		// A huge ratio clamps to MAX_STRETCH.
+		expect(systemScale(10, 50, { isLast: false }).advanceScale).toBe(
+			MAX_STRETCH,
+		);
+	});
+
+	it("downscales an over-wide system uniformly (scale < 1, glyphs included)", () => {
+		// content 100 > avail 30 → no advance stretch, the whole system shrinks.
+		const s = systemScale(100, 30);
+		expect(s.advanceScale).toBe(1);
+		expect(s.downscaleFactor).toBeCloseTo(0.3, 10);
+	});
+});
+
+describe("buildLayoutModel — the full positioned-primitive model (§6.3/§6.6/§6.7)", () => {
+	it("returns a well-formed model with two staff bands per system", () => {
+		const model = buildLayoutModel(COMPREHENSIVE_SONG, 200);
+		expect(Array.isArray(model.systems)).toBe(true);
+		expect(model.systems.length).toBeGreaterThanOrEqual(1);
+		for (const sys of model.systems) {
+			// Two staff bands: an RH and an LH staff, each with a top + bottom Y.
+			expect(sys.band.rightStaffTopY).toBeLessThan(sys.band.rightStaffBottomY);
+			expect(sys.band.leftStaffTopY).toBeLessThan(sys.band.leftStaffBottomY);
+			// The LH staff sits below the RH staff (an intra-staff gap between them).
+			expect(sys.band.leftStaffTopY).toBeGreaterThan(
+				sys.band.rightStaffBottomY,
+			);
+			// Every system restates brace + both clefs + alters (per-system restatement).
+			expect(sys.reserve.brace).toBeDefined();
+			expect(sys.reserve.clefs.right.glyph).toBeDefined();
+			expect(sys.reserve.clefs.left.glyph).toBeDefined();
+			expect(sys.reserve.keySig.right).toBeDefined();
+			expect(sys.reserve.keySig.left).toBeDefined();
+			expect(Array.isArray(sys.measures)).toBe(true);
+			expect(sys.measures.length).toBeGreaterThanOrEqual(1);
+			expect(Array.isArray(sys.spans)).toBe(true);
+		}
+	});
+
+	it("packs the song into fewer systems when wider, more when narrower (AC5)", () => {
+		const wide = buildLayoutModel(COMPREHENSIVE_SONG, 200);
+		const narrow = buildLayoutModel(COMPREHENSIVE_SONG, 30);
+		expect(narrow.systems.length).toBeGreaterThan(wide.systems.length);
+		// Always ≥ 1 measure per system at the narrow width.
+		expect(narrow.systems.every((s) => s.measures.length >= 1)).toBe(true);
+	});
+
+	it("downscales an over-wide single measure's whole system (no overflow)", () => {
+		const manyNotes = Array.from({ length: 40 }, () => ({
+			type: "note",
+			duration: "quarter",
+			pitches: [{ step: "C", octave: 4 }],
+		}));
+		const song = { sections: [{ measures: [{ rightHand: manyNotes }] }] };
+		const model = buildLayoutModel(song, 33);
+		expect(model.systems).toHaveLength(1);
+		expect(model.systems[0].downscaleFactor).toBeLessThan(1);
+	});
+
+	it("emits the time signature only on the first system / on change", () => {
+		const model = buildLayoutModel(COMPREHENSIVE_SONG, 200);
+		// At a wide width the whole song is one system → time sig present at its head.
+		expect(model.systems[0].reserve.timeSignature).toEqual({
+			beats: 4,
+			beatType: 4,
+		});
+	});
+
+	it("numbers measures sequentially 1..N across section boundaries (§6.7)", () => {
+		const model = buildLayoutModel(COMPREHENSIVE_SONG, 200);
+		const numbers = model.systems.flatMap((s) =>
+			s.measures.map((m) => m.number),
+		);
+		expect(numbers).toEqual([1, 2, 3]); // section 2 does NOT reset the count
+	});
+
+	it("resolves the tie + slur spanning the two measures (§6.7)", () => {
+		const model = buildLayoutModel(COMPREHENSIVE_SONG, 200);
+		const spans = model.systems.flatMap((s) => s.spans);
+		expect(spans.some((s) => s.kind === "tie")).toBe(true);
+		expect(spans.some((s) => s.kind === "slur")).toBe(true);
+	});
+
+	it("surfaces per-event dynamics + chord symbols and barlines (§6.7)", () => {
+		const model = buildLayoutModel(COMPREHENSIVE_SONG, 200);
+		const allRightTexts = model.systems.flatMap((s) =>
+			s.measures.flatMap((m) => m.right.texts),
+		);
+		expect(
+			allRightTexts.some((t) => t.kind === "dynamic" && t.text === "mf"),
+		).toBe(true);
+		expect(
+			allRightTexts.some((t) => t.kind === "chordSymbol" && t.text === "C"),
+		).toBe(true);
+		const allBarlines = model.systems.flatMap((s) =>
+			s.measures.flatMap((m) => m.barlines.map((b) => `${b.side}/${b.type}`)),
+		);
+		// The score's first measure has no left barline — its `repeat-start` is
+		// suppressed (§6.7) — but repeat-end and final still draw on the right.
+		expect(allBarlines).not.toContain("start/repeat-start");
+		expect(allBarlines).toContain("end/repeat-end");
+		expect(allBarlines).toContain("end/final");
+	});
+
+	it("draws a left repeat-start barline on a non-first measure (§6.7)", () => {
+		const song = {
+			sections: [
+				{
+					measures: [
+						{
+							rightHand: [
+								{
+									type: "note",
+									duration: "whole",
+									pitches: [{ step: "C", octave: 5 }],
+								},
+							],
+						},
+						{
+							barlineStart: "repeat-start",
+							rightHand: [
+								{
+									type: "note",
+									duration: "whole",
+									pitches: [{ step: "C", octave: 5 }],
+								},
+							],
+						},
+					],
+				},
+			],
+		};
+		const model = buildLayoutModel(song, 200);
+		const barlines = model.systems.flatMap((s) =>
+			s.measures.flatMap((m) => m.barlines.map((b) => `${b.side}/${b.type}`)),
+		);
+		// A `repeat-start` on the 2nd measure (not the score start) DOES draw a left bar.
+		expect(barlines).toContain("start/repeat-start");
+	});
+
+	it("prints a tempo at the song start and at the section-2 tempo change (§6.7)", () => {
+		const model = buildLayoutModel(COMPREHENSIVE_SONG, 200);
+		const tempos = model.systems.flatMap((s) => s.texts.tempos);
+		// One at the song start (120 → quarter glyph) and one at the change (90).
+		expect(tempos.map((t) => t.bpm).sort((a, b) => a - b)).toEqual([90, 120]);
+		expect(tempos.every((t) => t.glyph === "metNoteQuarter")).toBe(true);
+	});
+
+	it("starts an 8va ottava for the RH octave shift in section 2 (§5.3)", () => {
+		const model = buildLayoutModel(COMPREHENSIVE_SONG, 200);
+		const ottavas = model.systems.flatMap((s) => s.texts.ottavas);
+		const eightVa = ottavas.find((o) => o.label === "8va");
+		expect(eightVa).toBeDefined();
+		expect(eightVa.hand).toBe("rightHand");
+		expect(eightVa.placement).toBe("above");
+	});
+
+	it("draws an inline section change at a mid-system section boundary (AC4)", () => {
+		// At a width that keeps all three measures on one system, the section-2 start
+		// (measure 3) carries inline cautionary changes (LH clef + RH/LH key sig).
+		const model = buildLayoutModel(COMPREHENSIVE_SONG, 200);
+		const allMeasures = model.systems.flatMap((s) => s.measures);
+		const sectionStart = allMeasures.find((m) => m.number === 3);
+		expect(sectionStart.isSectionStart).toBe(true);
+		// Inline changes are present only when the section start is mid-system.
+		if (model.systems.length === 1) {
+			expect(sectionStart.inline).not.toBeNull();
+			expect(sectionStart.inline.clefs.left).toBeDefined(); // bass → tenor
+			expect(sectionStart.inline.timeSignature).toEqual({
+				beats: 3,
+				beatType: 4,
+			});
+		}
+	});
+
+	it("never references timeSignature for measure X / width", () => {
+		// Re-run with the time signatures mutated to absurd values; the measure X /
+		// widths (driven purely by durations) must be identical.
+		const mutated = JSON.parse(JSON.stringify(COMPREHENSIVE_SONG));
+		mutated.defaults.timeSignature = { beats: 13, beatType: 16 };
+		mutated.sections[1].timeSignature = { beats: 7, beatType: 8 };
+		const a = buildLayoutModel(COMPREHENSIVE_SONG, 200);
+		const b = buildLayoutModel(mutated, 200);
+		const xsOf = (model) =>
+			model.systems.flatMap((s) => s.measures.map((m) => [m.x, m.width]));
+		expect(xsOf(b)).toEqual(xsOf(a));
+	});
+
+	it("never throws on dangling ties/slurs, empty hands, or an empty song (AC8/AC9)", () => {
+		const dangling = {
+			sections: [
+				{
+					measures: [
+						{
+							rightHand: [
+								{
+									type: "note",
+									duration: "quarter",
+									tie: "start",
+									pitches: [{ step: "C", octave: 4 }],
+								},
+							],
+						},
+						{
+							rightHand: [
+								{
+									type: "note",
+									duration: "quarter",
+									slur: "stop",
+									pitches: [{ step: "D", octave: 4 }],
+								},
+							],
+						},
+						{
+							leftHand: [
+								{
+									type: "note",
+									duration: "whole",
+									pitches: [{ step: "C", octave: 3 }],
+								},
+							],
+						}, // RH empty
+						{}, // both hands empty
+					],
+				},
+			],
+		};
+		expect(() => buildLayoutModel(dangling, 100)).not.toThrow();
+		expect(() => buildLayoutModel({ sections: [] }, 100)).not.toThrow();
+		expect(() => buildLayoutModel({}, 100)).not.toThrow();
+		expect(buildLayoutModel({ sections: [] }, 100).systems).toEqual([]);
+		// Each system in the dangling song still has both staff bands (AC9).
+		const model = buildLayoutModel(dangling, 100);
+		for (const sys of model.systems) {
+			expect(sys.band.rightStaffTopY).toBeDefined();
+			expect(sys.band.leftStaffTopY).toBeDefined();
+		}
 	});
 });
