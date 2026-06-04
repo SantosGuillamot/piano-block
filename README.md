@@ -2,7 +2,7 @@
 
 A WordPress block plugin for creating piano song sheets — the long-term goal is to write out notes and build practice sheets you can use to learn and train piano skills.
 
-> **Status:** This repository is an installable WordPress plugin that registers a single **Piano** block. The block now **stores a complete song** as structured JSON — a right-hand + left-hand grand staff in the plugin's own [song format](docs/song-format.md) — authored by hand in a raw-JSON editor field and rendered on the front end as escaped text. It does **not** yet draw musical notation, play audio, or offer a visual authoring UI; interactive keys, audio, and notation rendering remain future work (see [Forthcoming](#forthcoming)). A build pipeline (`@wordpress/scripts`) and a local dev environment (`wp-env`) are in place to build on.
+> **Status:** This repository is an installable WordPress plugin that registers a single **Piano** block. The block **stores a complete song** as structured JSON — a right-hand + left-hand grand staff in the plugin's own [song format](docs/song-format.md) — authored by hand in a raw-JSON editor field, and on the front end **renders that song as visual piano sheet music**: a braced grand staff drawn as an SVG by the plugin's own rendering code (no third-party notation library). It does **not** yet play audio or offer a visual authoring UI; audio playback and a richer authoring experience remain future work (see [Forthcoming](#forthcoming)). A build toolchain (`@wordpress/scripts`) and a local dev environment (`wp-env`) are in place to build on.
 
 ## What the block does today
 
@@ -10,9 +10,9 @@ The plugin registers exactly one block — **Piano** (`piano-block/piano`):
 
 - It appears in the block inserter under the **Media** category (search for "Piano").
 - In the editor, it shows a single **raw-JSON field** where you author a song document in the plugin's own [song format](docs/song-format.md). The field's input is **validated for conformance**, but that check is **informational only — it never blocks saving**, and your raw text is always stored.
-- It is a **dynamic** (server-rendered) block: the stored `song` string lives in the block's delimiter comment, and its front-end HTML is produced by PHP at render time. On a published page, the block renders the stored song **as escaped text** inside a `<pre>` (and nothing at all when there is no song).
+- It is a **dynamic** (server-rendered) block: the stored `song` string lives in the block's delimiter comment, and PHP emits a lightweight container carrying that song to the front end. On a published page, the block's own client-side code reads the song and draws it as **visual piano sheet music** — a braced grand staff — directly in the page (and nothing at all when there is no song).
 
-There is no playable keyboard, audio, or visual notation yet — v1 stores and shows the song *as text*, so the format and storage layer can be built and smoke-tested while the real piano experience is developed on top of it. See [Using the Piano block](#using-the-piano-block) for the authoring workflow.
+There is no playable keyboard or audio yet, and authoring is still by hand in a raw-JSON field — but a published page now shows the song as readable notation rather than as text, so the rest of the piano experience can be developed on top of it. See [Using the Piano block](#using-the-piano-block) for the authoring workflow.
 
 ## Using the Piano block
 
@@ -42,16 +42,19 @@ This validation is **informational only — it never blocks saving**. The raw te
 - **Empty input shows no error.** Validation runs only on non-empty input; a blank field is the "no song" state and is not validated.
 - **It is structural / field checking only.** The validator checks the document's shape and field values, **not** musical timing. A bar whose events do not "add up" to its time signature still saves with no timing error.
 
-### 4. What the front end shows (v1)
+### 4. What the front end shows
 
-On the published page, the block outputs the **stored song content as text** — the exact JSON you entered, with your line breaks and indentation preserved — inside a preformatted (`<pre>`) block. The front end performs **no validation** and renders **whatever is stored**; if there is no song, it outputs **nothing**.
+On the published page, the block **renders your song as visual piano sheet music** — a braced grand staff (a treble staff for the right hand and a bass staff for the left, joined by a brace), drawn as an SVG by the plugin's own client-side rendering code. There is **no third-party notation library**: the staves, clefs, notes, rests, and accidentals are drawn by the plugin itself, using a bundled music font for the ornate symbols.
 
-Two expectations to set explicitly:
+What appears depends on what you stored — there are three cases:
 
-- **v1 does not render musical notation or play audio.** The front end shows the song *as text*. Visual notation and playback are future work (see [Forthcoming](#forthcoming)).
-- **The output is safely escaped.** Any HTML or script characters in the song appear as inert text — no markup is executed.
+- **A conformant song renders as sheet music.** If the stored song matches the [song format](docs/song-format.md), the front end parses it and draws the grand staff.
+- **No song renders nothing.** A block with an empty (or whitespace-only) song outputs nothing at all.
+- **A non-renderable song renders nothing.** If the stored content is not valid JSON, or is valid JSON that does not conform to the song format, the front end draws **nothing** — there is **no raw-JSON echo and no error message** shown on the page. (The editor's validation notice in step 3 is where you catch and fix such problems while authoring.)
 
-> **Tip:** The [annotated example song](docs/song-format.md#annotated-example-song) in the format reference is a ready-made starting template. Copy it into the field and adapt it to your own song.
+The notation is drawn entirely in the browser by the block's own code, so it is the **front end** that decides whether to render or stay empty; the server does no validation. The score itself shows only the music — there is no visible title or composer heading (the song's `metadata` is used only to label the notation for assistive technology).
+
+> **Tip:** The [annotated example song](docs/song-format.md#annotated-example-song) in the format reference is a ready-made starting template. Copy it into the field, view the published post, and you will see it rendered as a grand staff.
 
 ## Requirements
 
@@ -87,7 +90,7 @@ Because the block is compiled, the installable plugin is the repository **plus i
 npm install && npm run build
 ```
 
-Then copy the plugin directory — **including the generated `build/` folder** — into `wp-content/plugins/` (for example as `wp-content/plugins/piano-block/`) of a WordPress 6.9+ / PHP 7.4+ site, and activate **Piano Block** under **Plugins**. A successful install: the plugin activates with no error, the **Piano** block appears in the inserter under **Media**, and a published post containing a block with a song shows that song as escaped text on the front end.
+Then copy the plugin directory — **including the generated `build/` folder** — into `wp-content/plugins/` (for example as `wp-content/plugins/piano-block/`) of a WordPress 6.9+ / PHP 7.4+ site, and activate **Piano Block** under **Plugins**. A successful install: the plugin activates with no error, the **Piano** block appears in the inserter under **Media**, and a published post containing a block with a conformant song renders that song as a grand staff of sheet music on the front end.
 
 ## For contributors
 
@@ -96,7 +99,7 @@ The block is built with [`@wordpress/scripts`](https://developer.wordpress.org/b
 ### The build model
 
 - **JSX + ES modules.** `src/` is authored with JSX and `import`s from the `@wordpress/*` packages; the build transpiles the JSX and externalises those imports to WordPress's runtime script handles, generating `build/index.asset.php` (the script's dependencies and version) automatically.
-- **SCSS.** Styles are authored in `src/style.scss` and compiled to `build/style-index.css`. (Biome does not process SCSS; the build's Sass pipeline owns it.)
+- **SCSS.** Styles are authored in `src/style.scss` and compiled to `build/style-index.css`. (Biome does not process SCSS; the build's Sass step owns it.)
 - **Biome for lint/format.** Biome (tab indentation, double-quoted JS) lints and formats the JavaScript/JSON sources in `src/`. The generated `build/` directory is git-ignored and therefore outside Biome's set; the PHP files sit outside Biome's processing set and are not linted by it.
 - **`register_block_type()` targets `build/`.** `piano-block.php` registers the block from the `build/` directory, so you must run `npm run build` before the plugin will work.
 
@@ -109,11 +112,15 @@ The block is built with [`@wordpress/scripts`](https://developer.wordpress.org/b
 | `src/index.js` | Editor entry point: registers the block and imports the styles. |
 | `src/edit.js` | The block's editor component (JSX) — renders the raw-JSON `song` field (`TextareaControl` + non-blocking error `Notice`) on the block canvas. |
 | `src/style.scss` | Placeholder styling (editor + front end), compiled by the build. |
-| `src/render.php` | Server-rendered front-end output for the dynamic block — the escaped, verbatim `song` passthrough. |
+| `src/render.php` | Server-rendered front-end output for the dynamic block — a block-wrapper `<div>` carrying the raw `song` inside an inert `application/json` `<script>` for the frontend to read (no validation, no `<pre>`). |
+| `src/view.js` | The frontend `viewScript` entry: reads the inert JSON `<script>`, runs the reused validate gate, and (for a conformant song) builds the layout model and mounts the SVG, computes the accessible name, and reflows on resize. The thin, DOM-coupled half of the renderer. |
+| `src/notation/` | The plugin's **own** rendering engine (no third-party notation library): `layout.js` (the pure layout model — `buildLayoutModel`, all musical geometry in staff-space units, no DOM), `svg.js` (the thin SVG-emit layer that turns the model into an `<svg>` DOM tree), `glyphs.js` (the swappable glyph map: symbolic name → music-font codepoint or hand-drawn primitive), `constants.js` (the shared sp/layout constants), and the bundled music-font **asset** `pb-music.woff2` with its `OFL.txt` (a subsetted, renamed Bravura under SIL OFL 1.1). |
+| `src/notation/__tests__/` | Jest unit tests for the pure layout/emit layers (`layout.test.js`, `svg.test.js`), run by `npm run test:unit`. |
+| `src/song/normalizeStep.js` | The shared note-name helper — the closed two-system vocabulary and the `step → canonical English letter` map, reused by both the validator and the renderer so they cannot drift. |
 | `src/song/schema.js` | The song format's declarative **schema-as-data** — the single source of truth for "what is a conformant song." |
 | `src/song/validate.js` | The zero-dependency validator/walker that interprets `schema.js` and returns human-readable, path-pointed errors. |
 | `src/song/__tests__/` | Jest unit tests for the schema and validator (run by `npm run test:unit`). |
-| `specs/` | Playwright end-to-end tests — `editor.spec.js` (authoring + persistence) and `render.spec.js` (front-end render + escaping), run by `npm run test:e2e`. |
+| `specs/` | Playwright end-to-end tests — `editor.spec.js` (authoring + persistence) and `render.spec.js` (front-end SVG render across the three display states + injection safety), run by `npm run test:e2e`. |
 | `build/` | Compiled output (generated by `npm run build`; git-ignored). |
 | `.wp-env.json` | Local `wp-env` configuration (latest WordPress, PHP 8.3, this plugin mapped in). |
 
@@ -148,19 +155,20 @@ Three checks the keyword subset cannot express are handled directly by the walke
 - **Enumerated values are closed.** The value enums (durations, clefs, dynamics, barlines, tie/slur, `type`, `beatType`) are the format's fixed vocabulary, not extension points; a typo like `"quaver"` for a duration **is** a conformance error.
 - **Accepted trade-off:** a misspelled *optional* property (e.g. `dynmic` for `dynamic`) is silently ignored rather than flagged — an accepted cost of the permissive, never-blocking v1 stance.
 
-**Additive growth (no `version` field).** New capabilities arrive as **new optional fields** on existing objects (`event` / `section` / `measure` / `handConfig` / `pitch`) — never a breaking change, never a `version` field. A song authored against today's format stays conformant after the format grows, because old songs simply omit the new fields. The spec's "Out of Scope" list (articulations, ornaments, pedal, fingering, tuplets, voltas, multiple voices, lyrics, per-pitch ties, wider octave-shift, triple dots, …) is effectively the backlog of additive candidates.
+**Additive growth (no `version` field).** New capabilities arrive as **new optional fields** on existing objects (`event` / `section` / `measure` / `handConfig` / `pitch`) — never a breaking change, never a `version` field. A song authored against today's format stays conformant after the format grows, because old songs simply omit the new fields. The deliberately out-of-scope list (articulations, ornaments, pedal, fingering, tuplets, voltas, multiple voices, lyrics, per-pitch ties, wider octave-shift, triple dots, …) is effectively the backlog of additive candidates.
 
-**Render contract — verbatim escaped passthrough.** `src/render.php` outputs the stored `song` string **as-is** inside a `<pre>` via `esc_html()`, with the wrapper attributes from `get_block_wrapper_attributes()`; it outputs **nothing** when the song is empty or whitespace-only. It performs **no** validation, parsing, or re-serialization, and contributors must keep it that way: adding `json_encode`/`json_decode` would re-escape, reorder, or fail on the author's literal text (and would break non-JSON input), violating the "outputs whatever is stored" contract. Escaping makes any markup or script in the stored content render as inert text (no XSS); the front end does **not** validate.
+**Render contract — a container carrying an inert JSON `<script>`.** `src/render.php` emits a block-wrapper `<div>` (the attributes from `get_block_wrapper_attributes()`) containing a single inert `<script type="application/json">` whose body is the **raw** stored `song` string; the frontend (`src/view.js`) reads that script's `textContent` and decides whether to draw. PHP performs **no** validation, parsing, or re-serialization — the render-or-nothing decision lives entirely on the front end — and it still outputs **nothing** when the song is empty or whitespace-only (no wrapper at all). Contributors must keep PHP's role purely "carry whatever is stored": adding `json_encode`/`json_decode` would re-escape, reorder, or fail on the author's literal text and would break non-JSON input.
 
-**Tests.** Unit tests (`src/song/__tests__/`, run by `npm run test:unit`) exercise the validator in pure Node: the comprehensive example song from the format reference, both note-name systems (case-insensitive), closed-enum / type / range errors, the lenient-on-unknown policy, and the structural-only stance (no musical-timing check). End-to-end tests (`specs/`, run by `npm run test:e2e` against `wp-env`) cover the editor (a fresh block is empty; conformant input shows no error; non-conformant input is flagged yet still stored; a song round-trips across save/reload) and the front end (empty renders nothing; a stored song renders verbatim in a `<pre>`; a hostile payload renders escaped and inert).
+The one transformation PHP does make is a **script-breakout escape**: it replaces every `<` in the song with the JSON unicode escape `\u003C` before printing it into the `<script>`. This is *not* `esc_html()`/`htmlspecialchars()` — and that distinction matters. A `<script>` element is **raw text**: the HTML parser does not decode HTML entities inside it, so `&lt;` would survive literally and break `JSON.parse` on the frontend. But the parser *does* still scan raw text for the `</` (ETAGO) and `<!--` sequences, so an unescaped `</script>` inside the song (e.g. in a `chordSymbol` or `metadata.title`) could close the carrier early. Escaping the leading `<` as `\u003C` neutralizes both breakout sequences at once while remaining a legal JSON escape, so `JSON.parse` decodes it back to the exact author bytes. (Plain `<\/` is avoided too: `<\!--` is invalid JSON and would throw on a conformant song.) The net effect is the same safety the old `<pre>` escaping gave — hostile markup stays inert — but the payload now round-trips losslessly into the renderer.
 
-> The full rationale behind these decisions — the data model, the rejected alternatives, and the requirement/AC traceability — is in the design doc at `.rp/pipelines/2-store-song-information/2-design-doc/design-doc.md`.
+> **Exercising the renderer.** The [example song](docs/song-format.md#annotated-example-song) in the format reference is a broad-coverage example (it touches per-hand clefs, accidentals, a chord, a tie, dynamics, barlines, an octave shift, and a section change). Paste it into a published Piano block and view the post: the frontend reads it from the inert `<script>`, validates it, and draws the grand staff as an SVG.
+
+**Tests.** Unit tests (run by `npm run test:unit`) cover two layers in pure Node. The validator suite (`src/song/__tests__/`) exercises a comprehensive example song, both note-name systems (case-insensitive), closed-enum / type / range errors, the lenient-on-unknown policy, and the structural-only stance (no musical-timing check). The renderer's pure layout/emit layers have their own suite (`src/notation/__tests__/`), so the musical geometry is verified without a browser. End-to-end tests (`specs/`, run by `npm run test:e2e` against `wp-env`) cover the editor (a fresh block is empty; conformant input shows no error; non-conformant input is flagged yet still stored; a song round-trips across save/reload — unchanged) and the front end across its three display states: a conformant song renders an `<svg role="img">` grand staff with an accessible name and the raw JSON is **not** shown; an empty/whitespace song renders nothing; a non-renderable song (invalid JSON or non-conformant) renders nothing — no raw echo, no error; and a conformant song carrying hostile free text renders that text inert (emitted via SVG `textContent`) while still drawing and parsing back to the exact author bytes.
 
 ## Forthcoming
 
-Song *storage* has landed, but the visual and audible piano experience has not. The following are planned for future tasks and are **not** part of v1 (the spec's "Out of Scope" set):
+Song *storage* and front-end **notation rendering** have landed, but the audible and richer interactive piano experience has not. The following are planned for future tasks and are **not** part of v1 (the "out of scope" set):
 
-- **Visual notation rendering** — drawing staves and notes on the front end. v1 shows the song *as text*, not as notation.
 - **Audio playback** — the format retains the pitch, octave, duration, and tempo precision needed for future sound, but nothing plays yet.
 - **A visual authoring UI** — anything beyond the single raw-JSON field; in v1 you write the song JSON by hand.
 - **Richer notation elements** — articulations, ornaments, pedal, fingering, tuplets, voltas, multiple voices per hand, lyrics, and similar (the format grows by adding optional fields, with no `version` field).

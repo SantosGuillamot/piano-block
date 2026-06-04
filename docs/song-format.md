@@ -6,7 +6,7 @@ This is the canonical reference for the Piano block's **song format** — the cu
 
 A song is a custom, dependency-free JSON document owned by this plugin. It is **not** MusicXML, ABC, or MIDI — it is its own small format, designed to model a **grand staff**: a right-hand part and a left-hand part read together. The JSON you write is the *content* stored in the block's `song` attribute (a single text string).
 
-In v1 you author a song **by hand**, by typing or pasting the JSON directly into the block's raw-JSON field in the editor. There is no visual notation editor and no audio playback yet — those are future work. This document describes only what the format supports today. For the end-to-end editor workflow (inserting the block, entering a song, what validation does, and what the front end shows), see [Using the Piano block](../README.md#using-the-piano-block) in the README.
+In v1 you author a song **by hand**, by typing or pasting the JSON directly into the block's raw-JSON field in the editor. There is no visual notation *editor* yet — authoring is still raw JSON by hand — and no audio playback; those are future work. The published **front end**, however, now renders the song as visual notation: a braced grand staff drawn as an SVG. This document describes only what the format supports today. For the end-to-end editor workflow (inserting the block, entering a song, what validation does, and what the front end shows), see [Using the Piano block](../README.md#using-the-piano-block) in the README — its [What the front end shows](../README.md#4-what-the-front-end-shows) section describes the rendered notation.
 
 ## Top-level shape
 
@@ -267,40 +267,35 @@ Two consequences you can observe as an author:
 
 ## Annotated example song
 
-The following is an **illustrative JSONC** listing — the comments (`//`) are for documentation only. Real stored song JSON has **no comments**; the comment-free version of this exact song is accepted by the validator (it is the same song transcribed in the validator's unit-test fixture). Copy it as a starting template and adapt it.
+The following is a **complete, copy-pasteable example** — valid song JSON (no comments) you can paste straight into the block's song field and adapt.
 
-It exercises every required element: notes and rests in both hands, a three-pitch chord, a dotted duration, a per-note accidental, mixed English and Spanish note names, per-hand clef / default accidentals / octave shift, a Section 2 mid-song tempo / time-signature / clef / accidental change, dynamics, a free-text chord symbol, ties and slurs, repeat and final barlines, and title/composer metadata.
+It exercises a broad spread of elements: notes and rests in both hands, a three-pitch chord, a dotted duration, a per-note accidental, mixed English and Spanish note names, per-hand clef / default accidentals / octave shift, a Section 2 mid-song tempo / time-signature / clef / accidental change, dynamics, a free-text chord symbol, a tie, repeat and final barlines, and title/composer metadata.
 
-```jsonc
+```json
 {
   "metadata": {
     "title": "Example",
     "composer": "A. Composer"
   },
-
-  // Song-wide context every section inherits unless it overrides.
   "defaults": {
-    "tempo": { "bpm": 120, "beatUnit": "quarter" },   // ♩ = 120
-    "timeSignature": { "beats": 4, "beatType": 4 },    // 4/4
+    "tempo": { "bpm": 120, "beatUnit": "quarter" },
+    "timeSignature": { "beats": 4, "beatType": 4 },
     "rightHand": { "clef": "treble" },
-    "leftHand":  { "clef": "bass", "alters": { "B": -1 } }  // left hand: every B is flat
+    "leftHand":  { "clef": "bass", "alters": { "B": -1 } }
   },
 
   "sections": [
-    // ── Section 1 — uses defaults (no overrides) ───────────────────────────
     {
       "measures": [
         {
-          "barlineStart": "repeat-start",              // |:  begin a repeated passage
+          "barlineStart": "repeat-start",
           "rightHand": [
-            // Dotted-half C5 chord (C5 + E5 + G5), mezzo-forte, slur + tie start.
             {
               "type": "note",
               "duration": "half",
-              "dots": 1,                                // dotted half
+              "dots": 1,
               "dynamic": "mf",
-              "chordSymbol": "C",                        // free-text chord symbol
-              "slur": "start",
+              "chordSymbol": "C",
               "tie": "start",
               "pitches": [
                 { "step": "C", "octave": 5 },
@@ -308,65 +303,54 @@ It exercises every required element: notes and rests in both hands, a three-pitc
                 { "step": "G", "octave": 5 }
               ]
             },
-            // Quarter rest.
             { "type": "rest", "duration": "quarter" }
           ],
           "leftHand": [
-            // Spanish note names; "si" = B, which is flat here via the hand's alters.
             { "type": "note", "duration": "quarter",
-              "pitches": [ { "step": "do", "octave": 3 } ] },     // do = C
+              "pitches": [ { "step": "do", "octave": 3 } ] },
             { "type": "note", "duration": "quarter",
-              "pitches": [ { "step": "sol", "octave": 3 } ] },    // sol = G
+              "pitches": [ { "step": "sol", "octave": 3 } ] },
             { "type": "note", "duration": "half",
-              "pitches": [ { "step": "si", "octave": 2 } ] }      // si = B (→ B♭ via alters)
+              "pitches": [ { "step": "si", "octave": 2 } ] }
           ]
         },
         {
-          "barlineEnd": "repeat-end",                  // :|  end the repeated passage
+          "barlineEnd": "repeat-end",
           "rightHand": [
-            // Tie stop + slur stop on a held C5.
-            { "type": "note", "duration": "whole", "tie": "stop", "slur": "stop",
-              "pitches": [ { "step": "C", "octave": 5 } ] }
+            { "type": "note", "duration": "whole", "tie": "stop",
+              "pitches": [ { "step": "G", "octave": 5 } ] }
           ],
           "leftHand": [
-            // Per-note accidental: F#2 (alter +1) overrides any section default.
             { "type": "note", "duration": "whole",
-              "pitches": [ { "step": "F", "octave": 2, "alter": 1 } ] }
+              "pitches": [ { "step": "si", "octave": 2, "alter": 1 } ] }
           ]
         }
       ]
     },
-
-    // ── Section 2 — MID-SONG CHANGES: new tempo, time signature, a left-hand
-    //    clef change, alters, and a right-hand octave shift. Each field overrides
-    //    defaults; the right-hand clef (treble) is inherited because rightHand
-    //    only sets octaveShift + alters. ──
     {
-      "tempo": { "bpm": 90, "beatUnit": "quarter" },   // tempo change → ♩ = 90
-      "timeSignature": { "beats": 3, "beatType": 4 },  // time-signature change → 3/4
+      "tempo": { "bpm": 90, "beatUnit": "quarter" },
+      "timeSignature": { "beats": 3, "beatType": 4 },
       "rightHand": {
-        "octaveShift": 1,                               // 8va: sounds one octave higher
-        "alters": { "F": 1, "C": 1 }                    // section default accidentals: F#, C#
-        // clef inherited from defaults (treble)
+        "octaveShift": 1,
+        "alters": { "F": 1, "C": 1 }
       },
       "leftHand": {
-        "clef": "tenor",                                // CLEF CHANGE: bass (defaults) → tenor
-        "alters": {}                                    // clear inherited B♭ for this section
+        "clef": "tenor",
+        "alters": {}
       },
       "measures": [
         {
-          "barlineEnd": "final",                       // final barline ‖
+          "barlineEnd": "final",
           "rightHand": [
-            // F here is F#5 by the section's alters; written octave 5, sounds 6 (8va).
             { "type": "note", "duration": "quarter", "dynamic": "p",
               "pitches": [ { "step": "F", "octave": 5 } ] },
             { "type": "note", "duration": "quarter",
-              "pitches": [ { "step": "C", "octave": 6 } ] },     // C#6 (alters), sounds 7
+              "pitches": [ { "step": "la", "octave": 5 } ] },
             { "type": "rest", "duration": "quarter" }
           ],
           "leftHand": [
             { "type": "note", "duration": "half", "dots": 1,
-              "pitches": [ { "step": "C", "octave": 3 } ] }      // dotted half = 3 beats (fills 3/4)
+              "pitches": [ { "step": "C", "octave": 3 } ] }
           ]
         }
       ]

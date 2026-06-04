@@ -1,9 +1,9 @@
 /**
- * The zero-dependency song conformance validator (design §6.2 option ii, §7).
+ * The zero-dependency song conformance validator.
  *
  * `validateSong(rawString)` is the single entry point. It receives the
- * author's RAW string, parses it (a parse failure IS a conformance error, per
- * AC6), then walks the parsed value against the declarative schema-as-data
+ * author's RAW string, parses it (a parse failure IS a conformance error),
+ * then walks the parsed value against the declarative schema-as-data
  * (`schema.js`, the single source of truth) and returns a list of
  * human-readable, path-pointed error messages — `[]` when the song conforms.
  *
@@ -12,50 +12,30 @@
  * type, so `Number.isInteger` is used, not `typeof`), `required`, `properties`,
  * `items`, `enum`, integer `minimum` / `maximum`, and the single `if` / `then`
  * (a `note` requires a non-empty `pitches`). `additionalProperties` is left
- * permissive: unknown object properties are ignored, never errors (design §5),
+ * permissive: unknown object properties are ignored, never errors,
  * so the format can grow additively with no `version` field.
  *
  * Three checks the keyword subset cannot fully express are handled directly as
- * documented walker special cases (design §7), keyed off the schema's own
+ * documented walker special cases, keyed off the schema's own
  * `$defs` names so they stay tied to the single source of truth:
  *   1. note names (`pitch.step` and `alters` keys) — matched case-insensitively
  *      against the closed two-system vocabulary (English C D E F G A B +
- *      Spanish do re mi fa sol la si), encoded ONCE in `NOTE_NAMES`;
+ *      Spanish do re mi fa sol la si), encoded ONCE in `normalizeStep.js` and
+ *      reused here via `isNoteName`;
  *   2. `alters` — a map whose every key is a recognised note name and whose
  *      every value is an integer in −2..+2;
  *   3. `tempo.bpm` — the strict lower bound `bpm > 0`.
  *
  * Validation is structural / field only: there is NO musical-timing check
  * (events need not sum to the time signature; the two hands need not align) —
- * a structurally-conformant but musically-unbalanced song is accepted (AC10).
+ * a structurally-conformant but musically-unbalanced song is accepted.
  */
+
+// The closed two-system note-name vocabulary lives in one shared home so the
+// validator and the renderer cannot drift; `isNoteName` keeps the validator's
+// exact semantics.
+import { isNoteName } from "./normalizeStep.js";
 import songSchema from "./schema.js";
-
-/**
- * The closed note-name vocabulary, lowercased — both systems, encoded once and
- * reused for `pitch.step` and `alters` keys so the equivalence lives in one
- * place (design §4.4, §7). English letters and Spanish solfège; no token
- * collides across the two systems.
- */
-const NOTE_NAMES = new Set([
-	"c",
-	"d",
-	"e",
-	"f",
-	"g",
-	"a",
-	"b",
-	"do",
-	"re",
-	"mi",
-	"fa",
-	"sol",
-	"la",
-	"si",
-]);
-
-const isNoteName = (key) =>
-	typeof key === "string" && NOTE_NAMES.has(key.toLowerCase());
 
 /** Render a value compactly for an error message (quotes strings via JSON). */
 const show = (value) => {
@@ -176,7 +156,7 @@ function validateValue(value, schema, path, errors) {
 	}
 
 	// Walker special cases, dispatched by the schema's own `$defs` name so they
-	// stay tied to the single source of truth (design §7).
+	// stay tied to the single source of truth.
 	if (isPlainObject(value)) {
 		applySpecialCases(value, defName, path, errors);
 	}
@@ -194,7 +174,7 @@ function validateArray(value, resolved, path, errors) {
 
 /**
  * Validate an object: required members, then recurse declared properties.
- * Unknown properties are intentionally NOT inspected (permissive, design §5).
+ * Unknown properties are intentionally NOT inspected (permissive).
  * The single `if` / `then` conditional is evaluated here.
  */
 function validateObject(value, resolved, path, errors) {
@@ -221,7 +201,7 @@ function validateObject(value, resolved, path, errors) {
 }
 
 /**
- * The single data-model conditional (design §4.2, §7): if `if` matches, the
+ * The single data-model conditional: if `if` matches, the
  * `then` schema also applies. The only `if` in the schema discriminates on
  * `type === "note"` via `const`; its `then` requires `pitches`. The walker
  * additionally enforces that `pitches` is NON-EMPTY for a note.
@@ -275,7 +255,7 @@ function matchesIf(value, ifSchema) {
 }
 
 /**
- * The three walker special cases (design §7), dispatched by `$defs` name:
+ * The three walker special cases, dispatched by `$defs` name:
  *   - `pitch`   → `step` must be a recognised note name (case-insensitive);
  *   - `handConfig` → `alters` keys are note names, values integers in −2..+2;
  *   - `tempo`   → `bpm` strict lower bound `bpm > 0`.

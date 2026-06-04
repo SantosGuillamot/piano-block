@@ -8,11 +8,11 @@ import validateSong from "./song/validate";
  * Editor representation of the Piano block.
  *
  * Renders the block's only authoring affordance: a raw-JSON `song` field on the
- * block canvas (design §6.3). The author edits the song document as text; the
- * raw string persists unconditionally on every change (design §6.1, AC6) — even
+ * block canvas. The author edits the song document as text; the
+ * raw string persists unconditionally on every change — even
  * when it is invalid JSON or non-conformant. Validation is a pure, presentational
  * side-computation that surfaces a non-blocking error notice; it NEVER blocks
- * saving, clears the field, or substitutes a parsed value (requirement 9, AC6).
+ * saving, clears the field, or substitutes a parsed value.
  *
  * @param {Object}   props               Block edit props.
  * @param {Object}   props.attributes    The block's attributes.
@@ -24,7 +24,7 @@ export default function Edit({ attributes, setAttributes }) {
 	const { song } = attributes;
 
 	// Pure, presentational validation: re-run only when the text changes. The
-	// empty string is the "no song" state and is never validated (design §6.2).
+	// empty string is the "no song" state and is never validated.
 	const errors = useMemo(
 		() => (song.trim() === "" ? [] : validateSong(song)),
 		[song],
