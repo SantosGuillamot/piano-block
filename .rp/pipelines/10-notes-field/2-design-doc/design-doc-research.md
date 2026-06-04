@@ -82,7 +82,7 @@ All spec design hand-offs are RESOLVED. Canonical decisions, in dependency order
    → $ref eventNote`; `measure.notes → $ref standaloneNote`. Delete `chordSymbol` (`schema.js:145`).
    **`validate.js` is UNCHANGED** — `required`/`enum`/`type`/`minimum` cover everything (no `checkBeat`;
    `minimum:0` is the inclusive bound, unlike `bpm`'s strict `>0`). Enums inline. `text:""` valid.
-2. **`chordSymbol` removal (D2).** Clean break across 13 files (full inventory in D2(a)); legacy songs stay
+2. **`chordSymbol` removal (D2).** Clean break across 12 files (full inventory in D2(a)); legacy songs stay
    valid (permissive) and don't render; one docs migration line. Renames: `CHORD_SYMBOL_SIZE → NOTE_SIZE`;
    `data-text="chord-symbol" → "note"`; `collectEventTexts` loops `event.notes` pushing
    `{kind:"note", x, text, placement}`; `systemHasChordSymbols`/`chordSymbolY` superseded by the D3 lane
@@ -171,13 +171,13 @@ the per-note stack gap. **No `validate.js` change. One pipeline reorder** (occup
 
 ### D2 — `chordSymbol` removal map + renames + two preserved behaviors
 
-**Decision.** Clean break. Remove every `chordSymbol` token (identifier AND prose) across the 13 in-scope
+**Decision.** Clean break. Remove every `chordSymbol` token (identifier AND prose) across the 12 in-scope
 files; rename the size constant; restructure the lane field (deferred to D3); the emit text kind becomes
 `data-text="note"`. Validator unchanged.
 
 **(a) Authoritative removal inventory (current ground truth, researcher-verified; in-scope = `src/`,
 `specs/`, `docs/`, `README.md`).** The "no token *anywhere*" bar includes prose comments/JSDoc, not just
-identifiers. 13 files:
+identifiers. 12 files:
 
 - **`src/song/schema.js`** — `:145` (DELETE; replace with the `notes` event property, D1).
 - **`src/notation/layout.js`** — `:33` (import `CHORD_SYMBOL_SIZE`), `:1392` comment, `:1542-1543` JSDoc,
@@ -310,18 +310,34 @@ when that hand has dynamics in the system. The bottom margin flexes the same way
 downstream cascades from the band anchors. Formula:
 
 ```
+STACK_STEP = NOTE_SIZE + TEXT_LANE_GAP                 // = 3.4 sp baseline-to-baseline
+DESCENT    ≈ 0.22 · NOTE_SIZE                          // ≈ 0.62 sp glyph descent below baseline
+baseOffset(hand, "below") = hand_has_dynamics ? DYNAMICS_LANE_RESERVE : NOTE_GAP_STAFF
+baseOffset(_,    "above") = NOTE_GAP_STAFF             // above-LH never dodges (dynamics are below)
+
+// ONE definition of *_stackHeight — the reserved depth from the staff line; the dynamics dodge
+// (baseOffset) is FOLDED IN, so this same quantity feeds BOTH the per-note baseline AND the flex max:
+belowRH_stackHeight = baseOffset(RH, "below") + (nBelowRH − 1)·STACK_STEP + DESCENT
+aboveLH_stackHeight = baseOffset(LH, "above") + (nAboveLH − 1)·STACK_STEP + DESCENT
+belowLH_stackHeight = baseOffset(LH, "below") + (nBelowLH − 1)·STACK_STEP + DESCENT
+
 effectiveInterStaffGap = max(
   INTRA_STAFF_GAP,                       // base 8 — collapse target when empty
   belowRH_stackHeight + aboveLH_stackHeight + (both_present ? MID_GAP : 0)
 )
 lhTopY = rhBottomY + effectiveInterStaffGap   // computed AFTER the occupancy scan (reorder)
 
-belowRH note #k baseline = rightStaffBottomY + (RH_has_dynamics ? DYNAMICS_LANE_RESERVE : NOTE_GAP_STAFF) + k·(NOTE_SIZE + TEXT_LANE_GAP)
-aboveLH note #k baseline = leftStaffTopY     − NOTE_GAP_STAFF − k·(NOTE_SIZE + TEXT_LANE_GAP)        // grows up
-belowLH note #k baseline = leftStaffBottomY  + (LH_has_dynamics ? DYNAMICS_LANE_RESERVE : NOTE_GAP_STAFF) + k·(NOTE_SIZE + TEXT_LANE_GAP)
+// Baselines use the SAME baseOffset, so the furthest baseline can never exceed the reserved depth:
+belowRH note #k baseline = rightStaffBottomY + baseOffset(RH, "below") + k·STACK_STEP
+aboveLH note #k baseline = leftStaffTopY     − NOTE_GAP_STAFF          − k·STACK_STEP        // grows up
+belowLH note #k baseline = leftStaffBottomY  + baseOffset(LH, "below") + k·STACK_STEP
 aboveRH note #k baseline = the topMarginLayout lane (rename of chordSymbolY), stacked like the existing lanes
 bottomMargin = max(SYSTEM_BOTTOM_MARGIN + ledgerBottomExtent, belowLH_stackHeight + ledgerBottomExtent)
 ```
+
+Because `belowRH_stackHeight` folds in the `DYNAMICS_LANE_RESERVE` dodge, the dodged below-RH note is
+covered by the reserved gap: furthest below-RH baseline = `rightStaffBottomY + belowRH_stackHeight − DESCENT`
+< `leftStaffTopY` (since `aboveLH_stackHeight > 0`), so a dodged below-RH note can NEVER reach the LH staff.
 
 **Why PAIR A (vs PAIR B "tighten + no-dodge"):** the two decisions are COUPLED — once below-RH notes dodge
 below the RH dynamics row (which sits at `rightStaffBottomY + 3.5`, INSIDE the gap), the common 1-below-RH
