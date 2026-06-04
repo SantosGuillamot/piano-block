@@ -11,6 +11,7 @@
 import {
 	ACCIDENTAL_GAP,
 	EMPTY_MEASURE_WIDTH,
+	HAIRPIN_LANE_DY,
 	MAX_STRETCH,
 	MIN_ADV,
 	NOTEHEAD_RX,
@@ -40,6 +41,7 @@ import {
 	ottavaFor,
 	packSystems,
 	pitchToStaffStep,
+	recordSpanMarkers,
 	resolveAccidental,
 	resolveHandContext,
 	resolveSectionContexts,
@@ -1661,5 +1663,159 @@ describe("layout-polish fixes", () => {
 		// with the sharp it is pushed right to make room for the accidental glyph.
 		expect(plain.right.notes[0].x).toBeLessThan(NOTEHEAD_RX);
 		expect(sharp.right.notes[0].x).toBeGreaterThan(plain.right.notes[0].x);
+	});
+});
+
+describe("recordSpanMarkers — carried hairpin markers + per-hand lane Y", () => {
+	// A minimal laid-out hand: one placeable note (eventIndex 0) with a known stem
+	// direction + steps, so the recorded anchor.y is deterministic.
+	const laidOutOneNote = {
+		notes: [
+			{ eventIndex: 0, x: 4, direction: "up", topStep: 6, bottomStep: 4 },
+		],
+	};
+	const recordInto = (events, laidOut, staffBottomY, hand = "rightHand") => {
+		const placedEvents = { rightHand: [], leftHand: [] };
+		recordSpanMarkers(events, laidOut, {
+			measureX: 10,
+			hand,
+			placedEvents,
+			staffBottomY,
+			systemIndex: 0,
+		});
+		return placedEvents[hand];
+	};
+
+	it("carries the two new marker fields and a numeric laneY alongside the existing shape", () => {
+		const [entry] = recordInto(
+			[
+				{
+					type: "note",
+					crescendo: "start",
+					pitches: [{ step: "C", octave: 4 }],
+				},
+			],
+			laidOutOneNote,
+			9,
+		);
+		// Existing fields are still present.
+		expect(entry).toHaveProperty("tie");
+		expect(entry).toHaveProperty("slur");
+		expect(entry).toHaveProperty("anchor");
+		expect(entry).toHaveProperty("systemIndex", 0);
+		// The two new marker fields and the precomputed lane Y are now carried.
+		expect(entry).toHaveProperty("crescendo");
+		expect(entry).toHaveProperty("decrescendo");
+		expect(typeof entry.laneY).toBe("number");
+	});
+
+	it("projects crescendo: start onto the entry so the marker reaches the matcher", () => {
+		const [entry] = recordInto(
+			[
+				{
+					type: "note",
+					crescendo: "start",
+					pitches: [{ step: "C", octave: 4 }],
+				},
+			],
+			laidOutOneNote,
+			9,
+		);
+		expect(entry.crescendo).toBe("start");
+		expect(entry.decrescendo).toBeUndefined();
+	});
+
+	it("projects decrescendo: stop onto the entry so the marker reaches the matcher", () => {
+		const [entry] = recordInto(
+			[
+				{
+					type: "note",
+					decrescendo: "stop",
+					pitches: [{ step: "C", octave: 4 }],
+				},
+			],
+			laidOutOneNote,
+			9,
+		);
+		expect(entry.decrescendo).toBe("stop");
+		expect(entry.crescendo).toBeUndefined();
+	});
+
+	it("derives laneY from the per-hand staff bottom Y (staffBottomY + HAIRPIN_LANE_DY)", () => {
+		const [right] = recordInto(
+			[{ type: "note", pitches: [{ step: "C", octave: 4 }] }],
+			laidOutOneNote,
+			9,
+		);
+		const [left] = recordInto(
+			[{ type: "note", pitches: [{ step: "C", octave: 4 }] }],
+			laidOutOneNote,
+			21,
+			"leftHand",
+		);
+		expect(right.laneY).toBe(9 + HAIRPIN_LANE_DY);
+		expect(left.laneY).toBe(21 + HAIRPIN_LANE_DY);
+		// Per-hand distinctness: the right lane is higher on the page (smaller Y).
+		expect(right.laneY).not.toBe(left.laneY);
+		expect(right.laneY).toBeLessThan(left.laneY);
+	});
+
+	it("still carries a numeric laneY (and a null anchor) for a rest with no placeable note", () => {
+		const [entry] = recordInto(
+			[{ type: "rest", duration: "quarter" }],
+			{ notes: [] },
+			9,
+		);
+		expect(entry.anchor).toBeNull();
+		expect(typeof entry.laneY).toBe("number");
+		expect(entry.laneY).toBe(9 + HAIRPIN_LANE_DY);
+		// A non-marked event leaves the marker fields undefined, exactly like tie/slur.
+		expect(entry.crescendo).toBeUndefined();
+		expect(entry.decrescendo).toBeUndefined();
+	});
+
+	it("the per-hand lane Y differs across hands in a full both-hands layout", () => {
+		const song = {
+			sections: [
+				{
+					measures: [
+						{
+							rightHand: [
+								{
+									type: "note",
+									duration: "whole",
+									crescendo: "start",
+									pitches: [{ step: "C", octave: 5 }],
+								},
+							],
+							leftHand: [
+								{
+									type: "note",
+									duration: "whole",
+									pitches: [{ step: "C", octave: 3 }],
+								},
+							],
+						},
+					],
+				},
+			],
+		};
+		// The band's real per-hand staff bottoms feed the per-hand lane Y; the RH
+		// staff sits above the LH staff, so its bottom Y is smaller (higher on page).
+		const { band } = buildLayoutModel(song, 200).systems[0];
+		expect(band.rightStaffBottomY).toBeLessThan(band.leftStaffBottomY);
+	});
+});
+
+describe("existing tie/slur resolution is unaffected by the carried fields", () => {
+	it("resolves the same tie + slur spans as before the lane-Y change", () => {
+		const model = buildLayoutModel(COMPREHENSIVE_SONG, 200);
+		const spans = model.systems.flatMap((s) => s.spans);
+		expect(spans.some((s) => s.kind === "tie")).toBe(true);
+		expect(spans.some((s) => s.kind === "slur")).toBe(true);
+		// No hairpin spans appear yet — recording the markers is additive; matching
+		// the new kinds is a later task.
+		expect(spans.some((s) => s.kind === "crescendo")).toBe(false);
+		expect(spans.some((s) => s.kind === "decrescendo")).toBe(false);
 	});
 });

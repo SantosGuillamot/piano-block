@@ -35,6 +35,7 @@ import {
 	DOT_MUL,
 	DOT_OFFSET,
 	EMPTY_MEASURE_WIDTH,
+	HAIRPIN_LANE_DY,
 	INTER_SYSTEM_GAP,
 	INTRA_STAFF_GAP,
 	KEYSIG_TIMESIG_GAP,
@@ -2094,21 +2095,39 @@ function inlineSectionChange(member, x) {
 }
 
 /**
- * Record one measure's tie/slur markers + the laid-out geometry of each marked
+ * Record one measure's span markers + the laid-out geometry of each marked
  * note, into the per-hand cross-measure streams. Each entry keeps the
  * event's marker projections and the absolute anchor (X + a notehead Y + stem
  * direction + the current system index) so a matched pair can later be drawn between
  * its actual positions, even across barlines/systems.
  *
+ * One entry is pushed per event, unconditionally — including rests/unplaceable notes
+ * (`anchor: null`) and unmarked events (the per-kind marker is then `undefined`) — so
+ * a hand's stream index never desyncs from its event index.
+ *
+ * Four marker projections are carried per entry, one per span kind: `tie`, `slur`,
+ * `crescendo`, and `decrescendo`. The notehead-anchored arcs (tie/slur) read only the
+ * notehead `anchor`; the flat below-staff hairpins (crescendo/decrescendo) cannot
+ * reconstruct their lane from the pitch-dependent `anchor.y`, so each entry also
+ * carries `laneY`, the precomputed per-hand below-staff lane center.
+ *
  * @param {object[]} [events] The hand's events for this measure.
  * @param {{ notes: object[] }} laidOut The hand's laid-out primitives (`layoutHand`).
  * @param {{ measureX: number, hand: string, placedEvents: object,
- *   staffBottomY: number, systemIndex: number }} options The recording context: the
- *   measure's absolute X, the hand key, the accumulating per-hand anchor list, the
- *   hand's staff bottom Y, and the current system index.
+ *   staffBottomY: number, systemIndex: number }} options The recording context.
+ * @param {number} options.measureX The measure's absolute X (sp).
+ * @param {string} options.hand The hand key (`"rightHand"` | `"leftHand"`).
+ * @param {object} options.placedEvents The accumulating per-hand anchor streams,
+ *   keyed by hand.
+ * @param {number} options.staffBottomY This hand's staff bottom-line Y (sp); the
+ *   below-staff lane Y is derived from it.
+ * @param {number} options.systemIndex The current system index.
  */
-function recordSpanMarkers(events, laidOut, options) {
+export function recordSpanMarkers(events, laidOut, options) {
 	const { measureX, hand, placedEvents, staffBottomY, systemIndex } = options;
+	// The flat hairpin lane sits a fixed offset below this hand's staff bottom; it is
+	// pitch-independent, so it is computed once per call and carried on every entry.
+	const laneY = staffBottomY + HAIRPIN_LANE_DY;
 	const list = events ?? [];
 	list.forEach((event, idx) => {
 		const note = laidOut.notes.find((n) => n.eventIndex === idx);
@@ -2128,8 +2147,11 @@ function recordSpanMarkers(events, laidOut, options) {
 		placedEvents[hand].push({
 			tie: event?.tie,
 			slur: event?.slur,
+			crescendo: event?.crescendo,
+			decrescendo: event?.decrescendo,
 			anchor,
 			systemIndex,
+			laneY,
 		});
 	});
 }
