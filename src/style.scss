@@ -3,6 +3,24 @@
  * Minimal scaffold styling; the real piano UI will replace this.
  */
 
+/**
+ * The music font for the sheet-music renderer (design §2.4 / open item #1). It is a
+ * subsetted + RENAMED Bravura (the SMuFL reference font, SIL OFL 1.1) — renamed to
+ * "PB Music" because "Bravura" is a Reserved Font Name. The family string MUST match
+ * `MUSIC_FONT_FAMILY` in `notation/glyphs.js` and the `document.fonts.load('1em "PB
+ * Music"')` gate in `view.js`. Declaring it here (not a dedicated `viewStyle`) lets
+ * webpack emit the woff2 into `build/`; `url()` makes it a tracked asset dependency.
+ * It is harmless to the editor, which never references the family. `font-display:
+ * swap` mitigates FOUT (the first frontend draw also waits on `document.fonts`).
+ */
+@font-face {
+	font-family: "PB Music";
+	src: url("./notation/pb-music.woff2") format("woff2");
+	font-weight: normal;
+	font-style: normal;
+	font-display: swap;
+}
+
 .wp-block-piano-block-piano {
 	border: 1px dashed #767676;
 	padding: 1em;
