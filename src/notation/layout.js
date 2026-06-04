@@ -34,14 +34,20 @@ import {
 	EMPTY_MEASURE_WIDTH,
 	INTER_SYSTEM_GAP,
 	INTRA_STAFF_GAP,
+	KEYSIG_TIMESIG_GAP,
 	LEDGER_WIDTH,
 	MAX_STRETCH,
 	MIN_ADV,
 	NOTEHEAD_RX,
+	OTTAVA_ABOVE_LANE_Y,
 	STAFF_HEIGHT_SP,
+	STAFF_MARGIN_X,
 	STEM_LENGTH,
 	SYSTEM_BOTTOM_MARGIN,
 	SYSTEM_TOP_MARGIN,
+	TEMPO_LANE_Y,
+	TIE_NOTE_CLEARANCE,
+	TOP_TEXT_RESERVE,
 } from "./constants.js";
 import { ACCIDENTAL_GLYPHS } from "./glyphs.js";
 
@@ -1273,11 +1279,14 @@ const TIME_SIG_WIDTH = 2.5;
 const RESERVE_PAD = 1;
 
 /**
- * The per-system leading reserve in sp (design §6.3): brace + both clefs + each
- * hand's `alters` cluster (its glyph count × the cluster step), plus the time
- * signature when `withTimeSig`. Computed from the glyphs ACTUALLY printed, so it
- * varies with the number of alters. This reserve is subtracted from the container
- * to get the content budget and is NEVER scaled by justify.
+ * The per-system leading reserve in sp (design §6.3): brace + one clef column (the two
+ * clefs are vertically stacked, so they share ONE horizontal slot) + the wider hand's
+ * `alters` cluster (its glyph count × the cluster step) + a gap before the time
+ * signature when alters print, plus the time signature itself when `withTimeSig`.
+ * Computed from the glyphs ACTUALLY printed, so it varies with the number of alters.
+ * The field-advance arithmetic here is mirrored exactly by the positioned reserve model
+ * in `buildLayoutModel`, so the measures begin precisely past the time signature (review
+ * F1). This reserve is subtracted from the content budget and is NEVER scaled by justify.
  *
  * @param {{ clef: string, alters: object }} rightCtx The RH resolved context.
  * @param {{ clef: string, alters: object }} leftCtx The LH resolved context.
@@ -1286,8 +1295,11 @@ const RESERVE_PAD = 1;
  */
 export function leadingReserveFor(rightCtx, leftCtx, withTimeSig) {
 	const altersWidth = (ctx) => keySignatureCluster(ctx.alters, ctx.clef).width;
-	let reserve = BRACE_WIDTH + 2 * CLEF_WIDTH;
-	reserve += Math.max(altersWidth(rightCtx), altersWidth(leftCtx));
+	const maxAlters = Math.max(altersWidth(rightCtx), altersWidth(leftCtx));
+	let reserve = BRACE_WIDTH + CLEF_WIDTH + maxAlters;
+	if (maxAlters > 0) {
+		reserve += KEYSIG_TIMESIG_GAP;
+	}
 	if (withTimeSig) {
 		reserve += TIME_SIG_WIDTH;
 	}
@@ -1608,7 +1620,9 @@ export function buildLayoutModel(song, availableWidthInSp) {
 		return { contentWidth: ml.width, reserve };
 	});
 
-	const systemRanges = packSystems(packing, budgetSp);
+	// Pack against the budget MINUS the two staff margins (review F9), so the reserve +
+	// measures always fit inside the inset staff lines.
+	const systemRanges = packSystems(packing, budgetSp - 2 * STAFF_MARGIN_X);
 
 	// ── Assemble each system. ─────────────────────────────────────────────────────
 	const systems = [];
@@ -1633,7 +1647,9 @@ export function buildLayoutModel(song, availableWidthInSp) {
 			head.ctx.leftHand,
 			systemHasTimeSig,
 		);
-		const availSp = Math.max(budgetSp - reserve, 0);
+		// The content budget excludes the left/right staff margins (review F9) and the
+		// leading reserve. Measures live in [STAFF_MARGIN_X + reserve, budgetSp − STAFF_MARGIN_X].
+		const availSp = Math.max(budgetSp - 2 * STAFF_MARGIN_X - reserve, 0);
 
 		const contentSp = members.reduce((sum, m) => sum + m.contentWidth, 0);
 		const { advanceScale, downscaleFactor } = systemScale(contentSp, availSp, {
@@ -1641,7 +1657,15 @@ export function buildLayoutModel(song, availableWidthInSp) {
 		});
 
 		// ── Vertical band layout for this system (computed from content). ───────────
-		const topMargin = SYSTEM_TOP_MARGIN + ledgerTopExtent(members);
+		// A system carrying a tempo mark and/or an above-staff ottava needs a deeper top
+		// margin so those texts get their own lanes ABOVE the note zone (review F4/F5);
+		// otherwise the base margin suffices. The note zone always starts at the base
+		// margin below the system top, so the lanes (TEMPO_LANE_Y / OTTAVA_ABOVE_LANE_Y)
+		// stay clear of the highest notes regardless of any ledger stack.
+		const baseTopMargin = systemHasTopText(members)
+			? TOP_TEXT_RESERVE
+			: SYSTEM_TOP_MARGIN;
+		const topMargin = baseTopMargin + ledgerTopExtent(members);
 		const bottomMargin = SYSTEM_BOTTOM_MARGIN + ledgerBottomExtent(members);
 		const rhBottomY = topMargin + STAFF_HEIGHT_SP;
 		const lhTopY = rhBottomY + INTRA_STAFF_GAP;
@@ -1656,41 +1680,61 @@ export function buildLayoutModel(song, availableWidthInSp) {
 			leftStaffTopY: lhTopY,
 			leftStaffBottomY: lhBottomY,
 			height: systemHeight,
+			// Dedicated text lanes above the staff (system-top coordinates).
+			tempoLaneY: TEMPO_LANE_Y,
+			ottavaAboveLaneY: OTTAVA_ABOVE_LANE_Y,
 		};
 
 		// ── Leading reserve content: brace + clefs + key sigs (+ time sig). ─────────
+		// Each field is positioned from the previous field's REAL width — not a fixed
+		// offset — so the clef, the key-signature cluster, and the time signature get
+		// reserved, non-overlapping space whatever the alter count (review F1). The whole
+		// head is inset by the left staff margin (review F9). These advances mirror
+		// `leadingReserveFor`, so the measures (which start at STAFF_MARGIN_X + reserve)
+		// begin exactly past the time signature.
 		const headCtx = head.ctx;
+		const rightCluster = keySignatureCluster(
+			headCtx.rightHand.alters,
+			headCtx.rightHand.clef,
+			{ bottomLineY: rhBottomY },
+		);
+		const leftCluster = keySignatureCluster(
+			headCtx.leftHand.alters,
+			headCtx.leftHand.clef,
+			{ bottomLineY: lhBottomY },
+		);
+		const maxClusterWidth = Math.max(rightCluster.width, leftCluster.width);
+		const braceX = STAFF_MARGIN_X;
+		const clefX = braceX + BRACE_WIDTH;
+		const keySigX = clefX + CLEF_WIDTH;
+		const timeSigX =
+			keySigX +
+			maxClusterWidth +
+			(maxClusterWidth > 0 ? KEYSIG_TIMESIG_GAP : 0);
 		const reserveModel = {
 			width: reserve,
-			brace: { x: 0 },
+			brace: { x: braceX },
 			clefs: {
 				right: {
 					glyph: clefGlyph(headCtx.rightHand.clef),
 					clef: headCtx.rightHand.clef,
+					x: clefX,
 				},
 				left: {
 					glyph: clefGlyph(headCtx.leftHand.clef),
 					clef: headCtx.leftHand.clef,
+					x: clefX,
 				},
 			},
-			keySig: {
-				right: keySignatureCluster(
-					headCtx.rightHand.alters,
-					headCtx.rightHand.clef,
-					{ bottomLineY: rhBottomY },
-				),
-				left: keySignatureCluster(
-					headCtx.leftHand.alters,
-					headCtx.leftHand.clef,
-					{ bottomLineY: lhBottomY },
-				),
-			},
+			keySig: { right: rightCluster, left: leftCluster, x: keySigX },
 			timeSignature: systemHasTimeSig ? headCtx.timeSignature : null,
+			timeSignatureX: timeSigX,
 		};
 
 		// ── Walk the measures, placing each at its absolute X. ──────────────────────
+		// The first measure starts past the left margin AND the leading reserve.
 		const measureModels = [];
-		let x = reserve;
+		let x = STAFF_MARGIN_X + reserve;
 		members.forEach((m, localIdx) => {
 			const ml = m.layout;
 			const ts = m.ctx.timeSignature;
@@ -1723,9 +1767,18 @@ export function buildLayoutModel(song, availableWidthInSp) {
 				ts,
 			);
 
-			// Right barline (always) at the measure's right edge; a left barline only
+			// The trailing room reserved for the right barline (its own width + a small
+			// pad). The bar sits centered in that room so there is whitespace BEFORE it,
+			// and the next measure starts past the room so there is whitespace AFTER it —
+			// otherwise the next bar's first note lands on the line (review F6). This room
+			// is already counted in the packing width (`ml.width`), so honoring it here
+			// just turns reserved budget into real space — no overflow.
+			const endType = m.measure?.barlineEnd ?? "regular";
+			const trailingPad = barlineTrailingPad(endType);
+
+			// Right barline (always) centered in the trailing room; a left barline only
 			// for repeat-start, and never on the score's very first measure.
-			const measureRightX = x + scaledContent;
+			const measureRightX = x + scaledContent + trailingPad * 0.5;
 			const barlines = [];
 			const startType = m.measure?.barlineStart;
 			if (startType === "repeat-start" && !m.isFirstOfScore) {
@@ -1735,7 +1788,6 @@ export function buildLayoutModel(song, availableWidthInSp) {
 					...barlineSpec(startType, x),
 				});
 			}
-			const endType = m.measure?.barlineEnd ?? "regular";
 			barlines.push({
 				side: "end",
 				type: endType,
@@ -1775,17 +1827,21 @@ export function buildLayoutModel(song, availableWidthInSp) {
 				inline,
 			});
 
-			x = measureRightX;
+			// Advance past the full trailing room so the next measure clears the bar.
+			x += scaledContent + trailingPad;
 		});
 
 		// ── System-level texts: tempo + measure number + ottava. ────────────────────
-		const texts = buildSystemTexts(members, measureModels, band, reserve);
+		const texts = buildSystemTexts(members, measureModels, band);
 
 		systems.push({
 			index: sysIdx,
 			y: yCursor,
 			height: systemHeight,
 			width: budgetSp,
+			// The staff lines span the inset content area, not the full box (review F9).
+			staffStartX: STAFF_MARGIN_X,
+			staffEndX: budgetSp - STAFF_MARGIN_X,
 			advanceScale,
 			downscaleFactor,
 			band,
@@ -1897,41 +1953,61 @@ function handStepsFor(events, clef) {
  * time-signature glyph — placed at the boundary measure's left X. (Tempo and ottava
  * changes surface as system texts / spans, not inline glyphs here.)
  *
+ * Each present field is positioned from the previous field's REAL width (clef →
+ * key sig → time sig), so a multi-accidental change does not collide with the new
+ * time signature (review F1) — mirroring the system-head reserve.
+ *
  * @param {object} member The flattened measure entry (carries `ctx` + `diff`).
  * @param {number} x The boundary measure's absolute left X, in sp.
- * @return {{ clefs: object, keySig: object, timeSignature: ?object }} The inline
- *   changes (empty sub-objects where nothing changed).
+ * @return {{ x: number, clefs: object, keySig: object, timeSignature: ?object,
+ *   timeSignatureX: number }} The inline changes (empty sub-objects where nothing
+ *   changed) with each field's absolute X.
  */
 function inlineSectionChange(member, x) {
 	const { ctx, diff } = member;
+	let cursor = x;
 	const clefs = {};
-	const keySig = {};
 	if (diff.rightHand.clef) {
 		clefs.right = {
 			glyph: clefGlyph(ctx.rightHand.clef),
 			clef: ctx.rightHand.clef,
+			x: cursor,
 		};
 	}
 	if (diff.leftHand.clef) {
 		clefs.left = {
 			glyph: clefGlyph(ctx.leftHand.clef),
 			clef: ctx.leftHand.clef,
+			x: cursor,
 		};
 	}
+	if (clefs.right || clefs.left) {
+		cursor += CLEF_WIDTH;
+	}
+
+	const keySig = { x: cursor };
+	let maxClusterWidth = 0;
 	if (diff.rightHand.alters) {
 		keySig.right = keySignatureCluster(
 			ctx.rightHand.alters,
 			ctx.rightHand.clef,
 		);
+		maxClusterWidth = Math.max(maxClusterWidth, keySig.right.width);
 	}
 	if (diff.leftHand.alters) {
 		keySig.left = keySignatureCluster(ctx.leftHand.alters, ctx.leftHand.clef);
+		maxClusterWidth = Math.max(maxClusterWidth, keySig.left.width);
 	}
+	if (maxClusterWidth > 0) {
+		cursor += maxClusterWidth + KEYSIG_TIMESIG_GAP;
+	}
+
 	return {
 		x,
 		clefs,
 		keySig,
 		timeSignature: diff.timeSignature ? ctx.timeSignature : null,
+		timeSignatureX: cursor,
 	};
 }
 
@@ -2011,10 +2087,12 @@ function resolveAllSpans(placedEvents) {
 }
 
 /**
- * The Bézier geometry for one resolved span (design §6.7). A tie is a short, shallow
- * arc near the notehead Y bulging OPPOSITE the stem; a slur is a longer arc OVER the
- * phrase (above the stems). The same quadratic-Bézier primitive serves both; only
- * the reach, side, and bulge differ.
+ * The Bézier geometry for one resolved span (design §6.7). A tie arcs clear of the
+ * noteheads — its endpoints sit a notehead's clearance ABOVE or BELOW the heads (on
+ * the side opposite the stem), never through their centers (review F8) — bulging
+ * further in that same direction. A slur is a longer arc OVER the phrase (above the
+ * stems). The same quadratic-Bézier primitive serves both; only the reach, side, and
+ * bulge differ.
  *
  * @param {"tie"|"slur"} kind The span kind.
  * @param {{ anchor: object }} start The start anchor.
@@ -2028,24 +2106,65 @@ function buildSpanSpec(kind, start, stop, hand) {
 	const x1 = a.x + NOTEHEAD_RX;
 	const x2 = b.x - NOTEHEAD_RX;
 	const midX = (x1 + x2) / 2;
-	// A tie bulges opposite the start note's stem; a slur always arcs above.
-	const bulge = kind === "slur" ? -1.2 : a.direction === "up" ? 1 : -1;
-	const baseY = kind === "slur" ? Math.min(a.y, b.y) : a.y;
 	const cx = midX;
-	const cy = baseY + bulge;
+
+	if (kind === "slur") {
+		// A slur always arcs above the phrase (negative Y is up in the staff frame).
+		const baseY = Math.min(a.y, b.y);
+		return {
+			kind,
+			hand,
+			systemIndex: start.systemIndex,
+			x1,
+			y1: a.y,
+			x2,
+			y2: b.y,
+			cx,
+			cy: baseY - 1.2,
+			crossSystem: start.systemIndex !== stop.systemIndex,
+		};
+	}
+
+	// Tie: place it on the side OPPOSITE the start note's stem — stem up → tie below
+	// the heads (sign +1, downward), stem down → tie above (sign −1, upward). The
+	// endpoints are offset clear of the noteheads, and the control bulges further so
+	// the whole arc stays off the heads.
+	const sign = a.direction === "up" ? 1 : -1;
+	const y1 = a.y + sign * TIE_NOTE_CLEARANCE;
+	const y2 = b.y + sign * TIE_NOTE_CLEARANCE;
+	const cy = (y1 + y2) / 2 + sign * 0.9;
 	return {
 		kind,
 		hand,
 		systemIndex: start.systemIndex,
 		x1,
-		y1: a.y,
+		y1,
 		x2,
-		y2: b.y,
+		y2,
 		cx,
 		cy,
 		// True when the pair spans two systems: the emit layer clips to system edges.
 		crossSystem: start.systemIndex !== stop.systemIndex,
 	};
+}
+
+/**
+ * Whether a system carries any text that needs a dedicated lane above the staff — a
+ * tempo mark (score start or a tempo change) or an above-staff ottava (a positive
+ * `octaveShift` in either hand). Drives the deeper top margin (review F4/F5).
+ *
+ * @param {object[]} members The system's flattened measure entries.
+ * @return {boolean} True when a tempo or above-staff ottava prints on this system.
+ */
+function systemHasTopText(members) {
+	return members.some((m) => {
+		const hasTempo =
+			(m.isFirstOfScore || (m.diff ? m.diff.tempo : false)) &&
+			!!tempoMark(m.ctx.tempo);
+		const hasOttavaAbove =
+			m.ctx.rightHand.octaveShift > 0 || m.ctx.leftHand.octaveShift > 0;
+		return hasTempo || hasOttavaAbove;
+	});
 }
 
 /**
@@ -2064,10 +2183,9 @@ function buildSpanSpec(kind, start, stop, hand) {
  * @param {object[]} members The system's flattened measure entries.
  * @param {object[]} measureModels The system's positioned measure models.
  * @param {object} band The system's band Y layout.
- * @param {number} reserve The leading reserve width, in sp.
  * @return {{ tempos: object[], measureNumber: object, ottavas: object[] }} The texts.
  */
-function buildSystemTexts(members, measureModels, band, reserve) {
+function buildSystemTexts(members, measureModels, band) {
 	const head = members[0];
 
 	// Tempo: at the score start and at any in-system tempo change (a section start
@@ -2081,8 +2199,11 @@ function buildSystemTexts(members, measureModels, band, reserve) {
 			if (mark) {
 				tempos.push({
 					...mark,
-					x: i === 0 ? reserve : measureModels[i].x,
-					y: band.topMargin - 1,
+					// The tempo prints at its measure's left edge (the score-start one
+					// over the first measure, just past the leading reserve).
+					x: measureModels[i].x,
+					// Topmost lane, above the note zone (review F4/F5).
+					y: band.tempoLaneY,
 				});
 			}
 		}
@@ -2090,7 +2211,8 @@ function buildSystemTexts(members, measureModels, band, reserve) {
 
 	const measureNumber = {
 		text: String(head.number),
-		x: Math.max(reserve - 1, 0),
+		// Above-left of the first measure, never left of the staff margin.
+		x: Math.max(measureModels[0].x - 1, STAFF_MARGIN_X),
 		y: band.rightStaffTopY - 1,
 	};
 
@@ -2104,8 +2226,6 @@ function buildSystemTexts(members, measureModels, band, reserve) {
 			}
 			const ott = ottavaFor(run.shift);
 			if (ott && run.xs.length > 0) {
-				const staffTopY =
-					hand === "rightHand" ? band.rightStaffTopY : band.leftStaffTopY;
 				const staffBottomY =
 					hand === "rightHand" ? band.rightStaffBottomY : band.leftStaffBottomY;
 				ottavas.push({
@@ -2114,7 +2234,12 @@ function buildSystemTexts(members, measureModels, band, reserve) {
 					placement: ott.placement,
 					x1: Math.min(...run.xs) - NOTEHEAD_RX,
 					x2: Math.max(...run.xs) + NOTEHEAD_RX,
-					y: ott.placement === "above" ? staffTopY - 2 : staffBottomY + 2,
+					// Above: its own lane below the tempo and above the notes (review
+					// F4/F5). Below: in the bottom margin, clear of low ledgers.
+					y:
+						ott.placement === "above"
+							? band.ottavaAboveLaneY
+							: staffBottomY + 2,
 				});
 			}
 			run = null;

@@ -66,17 +66,17 @@ Each finding is independently addressable. Format: **observation → where it li
 
 ## Summary table
 
-| ID | Owner's point | Primary location | Type |
-|----|---------------|------------------|------|
-| F1 | Reserve space per head field | `svg.js renderReserve` / `layout.js leadingReserveFor` | overlap (root) |
-| F2 | Brace not centered | `svg.js renderReserve` brace / `fontGlyph` baseline | alignment |
-| F3 | ~~Alters after time sig~~ → keep standard order | folded into F1 | resolved |
-| F4 | Tempo & ottava higher | `layout.js buildSystemTexts` + top margin | overlap w/ notes |
-| F5 | Tempo & ottava in separate lanes | `layout.js buildSystemTexts` + top margin | overlap w/ each other |
-| F6 | Space before & after each barline | `layout.js` system walk / `trailingPad` | spacing |
-| F7 | Note accidental further from notehead | `constants.js ACCIDENTAL_GAP` / `stackAccidentals` | spacing |
-| F8 | Ties above/below, not through | `layout.js buildSpanSpec` | tie geometry |
-| F9 | Staff escapes the box | `svg.js` viewBox/margins / `model.width` | bounds |
+| ID | Owner's point | Primary location | Type | Status |
+|----|---------------|------------------|------|--------|
+| F1 | Reserve space per head field | `svg.js renderReserve` / `layout.js leadingReserveFor` | overlap (root) | ✅ Fixed |
+| F2 | Brace not centered | `svg.js renderReserve` brace / `fontGlyph` baseline | alignment | ✅ Fixed |
+| F3 | ~~Alters after time sig~~ → keep standard order | folded into F1 | resolved | ✅ N/A |
+| F4 | Tempo & ottava higher | `layout.js buildSystemTexts` + top margin | overlap w/ notes | ✅ Fixed |
+| F5 | Tempo & ottava in separate lanes | `layout.js buildSystemTexts` + top margin | overlap w/ each other | ✅ Fixed |
+| F6 | Space before & after each barline | `layout.js` system walk / `trailingPad` | spacing | ✅ Fixed |
+| F7 | Note accidental further from notehead | `constants.js ACCIDENTAL_GAP` / `stackAccidentals` | spacing | ✅ Fixed |
+| F8 | Ties above/below, not through | `layout.js buildSpanSpec` | tie geometry | ✅ Fixed |
+| F9 | Staff escapes the box | `svg.js` viewBox/margins / `model.width` | bounds | ✅ Fixed |
 
 ## Owner decisions (resolved during review)
 
@@ -89,3 +89,17 @@ Each finding is independently addressable. Format: **observation → where it li
 - F4 and F5 share the same `buildSystemTexts` + top-margin work — handle together.
 - Most fixes are tunable constants in `constants.js` (`ACCIDENTAL_GAP`, top margins, a new barline/edge pad) plus positioning logic in `layout.js`; `svg.js` should stop deriving its own offsets and only place what the model gives it.
 - Regression guard: the layout engine has 199 unit tests; new placement should keep them green and add cases for head-field spacing, barline gaps, tie clearance, and viewBox margins.
+
+## Resolution (fix pass)
+
+All findings addressed in `src/notation/{constants,layout,svg}.js` and guarded by 5 new unit tests (`layout.test.js` → "review-1 layout fixes"). What changed:
+
+- **F1** — `buildLayoutModel` now positions clef → key sig → time sig from each field's REAL width (mirrored by the corrected `leadingReserveFor`, which also drops the old double-clef over-reserve); `renderReserve` just places the model's `x` values. The same width-aware advance fixes the mid-system section change (`inlineSectionChange`).
+- **F2** — the brace uses a centered baseline (`fontGlyph` gained a `baseline` option) so it straddles both staves, and sits inside the left margin.
+- **F4/F5** — tempo and above-staff ottava render in two stacked lanes (`TEMPO_LANE_Y`, `OTTAVA_ABOVE_LANE_Y`) above the note zone; systems carrying them use a deeper top margin (`TOP_TEXT_RESERVE`).
+- **F6** — the per-measure trailing barline room (already in the packing width) is now real layout space: the bar is centered in it and the next measure starts past it.
+- **F7** — `ACCIDENTAL_GAP` 0.6 → 1.2 (now clears `NOTEHEAD_RX`).
+- **F8** — tie endpoints offset clear of the noteheads (opposite the stem) via `TIE_NOTE_CLEARANCE`, bulging further so the arc never crosses a head.
+- **F9** — `STAFF_MARGIN_X` insets the staff lines, brace, and barlines on both sides; the content budget and packing subtract the margins so nothing bleeds past the box.
+
+**Verification:** 257 unit tests pass, `npm run build` + Biome clean, and a headless render of the comprehensive song (the screenshot fixture, real font) confirms every overlap is gone and the staff stays inside the box.

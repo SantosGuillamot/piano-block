@@ -9,7 +9,16 @@
  * DOM-free plain data in staff-space (sp) units; later parts (T5/T6) extend this
  * same file.
  */
-import { EMPTY_MEASURE_WIDTH, MAX_STRETCH, MIN_ADV } from "../constants.js";
+import {
+	ACCIDENTAL_GAP,
+	EMPTY_MEASURE_WIDTH,
+	MAX_STRETCH,
+	MIN_ADV,
+	NOTEHEAD_RX,
+	OTTAVA_ABOVE_LANE_Y,
+	STAFF_MARGIN_X,
+	TEMPO_LANE_Y,
+} from "../constants.js";
 import {
 	advanceFor,
 	barlineSpec,
@@ -1449,6 +1458,76 @@ describe("buildLayoutModel — the full positioned-primitive model (§6.3/§6.6/
 		for (const sys of model.systems) {
 			expect(sys.band.rightStaffTopY).toBeDefined();
 			expect(sys.band.leftStaffTopY).toBeDefined();
+		}
+	});
+});
+
+// ── Review 1 (PR #6) layout-polish fixes — see .rp/pipelines/4-render-sheet-music/
+// 6-review/review-1.md (F1, F4/F5, F6, F7, F9) ───────────────────────────────────
+describe("review-1 layout fixes (F1, F4/F5, F6, F7, F9)", () => {
+	it("F1 — head fields get reserved, non-overlapping X (clef → key sig → time sig)", () => {
+		const reserve = buildLayoutModel(COMPREHENSIVE_SONG, 200).systems[0]
+			.reserve;
+		const clefX = reserve.clefs.right.x;
+		const keySigX = reserve.keySig.x;
+		const maxCluster = Math.max(
+			reserve.keySig.right.width,
+			reserve.keySig.left.width,
+		);
+		// Strictly increasing field positions, and the time signature begins past the
+		// whole key-signature cluster (no overlap whatever the alter count).
+		expect(clefX).toBeLessThan(keySigX);
+		expect(reserve.timeSignatureX).toBeGreaterThan(keySigX + maxCluster);
+	});
+
+	it("F4/F5 — tempo and above-ottava sit in stacked lanes above the staff", () => {
+		const sys = buildLayoutModel(COMPREHENSIVE_SONG, 200).systems[0];
+		const above = sys.texts.ottavas.filter((o) => o.placement === "above");
+		expect(sys.texts.tempos.length).toBeGreaterThan(0);
+		expect(above.length).toBeGreaterThan(0);
+		// Tempo lane is strictly above the ottava lane, and both are above the staff top.
+		expect(TEMPO_LANE_Y).toBeLessThan(OTTAVA_ABOVE_LANE_Y);
+		expect(OTTAVA_ABOVE_LANE_Y).toBeLessThan(sys.band.rightStaffTopY);
+		for (const t of sys.texts.tempos) {
+			expect(t.y).toBeCloseTo(TEMPO_LANE_Y, 10);
+		}
+		for (const o of above) {
+			expect(o.y).toBeCloseTo(OTTAVA_ABOVE_LANE_Y, 10);
+		}
+	});
+
+	it("F6 — every barline leaves a gap before the next measure's first note", () => {
+		const measures = buildLayoutModel(COMPREHENSIVE_SONG, 200).systems[0]
+			.measures;
+		expect(measures.length).toBeGreaterThan(1);
+		for (let i = 1; i < measures.length; i++) {
+			// The next measure starts strictly past the previous measure's content end
+			// (the trailing barline room), so its first note never lands on the line.
+			expect(measures[i].x).toBeGreaterThan(
+				measures[i - 1].x + measures[i - 1].width,
+			);
+		}
+	});
+
+	it("F7 — an accidental clears the notehead (gap exceeds the notehead radius)", () => {
+		expect(ACCIDENTAL_GAP).toBeGreaterThan(NOTEHEAD_RX);
+	});
+
+	it("F9 — staff lines are inset and all content stays inside the box", () => {
+		const model = buildLayoutModel(COMPREHENSIVE_SONG, 200);
+		for (const sys of model.systems) {
+			expect(sys.staffStartX).toBeCloseTo(STAFF_MARGIN_X, 10);
+			expect(sys.staffEndX).toBeCloseTo(model.width - STAFF_MARGIN_X, 10);
+			// The first measure begins at/after the inset, and no barline stroke crosses
+			// the right inset — nothing bleeds past the staff lines (review F9).
+			expect(sys.measures[0].x).toBeGreaterThanOrEqual(STAFF_MARGIN_X);
+			for (const m of sys.measures) {
+				for (const bar of m.barlines) {
+					for (const stroke of bar.strokes ?? []) {
+						expect(stroke.x).toBeLessThanOrEqual(sys.staffEndX + 1e-9);
+					}
+				}
+			}
 		}
 	});
 });

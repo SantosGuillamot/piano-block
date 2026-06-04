@@ -81,11 +81,30 @@ export const INTRA_STAFF_GAP = 8;
 /** Vertical gap between stacked grand-staff systems. */
 export const INTER_SYSTEM_GAP = 10;
 
-/** Top margin of a system (room for chord symbols / ottava / tempo / ledgers). */
+/** Top margin of a system (room for chord symbols / ledgers) when it carries no tempo/ottava. */
 export const SYSTEM_TOP_MARGIN = 5;
 
 /** Bottom margin of a system (room for dynamics / low ledgers). */
 export const SYSTEM_BOTTOM_MARGIN = 5;
+
+/**
+ * Top margin used when a system carries a tempo mark and/or an above-staff ottava
+ * bracket — deep enough to stack both in their own lanes ABOVE the note zone so
+ * neither collides with high notes (review F4) nor with each other (review F5).
+ */
+export const TOP_TEXT_RESERVE = 7;
+
+/** Tempo-mark baseline Y (from the system top): the topmost text lane (review F4/F5). */
+export const TEMPO_LANE_Y = 2.8;
+
+/** Above-staff ottava-bracket baseline Y (from the system top): the lane below tempo. */
+export const OTTAVA_ABOVE_LANE_Y = 5;
+
+/**
+ * Horizontal inset on each side of a system, in sp: keeps the staff lines, the brace,
+ * and the final barline inside the rendered box instead of bleeding past it (review F9).
+ */
+export const STAFF_MARGIN_X = 1.5;
 
 // ── Barlines (design §6.7) ─────────────────────────────────────────────────────
 
@@ -100,11 +119,24 @@ export const BARLINE_THICK = 0.5;
 /** Ledger-line segment width, centered on the notehead. */
 export const LEDGER_WIDTH = 2;
 
-/** Gap between an accidental glyph and the notehead it sits left of. */
-export const ACCIDENTAL_GAP = 0.6;
+/**
+ * Gap between an accidental glyph's center and the notehead center it sits left of.
+ * Must clear the notehead (`NOTEHEAD_RX`) plus the glyph's own half-width so the
+ * accidental reads as a separate symbol and never overlaps the head (review F7).
+ */
+export const ACCIDENTAL_GAP = 1.2;
 
 /** Horizontal step pushing a chord accidental into a further-left column. */
 export const ACCIDENTAL_COL_STEP = 1.3;
+
+/** Gap between the end of the key-signature cluster and the time signature (review F1). */
+export const KEYSIG_TIMESIG_GAP = 0.8;
+
+/**
+ * Vertical clearance, in sp, between a notehead center and a tie's endpoint, so the
+ * tie arcs clear of the noteheads (above or below) instead of through them (review F8).
+ */
+export const TIE_NOTE_CLEARANCE = 0.9;
 
 // ── Text sizes, in sp (design §6.7) ────────────────────────────────────────────
 

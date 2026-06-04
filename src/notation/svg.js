@@ -136,7 +136,11 @@ function fontGlyph(
 	name,
 	x,
 	y,
-	{ size = GLYPH_FONT_SIZE_SP, anchor = "middle" } = {},
+	{
+		size = GLYPH_FONT_SIZE_SP,
+		anchor = "middle",
+		baseline = "alphabetic",
+	} = {},
 ) {
 	const record = glyphFor(name);
 	if (!record?.codepoint) {
@@ -149,7 +153,7 @@ function fontGlyph(
 		"font-family": MUSIC_FONT_FAMILY,
 		"font-size": size,
 		"text-anchor": anchor,
-		"dominant-baseline": "alphabetic",
+		"dominant-baseline": baseline,
 	});
 	return setText(node, record.codepoint);
 }
@@ -291,9 +295,12 @@ function renderSystem(system) {
 	});
 
 	// Staff lines for both grand-staff staves, then the leading reserve, the
-	// measures, the resolved spans, and finally the system texts.
-	g.appendChild(staffLines(band.rightStaffTopY, system.width));
-	g.appendChild(staffLines(band.leftStaffTopY, system.width));
+	// measures, the resolved spans, and finally the system texts. The lines span the
+	// inset content area, not the full box, so the staff never bleeds out (review F9).
+	const staffStartX = system.staffStartX ?? 0;
+	const staffEndX = system.staffEndX ?? system.width;
+	g.appendChild(staffLines(band.rightStaffTopY, staffStartX, staffEndX));
+	g.appendChild(staffLines(band.leftStaffTopY, staffStartX, staffEndX));
 
 	g.appendChild(renderReserve(system.reserve, band));
 
@@ -311,15 +318,15 @@ function renderSystem(system) {
 }
 
 /**
- * The five staff lines of one staff, as a `<g>` of `<line>`s. The top line is at
- * `topY`; each subsequent line is one sp below (the staff spans 4 sp). Drawn as raw
- * primitives — never font-dependent (design §2.4).
+ * The five staff lines of one staff, as a `<g>` of `<line>`s spanning `[startX, endX]`.
+ * The top line is at `topY`; each subsequent line is one sp below (the staff spans 4
+ * sp). Drawn as raw primitives — never font-dependent (design §2.4).
  */
-function staffLines(topY, width) {
+function staffLines(topY, startX, endX) {
 	const g = el("g", { "data-staff-lines": "" });
 	for (let i = 0; i < STAFF_LINE_COUNT; i++) {
 		const y = topY + i;
-		g.appendChild(line(0, y, width, y, BARLINE_THIN));
+		g.appendChild(line(startX, y, endX, y, BARLINE_THIN));
 	}
 	return g;
 }
@@ -335,32 +342,45 @@ function renderReserve(reserve, band) {
 		return g;
 	}
 
-	// Brace at x=0 spanning from the RH staff top to the LH staff bottom (centered
-	// vertically across the band so the font glyph straddles both staves).
+	// Every field's X comes from the layout model, which advances each by the previous
+	// field's real width (review F1) — the emit layer adds no spacing math of its own.
+
+	// Brace spanning from the RH staff top to the LH staff bottom, centered on the band
+	// via a centered baseline so the glyph straddles both staves rather than riding high
+	// off its alphabetic baseline (review F2).
 	const braceY = (band.rightStaffTopY + band.leftStaffBottomY) / 2;
 	const braceHeight = band.leftStaffBottomY - band.rightStaffTopY;
 	const brace = fontGlyph("brace", reserve.brace?.x ?? 0, braceY, {
 		size: braceHeight,
+		baseline: "central",
 	});
 	if (brace) {
 		g.appendChild(brace);
 	}
 
-	// Clefs: the RH clef on the RH staff, the LH clef on the LH staff. A clef sits
-	// just right of the brace; its vertical anchor is the staff's reference line,
-	// which the font glyph itself encodes, so we anchor at the staff center.
-	const clefX = (reserve.brace?.x ?? 0) + 1.5;
-	appendClef(g, reserve.clefs?.right, clefX, band.rightStaffTopY);
-	appendClef(g, reserve.clefs?.left, clefX, band.leftStaffTopY);
+	// Clefs: the RH clef on the RH staff, the LH clef on the LH staff, both at the
+	// model's clef X (the two clefs share one horizontal slot, stacked vertically).
+	appendClef(
+		g,
+		reserve.clefs?.right,
+		reserve.clefs?.right?.x,
+		band.rightStaffTopY,
+	);
+	appendClef(
+		g,
+		reserve.clefs?.left,
+		reserve.clefs?.left?.x,
+		band.leftStaffTopY,
+	);
 
 	// Key-signature clusters (their glyph Ys are already in band coordinates).
-	const keySigX = clefX + 2;
+	const keySigX = reserve.keySig?.x ?? 0;
 	appendKeySig(g, reserve.keySig?.right, keySigX);
 	appendKeySig(g, reserve.keySig?.left, keySigX);
 
-	// Time signature (only when this system prints one), centered after the key sig.
+	// Time signature (only when this system prints one), at the model's reserved X.
 	if (reserve.timeSignature) {
-		const tsX = keySigX + 2;
+		const tsX = reserve.timeSignatureX ?? keySigX;
 		appendTimeSignature(g, reserve.timeSignature, tsX, band.rightStaffTopY);
 		appendTimeSignature(g, reserve.timeSignature, tsX, band.leftStaffTopY);
 	}
@@ -721,19 +741,24 @@ function renderBarline(barline, band, measureX) {
  */
 function renderInlineChange(inline, band, measureX) {
 	const g = el("g", { "data-inline-change": "" });
-	const x = (inline.x ?? 0) - measureX;
-
-	appendClef(g, inline.clefs?.right, x, band.rightStaffTopY);
-	appendClef(g, inline.clefs?.left, x, band.leftStaffTopY);
+	// Each field's absolute X comes from the model (width-aware, review F1); the measure
+	// group is already translated by measureX, so subtract it back to stay measure-local.
+	const fallbackX = inline.x ?? 0;
+	const clefRightX = (inline.clefs?.right?.x ?? fallbackX) - measureX;
+	const clefLeftX = (inline.clefs?.left?.x ?? fallbackX) - measureX;
+	appendClef(g, inline.clefs?.right, clefRightX, band.rightStaffTopY);
+	appendClef(g, inline.clefs?.left, clefLeftX, band.leftStaffTopY);
 
 	// Key-sig clusters here carry default (bottom-line-relative) Ys, so re-anchor
 	// each cluster onto its staff's bottom line.
-	appendInlineKeySig(g, inline.keySig?.right, x + 2, band.rightStaffBottomY);
-	appendInlineKeySig(g, inline.keySig?.left, x + 2, band.leftStaffBottomY);
+	const keySigX = (inline.keySig?.x ?? fallbackX) - measureX;
+	appendInlineKeySig(g, inline.keySig?.right, keySigX, band.rightStaffBottomY);
+	appendInlineKeySig(g, inline.keySig?.left, keySigX, band.leftStaffBottomY);
 
 	if (inline.timeSignature) {
-		appendTimeSignature(g, inline.timeSignature, x + 4, band.rightStaffTopY);
-		appendTimeSignature(g, inline.timeSignature, x + 4, band.leftStaffTopY);
+		const tsX = (inline.timeSignatureX ?? fallbackX) - measureX;
+		appendTimeSignature(g, inline.timeSignature, tsX, band.rightStaffTopY);
+		appendTimeSignature(g, inline.timeSignature, tsX, band.leftStaffTopY);
 	}
 
 	return g;
