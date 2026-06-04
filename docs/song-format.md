@@ -166,7 +166,9 @@ event := {
   dynamic?,       // enum: pp | p | mp | mf | f | ff | sf | sfz
   chordSymbol?,   // free-text string (e.g. "C", "Gm7")
   tie?,           // enum: start | stop
-  slur?           // enum: start | stop
+  slur?,          // enum: start | stop
+  crescendo?,     // enum: start | stop
+  decrescendo?    // enum: start | stop
 }
 ```
 
@@ -177,6 +179,9 @@ event := {
 - **`dynamic`** — one of `pp | p | mp | mf | f | ff | sf | sfz`.
 - **`chordSymbol`** — **free text** (an open vocabulary — the deliberate exception to the format's otherwise-closed enums), for example `"C"` or `"Gm7"`.
 - **`tie`** and **`slur`** — event-level `start | stop` markers.
+- **`crescendo`** and **`decrescendo`** — event-level `start | stop` markers for a gradual-dynamic span (a crescendo grows louder, a decrescendo grows softer). You put `"start"` on the note where the span begins and `"stop"` on the note where it ends. **The direction is intrinsic to which field you use:** a crescendo and a decrescendo are two distinct markings, and the direction is never inferred from the surrounding `dynamic` values — to write a decrescendo you mark `decrescendo`, regardless of whether any point dynamics happen to fall around it.
+  - **A span is independent of, and additive to, the per-note `dynamic`.** The `dynamic` field places a fixed point dynamic on a single note; a crescendo/decrescendo span describes a gradual change over a run of notes. The two are unrelated mechanisms: a point dynamic may sit at a span's start, at its end, at both, or at neither, and **no point dynamic is required** for a span. For example, a span may begin at a `"p"` note and end at an `"f"` note, or carry no point dynamics at all.
+  - **The two fields are independent, and a single note may carry both at once.** Marking `crescendo: "stop"` and `decrescendo: "start"` on the same note expresses a *messa-di-voce hinge*: a crescendo span ends and a decrescendo span begins on that shared note, so the music swells and then recedes (`<>`) across the two adjacent spans.
 
 ```json
 { "type": "note", "duration": "half", "dots": 1, "dynamic": "mf",
