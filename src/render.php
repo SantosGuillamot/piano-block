@@ -36,6 +36,6 @@ if ( '' === trim( $song ) ) {
 // Neutralize both ETAGO (`</`) and comment-open (`<!--`) breakout sequences at once
 // by escaping every `<` to the 6-character JSON unicode escape; JSON.parse restores
 // the exact author bytes on the frontend.
-$escaped_song = str_replace( '<', '<', $song );
+$escaped_song = str_replace( '<', '\u003C', $song );
 ?>
 <div <?php echo get_block_wrapper_attributes(); ?>><script type="application/json" class="wp-block-piano-block-piano__song"><?php echo $escaped_song; ?></script></div>
