@@ -40,8 +40,10 @@ both files are the real ones under `src/notation/`):
   (use `STEM_THICKNESS`, as `renderSpan` does via its `stroke-width`).
 - Schema event properties (`tie`/`slur`) are at `schema.js:146-147` inside
   `$defs.event.properties`.
-- `recordSpanMarkers` is at `layout.js:2110`; it pushes
-  `{ tie, slur, anchor, systemIndex }` and receives `staffBottomY` per-hand
+- `recordSpanMarkers` is at `layout.js:2110`; today it pushes its entry **inline**
+  (lines 2128-2133) as exactly `{ tie, slur, anchor, systemIndex }` — it does not
+  spread the event and does not use a projection helper, so any field the matcher
+  needs must be pushed explicitly. It receives `staffBottomY` per-hand
   (call sites `layout.js:1827` and `1834`, passing `band.rightStaffBottomY` /
   `band.leftStaffBottomY`).
 - `resolveAllSpans` is at `layout.js:2149`; it iterates `for (const kind of
@@ -132,34 +134,59 @@ both files are the real ones under `src/notation/`):
 
 ### Task 3: Carry the per-hand below-staff lane Y on each recorded event
 
-- **Goal:** Make the per-hand below-staff lane Y recoverable downstream, since the
-  current recorded `anchor.y` is the notehead Y and the lane Y cannot be
-  reconstructed from it.
+- **Goal:** Make the two new gradual-dynamic markers **and** the per-hand
+  below-staff lane Y recoverable downstream: the matcher reads the per-kind marker
+  off each stream entry, so `crescendo`/`decrescendo` must be recorded; and the
+  current recorded `anchor.y` is the notehead Y, from which the flat lane Y cannot
+  be reconstructed, so it too must be carried.
 - **Files to change:**
   - `src/notation/layout.js`
 - **Changes:**
-  - In `recordSpanMarkers` (`layout.js:2110`): the function already destructures
-    `staffBottomY` from `options` (line 2111) and receives it per-hand
-    (`band.rightStaffBottomY` ≈ staff bottom Y 9 for the right hand,
-    `band.leftStaffBottomY` ≈ 21 for the left; call sites 1827/1834). Add a
-    precomputed lane Y to **every** pushed stream entry (lines 2128-2133), e.g.
-    `laneY: staffBottomY + HAIRPIN_LANE_DY`. Push it on every entry unconditionally
-    — including entries with `anchor: null` (a rest/unplaceable note) — so matching
-    never desyncs and the field is always present.
+  - In `recordSpanMarkers` (`layout.js:2110`): the entry is pushed **inline** at
+    lines 2128-2133 as exactly `{ tie, slur, anchor, systemIndex }` (it does not
+    spread the event), so the two new markers will **not** appear on the entry
+    unless pushed explicitly. Extend the pushed object to also carry the two new
+    markers and the lane Y, so it becomes
+    `{ tie, slur, crescendo, decrescendo, anchor, systemIndex, laneY }` — matching
+    the design's recorded-entry shape (design-doc.md:161-163). Concretely, add to
+    the pushed object:
+    - `crescendo: event?.crescendo`
+    - `decrescendo: event?.decrescendo`
+    - `laneY: staffBottomY + HAIRPIN_LANE_DY` — a precomputed lane Y. The function
+      already destructures `staffBottomY` from `options` (line 2111) and receives it
+      per-hand (`band.rightStaffBottomY` ≈ staff bottom Y 9 for the right hand,
+      `band.leftStaffBottomY` ≈ 21 for the left; call sites 1827/1834).
+  - These three fields are pushed on **every** entry unconditionally — including
+    entries with `anchor: null` (a rest/unplaceable note) and entries where the
+    event has no `crescendo`/`decrescendo` (the value is then `undefined`, exactly
+    as `tie`/`slur` already are for non-tie/non-slur events) — so the stream index
+    never desyncs and `laneY` is always present.
   - Import `HAIRPIN_LANE_DY` from `./constants.js` in `layout.js`.
-  - This change is **purely additive**: the existing tie/slur read path reads only
-    `anchor` and the per-kind marker, never `laneY`, so no existing read path
-    changes.
+  - This change is **additive only for existing read paths**: the existing tie/slur
+    resolution reads only `anchor` and the per-kind marker (`e.tie` / `e.slur`),
+    never the three new fields, so no existing read path changes. The two new marker
+    fields exist solely to feed the new `crescendo`/`decrescendo` matcher passes
+    added in Task 4 — without them, that matcher projects `e.crescendo` /
+    `e.decrescendo` as `undefined` and finds zero pairs (Tasks 2/4/5/6 would be dead
+    code), so recording them here is what makes the feature live.
 - **Depends on:** Task 2
-- **Traces to:** Reqs 6, 10; AC3. Design section "The critical data-flow finding:
-  the lane Y must be carried."
+- **Traces to:** Reqs 1, 6, 10; AC3. Design section "The critical data-flow finding:
+  the lane Y must be carried," and the internal data-flow recorded-entry shape
+  (design-doc.md:161-163).
 - **Acceptance:**
   - Each entry pushed onto `placedEvents.rightHand` and `placedEvents.leftHand`
-    carries a numeric `laneY` field in addition to the existing
-    `{ tie, slur, anchor, systemIndex }`.
-  - The right-hand `laneY` and left-hand `laneY` differ (the lane is per-hand,
-    derived from the per-hand `staffBottomY`), with the right-hand value smaller
-    (higher on the page) than the left-hand value.
+    carries the two new marker fields `crescendo` and `decrescendo` **and** a numeric
+    `laneY` field, in addition to the existing `{ tie, slur, anchor, systemIndex }`.
+  - An event authored with `crescendo: "start"` produces a stream entry whose
+    `crescendo === "start"`; an event authored with `decrescendo: "stop"` produces a
+    stream entry whose `decrescendo === "stop"` (the markers reach the matcher, so
+    the downstream passes are not dead code).
+  - The right-hand `laneY` and left-hand `laneY` differ for a song with notes in
+    both hands (the lane is per-hand, derived from the per-hand `staffBottomY`); for
+    that both-hands song the right-hand value is smaller (higher on the page) than
+    the left-hand value. (The per-hand distinctness `right laneY !== left laneY` is
+    the primary criterion; the strict ordering is asserted only when both hands carry
+    notes, not for a degenerate single-hand band.)
   - An event with no placeable note (a rest) still gets a stream entry carrying a
     numeric `laneY` (and `anchor: null`).
   - Existing tie/slur resolution is unaffected — resolving a tie/slur song produces
@@ -179,7 +206,10 @@ both files are the real ones under `src/notation/`):
     `matchSpans` call, and shared anchor guard `if (!start.anchor || !stop.anchor)
     continue;` (line 2161) are reused **verbatim** — the two new kinds get two
     fully independent per-hand `matchSpans` passes and inherit the never-throws
-    drop behavior with no new logic.
+    drop behavior with no new logic. This reuse is only correct because Task 3
+    records `crescendo`/`decrescendo` on each stream entry; for `kind ===
+    "crescendo"` the projection reads `e.crescendo` and for `kind ===
+    "decrescendo"` it reads `e.decrescendo`, both now present.
   - After the guard, dispatch by kind: `tie`/`slur` → the existing, **byte-
     identical** `buildSpanSpec` (line 2185); `crescendo`/`decrescendo` → a new
     hairpin builder.
@@ -254,13 +284,28 @@ both files are the real ones under `src/notation/`):
     false`) — the only case any existing test or example exercises — so
     within-system tie/slur and hairpin output is provably unchanged.
   - Clip math is **degenerate-safe** (no backwards stroke): clamp the right edge to
-    `rightX = max(x1, min(x2, staffEndX))`. For a hairpin record, set `x2 = rightX`.
-    For a tie/slur `buildSpanSpec` record, set `x2 = rightX` and also recompute the
-    Bézier control X (`cx`) consistently so the clipped arc terminates at the new
-    right edge rather than aiming at a foreign coordinate (e.g. `cx = (x1 + x2) /
-    2`, the same midpoint rule `buildSpanSpec` uses). The clipped span stays filed
-    under the **start** system only; no span piece leaks into any other system's
-    array. v1 draws only the start-system portion and drops the continuation.
+    `rightX = max(x1, min(x2, staffEndX))`. The clip adjusts **horizontal**
+    coordinates only — it never touches any Y. Per record kind:
+    - **Hairpin record:** set `x2 = rightX`. No Y change is needed or correct: a
+      hairpin's `yCenter` is the flat per-hand lane Y, constant across the whole
+      span, so clamping X alone yields a fully correct start-system clip (the
+      clipped wedge sits on the same lane it started on).
+    - **Tie/slur `buildSpanSpec` record:** set `x2 = rightX` and recompute the
+      Bézier control X consistently so the clipped arc terminates at the new right
+      edge rather than aiming at a foreign X (`cx = (x1 + x2) / 2`, the same
+      midpoint rule `buildSpanSpec` uses). **Leave `y2` and `cy` unchanged** — they
+      are deliberately *not* clamped. `y2`/`cy` derive from the end note's notehead
+      Y on the foreign end system (`buildSpanSpec`, `layout.js:2197-2199`), so the
+      clipped arc terminates at a foreign vertical position; this is an **accepted
+      v1 best-effort**, consistent with the design's "draw only the start-system
+      portion and drop the continuation." The code-writer must **not** attempt to
+      recompute a start-system-local `y2`/`cy` — that vertical re-projection is
+      out of scope for v1. (Recording this choice here also keeps the clip coherent
+      if it is later down-scoped to hairpin-only, where tie/slur records are left
+      entirely untouched.)
+    - The clipped span stays filed under the **start** system only; no span piece
+      leaks into any other system's array. v1 draws only the start-system portion
+      and drops the continuation.
   - **Design-recommended scope note (owner-overridable):** This plan implements the
     design's **recommended generic** clip across tie/slur/hairpin, which is provably
     a no-op for within-system spans and fixes the latent cross-system tie/slur bug
@@ -285,9 +330,12 @@ both files are the real ones under `src/notation/`):
     `staffEndX`; and no wedge record with foreign coordinates leaks into any other
     system's `spans` array.
   - A cross-system **tie** and a cross-system **slur** (narrow width) likewise do
-    not throw and have `x2` clamped to the start system's `staffEndX` (locking the
-    latent-bug fix). (Down-scope fallback: if the clip is scoped to hairpins only,
-    these assert no-throw only.)
+    not throw and have `x2` clamped to the start system's `staffEndX` (and `cx`
+    recomputed to the new midpoint), locking the latent-bug fix. Their `y2`/`cy`
+    are left at the foreign end-system value by design (X-only clip, accepted v1
+    best-effort); the clip is asserted to change horizontal coordinates only.
+    (Down-scope fallback: if the clip is scoped to hairpins only, these assert
+    no-throw only and tie/slur records are untouched.)
   - A within-system tie/slur song produces byte-identical span records to before
     this change (the clip is a strict no-op for `crossSystem === false`; AC8).
   - A cross-system span whose start is at or past `staffEndX` yields a zero-width
