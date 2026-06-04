@@ -6,7 +6,7 @@ This is the canonical reference for the Piano block's **song format** — the cu
 
 A song is a custom, dependency-free JSON document owned by this plugin. It is **not** MusicXML, ABC, or MIDI — it is its own small format, designed to model a **grand staff**: a right-hand part and a left-hand part read together. The JSON you write is the *content* stored in the block's `song` attribute (a single text string).
 
-In v1 you author a song **by hand**, by typing or pasting the JSON directly into the block's raw-JSON field in the editor. There is no visual notation editor and no audio playback yet — those are future work. This document describes only what the format supports today. For the end-to-end editor workflow (inserting the block, entering a song, what validation does, and what the front end shows), see [Using the Piano block](../README.md#using-the-piano-block) in the README.
+In v1 you author a song **by hand**, by typing or pasting the JSON directly into the block's raw-JSON field in the editor. There is no visual notation *editor* yet — authoring is still raw JSON by hand — and no audio playback; those are future work. The published **front end**, however, now renders the song as visual notation: a braced grand staff drawn as an SVG. This document describes only what the format supports today. For the end-to-end editor workflow (inserting the block, entering a song, what validation does, and what the front end shows), see [Using the Piano block](../README.md#using-the-piano-block) in the README — its [What the front end shows](../README.md#4-what-the-front-end-shows) section describes the rendered notation.
 
 ## Top-level shape
 
