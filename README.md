@@ -2,7 +2,7 @@
 
 A WordPress block plugin for creating piano song sheets — the long-term goal is to write out notes and build practice sheets you can use to learn and train piano skills.
 
-> **Status:** This repository is an installable WordPress plugin that registers a single **Piano** block. The block now **stores a complete song** as structured JSON — a right-hand + left-hand grand staff in the plugin's own [song format](docs/song-format.md) — authored by hand in a raw-JSON editor field and rendered on the front end as escaped text. It does **not** yet draw musical notation, play audio, or offer a visual authoring UI; interactive keys, audio, and notation rendering remain future work (see [Forthcoming](#forthcoming)). A build pipeline (`@wordpress/scripts`) and a local dev environment (`wp-env`) are in place to build on.
+> **Status:** This repository is an installable WordPress plugin that registers a single **Piano** block. The block **stores a complete song** as structured JSON — a right-hand + left-hand grand staff in the plugin's own [song format](docs/song-format.md) — authored by hand in a raw-JSON editor field, and on the front end **renders that song as visual piano sheet music**: a braced grand staff drawn as an SVG by the plugin's own rendering code (no third-party notation library). It does **not** yet play audio or offer a visual authoring UI; audio playback and a richer authoring experience remain future work (see [Forthcoming](#forthcoming)). A build pipeline (`@wordpress/scripts`) and a local dev environment (`wp-env`) are in place to build on.
 
 ## What the block does today
 
@@ -10,9 +10,9 @@ The plugin registers exactly one block — **Piano** (`piano-block/piano`):
 
 - It appears in the block inserter under the **Media** category (search for "Piano").
 - In the editor, it shows a single **raw-JSON field** where you author a song document in the plugin's own [song format](docs/song-format.md). The field's input is **validated for conformance**, but that check is **informational only — it never blocks saving**, and your raw text is always stored.
-- It is a **dynamic** (server-rendered) block: the stored `song` string lives in the block's delimiter comment, and its front-end HTML is produced by PHP at render time. On a published page, the block renders the stored song **as escaped text** inside a `<pre>` (and nothing at all when there is no song).
+- It is a **dynamic** (server-rendered) block: the stored `song` string lives in the block's delimiter comment, and PHP emits a lightweight container carrying that song to the front end. On a published page, the block's own client-side code reads the song and draws it as **visual piano sheet music** — a braced grand staff — directly in the page (and nothing at all when there is no song).
 
-There is no playable keyboard, audio, or visual notation yet — v1 stores and shows the song *as text*, so the format and storage layer can be built and smoke-tested while the real piano experience is developed on top of it. See [Using the Piano block](#using-the-piano-block) for the authoring workflow.
+There is no playable keyboard or audio yet, and authoring is still by hand in a raw-JSON field — but a published page now shows the song as readable notation rather than as text, so the rest of the piano experience can be developed on top of it. See [Using the Piano block](#using-the-piano-block) for the authoring workflow.
 
 ## Using the Piano block
 
@@ -42,16 +42,19 @@ This validation is **informational only — it never blocks saving**. The raw te
 - **Empty input shows no error.** Validation runs only on non-empty input; a blank field is the "no song" state and is not validated.
 - **It is structural / field checking only.** The validator checks the document's shape and field values, **not** musical timing. A bar whose events do not "add up" to its time signature still saves with no timing error.
 
-### 4. What the front end shows (v1)
+### 4. What the front end shows
 
-On the published page, the block outputs the **stored song content as text** — the exact JSON you entered, with your line breaks and indentation preserved — inside a preformatted (`<pre>`) block. The front end performs **no validation** and renders **whatever is stored**; if there is no song, it outputs **nothing**.
+On the published page, the block **renders your song as visual piano sheet music** — a braced grand staff (a treble staff for the right hand and a bass staff for the left, joined by a brace), drawn as an SVG by the plugin's own client-side rendering code. There is **no third-party notation library**: the staves, clefs, notes, rests, and accidentals are drawn by the plugin itself, using a bundled music font for the ornate symbols.
 
-Two expectations to set explicitly:
+What appears depends on what you stored — there are three cases:
 
-- **v1 does not render musical notation or play audio.** The front end shows the song *as text*. Visual notation and playback are future work (see [Forthcoming](#forthcoming)).
-- **The output is safely escaped.** Any HTML or script characters in the song appear as inert text — no markup is executed.
+- **A conformant song renders as sheet music.** If the stored song matches the [song format](docs/song-format.md), the front end parses it and draws the grand staff.
+- **No song renders nothing.** A block with an empty (or whitespace-only) song outputs nothing at all.
+- **A non-renderable song renders nothing.** If the stored content is not valid JSON, or is valid JSON that does not conform to the song format, the front end draws **nothing** — there is **no raw-JSON echo and no error message** shown on the page. (The editor's validation notice in step 3 is where you catch and fix such problems while authoring.)
 
-> **Tip:** The [annotated example song](docs/song-format.md#annotated-example-song) in the format reference is a ready-made starting template. Copy it into the field and adapt it to your own song.
+The notation is drawn entirely in the browser by the block's own code, so it is the **front end** that decides whether to render or stay empty; the server does no validation. The score itself shows only the music — there is no visible title or composer heading (the song's `metadata` is used only to label the notation for assistive technology).
+
+> **Tip:** The [annotated example song](docs/song-format.md#annotated-example-song) in the format reference is a ready-made starting template. Copy it into the field, view the published post, and you will see it rendered as a grand staff.
 
 ## Requirements
 
@@ -87,7 +90,7 @@ Because the block is compiled, the installable plugin is the repository **plus i
 npm install && npm run build
 ```
 
-Then copy the plugin directory — **including the generated `build/` folder** — into `wp-content/plugins/` (for example as `wp-content/plugins/piano-block/`) of a WordPress 6.9+ / PHP 7.4+ site, and activate **Piano Block** under **Plugins**. A successful install: the plugin activates with no error, the **Piano** block appears in the inserter under **Media**, and a published post containing a block with a song shows that song as escaped text on the front end.
+Then copy the plugin directory — **including the generated `build/` folder** — into `wp-content/plugins/` (for example as `wp-content/plugins/piano-block/`) of a WordPress 6.9+ / PHP 7.4+ site, and activate **Piano Block** under **Plugins**. A successful install: the plugin activates with no error, the **Piano** block appears in the inserter under **Media**, and a published post containing a block with a conformant song renders that song as a grand staff of sheet music on the front end.
 
 ## For contributors
 
@@ -158,9 +161,8 @@ Three checks the keyword subset cannot express are handled directly by the walke
 
 ## Forthcoming
 
-Song *storage* has landed, but the visual and audible piano experience has not. The following are planned for future tasks and are **not** part of v1 (the spec's "Out of Scope" set):
+Song *storage* and front-end **notation rendering** have landed, but the audible and richer interactive piano experience has not. The following are planned for future tasks and are **not** part of v1 (the spec's "Out of Scope" set):
 
-- **Visual notation rendering** — drawing staves and notes on the front end. v1 shows the song *as text*, not as notation.
 - **Audio playback** — the format retains the pitch, octave, duration, and tempo precision needed for future sound, but nothing plays yet.
 - **A visual authoring UI** — anything beyond the single raw-JSON field; in v1 you write the song JSON by hand.
 - **Richer notation elements** — articulations, ornaments, pedal, fingering, tuplets, voltas, multiple voices per hand, lyrics, and similar (the format grows by adding optional fields, with no `version` field).
