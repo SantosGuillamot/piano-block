@@ -1,0 +1,195 @@
+/**
+ * Unit tests for the thin SVG EMIT layer (T7, design §2.3, §6.8, §7). These run in
+ * the jsdom test env, so they assert the emitted DOM directly: the root
+ * `<svg role="img">`, the single first-child `<title>` carrying the accessible name
+ * via `textContent`, the text-safety guarantee (author free text stays inert — no
+ * `<script>`/`<foreignObject>`, never `innerHTML`), and the stable ids / `data-*`
+ * the future-interactivity hook (§2.3) stamps on per-event elements.
+ *
+ * T7's full visual correctness is verified end-to-end by the Playwright e2e (T11);
+ * these are the cheap structural invariants the emit layer must hold regardless.
+ */
+import { buildLayoutModel } from "../layout.js";
+import { renderInto, renderSvg } from "../svg.js";
+
+const SVG_NS = "http://www.w3.org/2000/svg";
+
+/** A small but representative song exercising notes, rests, a chord, and a tie. */
+const SONG = {
+	metadata: { title: "Hello", composer: "Ada" },
+	sections: [
+		{
+			measures: [
+				{
+					rightHand: [
+						{
+							type: "note",
+							duration: "quarter",
+							dynamic: "mf",
+							chordSymbol: "C",
+							tie: "start",
+							pitches: [
+								{ step: "C", octave: 5 },
+								{ step: "E", octave: 5 },
+							],
+						},
+						{ type: "rest", duration: "quarter" },
+						{
+							type: "note",
+							duration: "eighth",
+							pitches: [{ step: "F", octave: 5, alter: 1 }],
+						},
+					],
+					leftHand: [
+						{
+							type: "note",
+							duration: "whole",
+							pitches: [{ step: "C", octave: 3 }],
+						},
+					],
+				},
+				{
+					barlineEnd: "final",
+					rightHand: [
+						{
+							type: "note",
+							duration: "whole",
+							tie: "stop",
+							pitches: [{ step: "C", octave: 5 }],
+						},
+					],
+				},
+			],
+		},
+	],
+};
+
+const modelFor = (width = 120) => buildLayoutModel(SONG, width);
+
+describe("renderSvg — root + accessibility (design §7)", () => {
+	it('produces an <svg role="img"> with a viewBox and pixel size', () => {
+		const svg = renderSvg(modelFor(), { accessibleName: "Hello by Ada" });
+		expect(svg.namespaceURI).toBe(SVG_NS);
+		expect(svg.tagName.toLowerCase()).toBe("svg");
+		expect(svg.getAttribute("role")).toBe("img");
+		expect(svg.getAttribute("viewBox")).toMatch(/^0 0 /);
+		expect(Number(svg.getAttribute("width"))).toBeGreaterThan(0);
+		expect(Number(svg.getAttribute("height"))).toBeGreaterThan(0);
+	});
+
+	it("sets exactly one accessible name via a first-child <title> textContent", () => {
+		const svg = renderSvg(modelFor(), { accessibleName: "Hello by Ada" });
+		const title = svg.firstChild;
+		expect(title.tagName.toLowerCase()).toBe("title");
+		expect(title.textContent).toBe("Hello by Ada");
+		// One name source only — no aria-label (design §7).
+		expect(svg.hasAttribute("aria-label")).toBe(false);
+		expect(svg.querySelectorAll("title")).toHaveLength(1);
+	});
+
+	it("tolerates a missing accessible name (empty title)", () => {
+		const svg = renderSvg(modelFor());
+		expect(svg.firstChild.tagName.toLowerCase()).toBe("title");
+		expect(svg.firstChild.textContent).toBe("");
+	});
+});
+
+describe("renderSvg — text safety (design §6.8)", () => {
+	it("keeps author free text inert: no <script> / <foreignObject>", () => {
+		const xss = {
+			metadata: {},
+			sections: [
+				{
+					measures: [
+						{
+							rightHand: [
+								{
+									type: "note",
+									duration: "quarter",
+									chordSymbol: "<script>alert(1)</script>",
+									pitches: [{ step: "C", octave: 5 }],
+								},
+							],
+						},
+					],
+				},
+			],
+		};
+		const svg = renderSvg(buildLayoutModel(xss, 120), {
+			accessibleName: "<img src=x onerror=alert(1)>",
+		});
+		expect(svg.querySelector("script")).toBeNull();
+		expect(svg.querySelector("foreignObject")).toBeNull();
+		// The malicious string survives only as inert text content, never markup.
+		const chord = svg.querySelector('[data-text="chord-symbol"]');
+		expect(chord.textContent).toBe("<script>alert(1)</script>");
+		expect(chord.children).toHaveLength(0);
+		// The accessible name is likewise inert text in the <title>.
+		expect(svg.firstChild.textContent).toBe("<img src=x onerror=alert(1)>");
+	});
+});
+
+describe("renderSvg — structure (design §2.3)", () => {
+	it("emits one system group per model system, each with two staves", () => {
+		const model = modelFor();
+		const svg = renderSvg(model);
+		const systems = svg.querySelectorAll("[data-system]");
+		expect(systems).toHaveLength(model.systems.length);
+		// Two staff-line groups (RH + LH) per system.
+		for (const sys of systems) {
+			expect(sys.querySelectorAll("[data-staff-lines]")).toHaveLength(2);
+		}
+	});
+
+	it("stamps a stable id + data-* on each per-event note/rest (interactivity hook)", () => {
+		const svg = renderSvg(modelFor());
+		const notes = svg.querySelectorAll('[data-kind="note"]');
+		const rests = svg.querySelectorAll('[data-kind="rest"]');
+		expect(notes.length).toBeGreaterThan(0);
+		expect(rests.length).toBeGreaterThan(0);
+		for (const note of notes) {
+			expect(note.getAttribute("data-hand")).toMatch(/Hand$/);
+			expect(note.getAttribute("data-event-index")).not.toBeNull();
+			expect(note.id).not.toBe("");
+		}
+	});
+
+	it("draws a chord's noteheads and a per-event dynamic", () => {
+		const svg = renderSvg(modelFor());
+		// The first RH event is a 2-note chord → two notehead ellipses on it.
+		const firstNote = svg.querySelector("#rightHand-note-0");
+		expect(firstNote.querySelectorAll("[data-notehead]").length).toBe(2);
+		// Its dynamic "mf" renders as inert text.
+		const dynamics = [...svg.querySelectorAll('[data-text="dynamic"]')].map(
+			(n) => n.textContent,
+		);
+		expect(dynamics).toContain("mf");
+	});
+
+	it("renders ties/slurs as <path> spans", () => {
+		const svg = renderSvg(modelFor());
+		// The tie spanning the two RH C5s resolves to a path span.
+		expect(svg.querySelector('path[data-span="tie"]')).not.toBeNull();
+	});
+
+	it("builds the whole tree via createElementNS (all SVG-namespaced)", () => {
+		const svg = renderSvg(modelFor(), { accessibleName: "x" });
+		// Every descendant element lives in the SVG namespace (no HTML injected).
+		const all = svg.querySelectorAll("*");
+		expect(all.length).toBeGreaterThan(0);
+		for (const node of all) {
+			expect(node.namespaceURI).toBe(SVG_NS);
+		}
+	});
+});
+
+describe("renderInto", () => {
+	it("replaces the container's contents with the fresh SVG", () => {
+		const container = document.createElement("div");
+		container.appendChild(document.createElement("span")); // stale child
+		const svg = renderInto(container, modelFor(), { accessibleName: "x" });
+		expect(container.children).toHaveLength(1);
+		expect(container.firstChild).toBe(svg);
+		expect(svg.getAttribute("role")).toBe("img");
+	});
+});
