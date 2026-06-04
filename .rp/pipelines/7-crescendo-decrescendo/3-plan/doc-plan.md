@@ -20,7 +20,10 @@ These are the only two documentation files in the repository (`AGENTS.md` and `.
 are excluded — see below); there is no changelog, no inline narrative doc, and no
 separate examples file, so every surface that mentions dynamics, ties/slurs, the closed
 vocabularies, additive growth, or the out-of-scope set lives in these two files and is
-covered by a task here.
+covered by a task here. Note that the annotated example is described by **two parallel
+enumerations** — the example's own intro sentence in `docs/song-format.md` and a
+"it touches …" callout in `README.md` that links to the same example — and Task 3 owns
+**both** so they stay consistent after the example is extended.
 
 ### Conventions every task must follow
 
@@ -156,9 +159,14 @@ covered by a task here.
   messa-di-voce hinge note carrying both — so they can see the real JSON shape in
   context and adapt it.
 - **Audience:** Song authors.
-- **Files to change:** `docs/song-format.md` (update — the "Annotated example song"
-  section: the example JSON block and its introductory sentence listing what it
-  exercises).
+- **Files to change:**
+  - `docs/song-format.md` (update — the "Annotated example song" section: the example
+    JSON block and its introductory sentence listing what it exercises).
+  - `README.md` (update — the "Exercising the renderer" callout in the "The song format
+    and validator" subsection: a blockquote that links to the same annotated example and
+    independently enumerates what it "touches"). This is the README twin of the example's
+    intro sentence; extending the example in `docs/song-format.md` makes this callout's
+    list incomplete, so both enumerations must move together.
 - **Sections / scope:**
   - Add to the existing example (or a clearly-scoped extension of it) a crescendo span
     spanning two or more notes in one hand and a separate decrescendo span spanning two
@@ -169,14 +177,23 @@ covered by a task here.
     `decrescendo: "start"`, demonstrating two adjacent spans sharing a note.
   - Keep the example **valid and copy-pasteable** (no comments inside the JSON), so it
     still validates and renders if pasted into the block.
-  - Update the introductory sentence that enumerates what the example exercises so it
-    mentions the crescendo, the decrescendo, and the messa di voce, consistent with how
-    that sentence already lists the tie, dynamics, etc.
+  - Update the introductory sentence in `docs/song-format.md` that enumerates what the
+    example exercises so it mentions the crescendo, the decrescendo, and the messa di
+    voce, consistent with how that sentence already lists the tie, dynamics, etc.
+  - Update the README "Exercising the renderer" callout's parallel "it touches …"
+    enumeration the same way, so the README's description of the linked example stays
+    consistent with the extended example (it should mention the crescendo, the
+    decrescendo, and/or the messa-di-voce gradual dynamics). Match the callout's existing
+    list style; do not duplicate field-level detail (the README continues to defer that
+    to the format reference).
   - Preserve the existing note that the example is not required to be timing-balanced.
 - **Depends on:** Task 1
 - **Traces to:** Spec requirements 1, 2, 4, 16; acceptance criteria AC1, AC3, AC7; the
   schema and renderer code tasks. The validate-layer tests for AC1 mirror exactly this
-  kind of "a crescendo span plus a separate decrescendo span" song.
+  kind of "a crescendo span plus a separate decrescendo span" song. The README
+  "Exercising the renderer" callout update traces to the same requirements/criteria —
+  keeping the README's description of the linked example consistent with the extended
+  example so the two parallel enumerations do not drift.
 - **Acceptance:**
   - The example contains at least one crescendo span over two or more notes and at least
     one separate decrescendo span over two or more notes.
@@ -186,8 +203,13 @@ covered by a task here.
     the real format and the rest of the example (no flattened-event shorthand).
   - The example remains valid, comment-free JSON that an author can paste directly into
     the block.
-  - The introductory sentence listing what the example exercises is updated to include
-    the gradual dynamics.
+  - The `docs/song-format.md` introductory sentence listing what the example exercises is
+    updated to include the gradual dynamics.
+  - The README "Exercising the renderer" callout's "it touches …" enumeration is updated
+    so it stays consistent with the extended example — it mentions the gradual dynamics
+    (crescendo/decrescendo/messa di voce) rather than under-describing the example it
+    links to. The two enumerations of the same example (README callout and
+    `docs/song-format.md` intro sentence) agree.
   - No pipeline/process references appear in the added text.
 
 ### Task 4: Update the closed-vocabulary / additive-growth notes in the song format reference
@@ -232,7 +254,9 @@ covered by a task here.
 - **Audience:** Contributors and readers scanning the project overview.
 - **Files to change:** `README.md` (update — the "The song format and validator"
   contributor subsection's conformance-policy bullets and additive-growth paragraph, and
-  the "Forthcoming" section).
+  the "Forthcoming" section). Note: the "Exercising the renderer" callout in this same
+  subsection is **owned by Task 3** (it enumerates the annotated example's contents and
+  must move with the extended example); this task does not touch that callout.
 - **Sections / scope:**
   - In the conformance-policy "Enumerated values are closed" bullet (which lists
     durations, clefs, dynamics, barlines, tie/slur, `type`, `beatType`), add the two new
