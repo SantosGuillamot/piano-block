@@ -166,6 +166,45 @@ export const MEASURE_NUMBER_SIZE = 2.2;
 /** Ottava-bracket label text size ("8va" / "8vb" / "15ma" / "15mb"). */
 export const OTTAVA_SIZE = 2.2;
 
+// ── Hairpins (crescendo / decrescendo wedges) ───────────────────────────────────
+
+/**
+ * Hairpin wedge open-mouth height: the vertical distance between the two stroke
+ * ends at the wedge's open side. A FIXED constant — never derived from the span's
+ * width — so a degenerate (near-zero-width) two-note span stays finite instead of
+ * dividing by `(x2 - x1)`.
+ */
+export const HAIRPIN_APERTURE = 1.0;
+
+/**
+ * Hairpin lane center offset below a hand's staff BOTTOM line (positive Y is
+ * downward). Places the wedge in the same below-staff dynamic band where point
+ * dynamics already sit.
+ */
+export const HAIRPIN_LANE_DY = 3.0;
+
+/**
+ * The light horizontal gap (sp) at a messa-di-voce hinge: when a crescendo's open
+ * tip and a decrescendo's open mouth meet on a shared hinge note, each is inset by
+ * half of this so a small space shows between the `<` and the `>`.
+ */
+export const HAIRPIN_HINGE_GAP = 0.6;
+
+/**
+ * Horizontal clearance (sp) between a point dynamic glyph and a hairpin that begins
+ * on the same note. A hairpin and a dynamic share the below-staff dynamics line, so
+ * a hairpin starting where a dynamic sits is shifted right to clear it (standard
+ * engraving) rather than drawn across it.
+ */
+export const HAIRPIN_DYNAMIC_GAP = 0.6;
+
+/**
+ * Approximate per-character advance, in em, of the bold-italic dynamic glyphs. Used
+ * only to estimate where a dynamic glyph ends so an adjacent hairpin can clear it
+ * (dynamics are center-anchored, so no exact metrics are otherwise needed).
+ */
+export const DYNAMIC_ADVANCE_EM = 0.6;
+
 // ── Duration tables ────────────────────────────────────────────────────────────
 
 /**

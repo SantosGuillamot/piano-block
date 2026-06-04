@@ -10,7 +10,13 @@
  */
 import {
 	ACCIDENTAL_GAP,
+	DYNAMIC_ADVANCE_EM,
+	DYNAMIC_SIZE,
 	EMPTY_MEASURE_WIDTH,
+	HAIRPIN_APERTURE,
+	HAIRPIN_DYNAMIC_GAP,
+	HAIRPIN_HINGE_GAP,
+	HAIRPIN_LANE_DY,
 	MAX_STRETCH,
 	MIN_ADV,
 	NOTEHEAD_RX,
@@ -23,7 +29,9 @@ import {
 	beamGeometry,
 	beamGroups,
 	beatGroupLength,
+	buildHairpinSpec,
 	buildLayoutModel,
+	clipSpanToStartSystem,
 	decodeDuration,
 	diatonicIndex,
 	diffContext,
@@ -40,6 +48,7 @@ import {
 	ottavaFor,
 	packSystems,
 	pitchToStaffStep,
+	recordSpanMarkers,
 	resolveAccidental,
 	resolveHandContext,
 	resolveSectionContexts,
@@ -1661,5 +1670,808 @@ describe("layout-polish fixes", () => {
 		// with the sharp it is pushed right to make room for the accidental glyph.
 		expect(plain.right.notes[0].x).toBeLessThan(NOTEHEAD_RX);
 		expect(sharp.right.notes[0].x).toBeGreaterThan(plain.right.notes[0].x);
+	});
+});
+
+describe("recordSpanMarkers — carried hairpin markers + per-hand lane Y", () => {
+	// A minimal laid-out hand: one placeable note (eventIndex 0) with a known stem
+	// direction + steps, so the recorded anchor.y is deterministic.
+	const laidOutOneNote = {
+		notes: [
+			{ eventIndex: 0, x: 4, direction: "up", topStep: 6, bottomStep: 4 },
+		],
+	};
+	const recordInto = (events, laidOut, staffBottomY, hand = "rightHand") => {
+		const placedEvents = { rightHand: [], leftHand: [] };
+		recordSpanMarkers(events, laidOut, {
+			measureX: 10,
+			hand,
+			placedEvents,
+			staffBottomY,
+			systemIndex: 0,
+		});
+		return placedEvents[hand];
+	};
+
+	it("carries the two new marker fields and a numeric laneY alongside the existing shape", () => {
+		const [entry] = recordInto(
+			[
+				{
+					type: "note",
+					crescendo: "start",
+					pitches: [{ step: "C", octave: 4 }],
+				},
+			],
+			laidOutOneNote,
+			9,
+		);
+		// Existing fields are still present.
+		expect(entry).toHaveProperty("tie");
+		expect(entry).toHaveProperty("slur");
+		expect(entry).toHaveProperty("anchor");
+		expect(entry).toHaveProperty("systemIndex", 0);
+		// The two new marker fields and the precomputed lane Y are now carried.
+		expect(entry).toHaveProperty("crescendo");
+		expect(entry).toHaveProperty("decrescendo");
+		expect(typeof entry.laneY).toBe("number");
+	});
+
+	it("projects crescendo: start onto the entry so the marker reaches the matcher", () => {
+		const [entry] = recordInto(
+			[
+				{
+					type: "note",
+					crescendo: "start",
+					pitches: [{ step: "C", octave: 4 }],
+				},
+			],
+			laidOutOneNote,
+			9,
+		);
+		expect(entry.crescendo).toBe("start");
+		expect(entry.decrescendo).toBeUndefined();
+	});
+
+	it("projects decrescendo: stop onto the entry so the marker reaches the matcher", () => {
+		const [entry] = recordInto(
+			[
+				{
+					type: "note",
+					decrescendo: "stop",
+					pitches: [{ step: "C", octave: 4 }],
+				},
+			],
+			laidOutOneNote,
+			9,
+		);
+		expect(entry.decrescendo).toBe("stop");
+		expect(entry.crescendo).toBeUndefined();
+	});
+
+	it("derives laneY from the per-hand staff bottom Y (staffBottomY + HAIRPIN_LANE_DY)", () => {
+		const [right] = recordInto(
+			[{ type: "note", pitches: [{ step: "C", octave: 4 }] }],
+			laidOutOneNote,
+			9,
+		);
+		const [left] = recordInto(
+			[{ type: "note", pitches: [{ step: "C", octave: 4 }] }],
+			laidOutOneNote,
+			21,
+			"leftHand",
+		);
+		expect(right.laneY).toBe(9 + HAIRPIN_LANE_DY);
+		expect(left.laneY).toBe(21 + HAIRPIN_LANE_DY);
+		// Per-hand distinctness: the right lane is higher on the page (smaller Y).
+		expect(right.laneY).not.toBe(left.laneY);
+		expect(right.laneY).toBeLessThan(left.laneY);
+	});
+
+	it("still carries a numeric laneY (and a null anchor) for a rest with no placeable note", () => {
+		const [entry] = recordInto(
+			[{ type: "rest", duration: "quarter" }],
+			{ notes: [] },
+			9,
+		);
+		expect(entry.anchor).toBeNull();
+		expect(typeof entry.laneY).toBe("number");
+		expect(entry.laneY).toBe(9 + HAIRPIN_LANE_DY);
+		// A non-marked event leaves the marker fields undefined, exactly like tie/slur.
+		expect(entry.crescendo).toBeUndefined();
+		expect(entry.decrescendo).toBeUndefined();
+	});
+
+	it("the per-hand lane Y differs across hands in a full both-hands layout", () => {
+		const song = {
+			sections: [
+				{
+					measures: [
+						{
+							rightHand: [
+								{
+									type: "note",
+									duration: "whole",
+									crescendo: "start",
+									pitches: [{ step: "C", octave: 5 }],
+								},
+							],
+							leftHand: [
+								{
+									type: "note",
+									duration: "whole",
+									pitches: [{ step: "C", octave: 3 }],
+								},
+							],
+						},
+					],
+				},
+			],
+		};
+		// The band's real per-hand staff bottoms feed the per-hand lane Y; the RH
+		// staff sits above the LH staff, so its bottom Y is smaller (higher on page).
+		const { band } = buildLayoutModel(song, 200).systems[0];
+		expect(band.rightStaffBottomY).toBeLessThan(band.leftStaffBottomY);
+	});
+});
+
+describe("existing tie/slur resolution is unaffected by the carried fields", () => {
+	it("resolves the same tie + slur spans as before the lane-Y change", () => {
+		const model = buildLayoutModel(COMPREHENSIVE_SONG, 200);
+		const spans = model.systems.flatMap((s) => s.spans);
+		expect(spans.some((s) => s.kind === "tie")).toBe(true);
+		expect(spans.some((s) => s.kind === "slur")).toBe(true);
+		// This fixture carries no crescendo/decrescendo markers, so no hairpin spans
+		// resolve from it (the new kinds only resolve when their markers are authored).
+		expect(spans.some((s) => s.kind === "crescendo")).toBe(false);
+		expect(spans.some((s) => s.kind === "decrescendo")).toBe(false);
+	});
+});
+
+// ── Hairpin span resolution + the wedge builder ───────────────────────────────────
+//
+// These exercise `resolveAllSpans`'s two new crescendo/decrescendo passes and the
+// new `buildHairpinSpec` flat-lane wedge record. Fixtures use the real `rightHand`/
+// `leftHand` keys and the real `pitches`-array event shape.
+
+describe("hairpin span resolution (crescendo / decrescendo)", () => {
+	// A note carrying the given span markers; the `pitches` array is the real event
+	// shape, defaulting to a single right-hand pitch.
+	const note = (markers, pitches = [{ step: "C", octave: 5 }]) => ({
+		type: "note",
+		duration: "quarter",
+		pitches,
+		...markers,
+	});
+	// One section, one measure, with the given right/left hand events.
+	const song = (rightHand, leftHand = undefined) => ({
+		sections: [
+			{ measures: [{ rightHand, ...(leftHand ? { leftHand } : {}) }] },
+		],
+	});
+	const spansOf = (model) => model.systems.flatMap((s) => s.spans);
+
+	it("resolves a crescendo over ≥2 notes to one wedge record with flat lane + constant aperture", () => {
+		const model = buildLayoutModel(
+			song([
+				note({ crescendo: "start" }),
+				note({}),
+				note({ crescendo: "stop" }),
+			]),
+			200,
+		);
+		const wedges = spansOf(model).filter((s) => s.kind === "crescendo");
+		expect(wedges).toHaveLength(1);
+		const [w] = wedges;
+		const m = model.systems[0].measures[0];
+		expect(w.kind).toBe("crescendo");
+		expect(w.hand).toBe("rightHand");
+		// x1 / x2 sit at the start / end note centers (measureX + note.x).
+		expect(w.x1).toBeCloseTo(m.x + m.right.notes[0].x, 6);
+		expect(w.x2).toBeCloseTo(m.x + m.right.notes[2].x, 6);
+		expect(w.x2).toBeGreaterThan(w.x1);
+		// yCenter is the carried flat below-staff lane Y; aperture is the constant.
+		expect(w.yCenter).toBe(
+			model.systems[0].band.rightStaffBottomY + HAIRPIN_LANE_DY,
+		);
+		expect(w.aperture).toBe(HAIRPIN_APERTURE);
+		expect(w.crossSystem).toBe(false);
+	});
+
+	it("resolves a decrescendo identically, distinguished only by kind", () => {
+		const model = buildLayoutModel(
+			song([
+				note({ decrescendo: "start" }),
+				note({}),
+				note({ decrescendo: "stop" }),
+			]),
+			200,
+		);
+		const wedges = spansOf(model).filter((s) => s.kind === "decrescendo");
+		expect(wedges).toHaveLength(1);
+		const [w] = wedges;
+		expect(w.kind).toBe("decrescendo");
+		expect(w.hand).toBe("rightHand");
+		// Same flat lane + constant aperture as a crescendo; only `kind` differs.
+		expect(w.yCenter).toBe(
+			model.systems[0].band.rightStaffBottomY + HAIRPIN_LANE_DY,
+		);
+		expect(w.aperture).toBe(HAIRPIN_APERTURE);
+	});
+
+	it("carries the crescendo/decrescendo distinction in `kind`, with a shared flat yCenter + aperture", () => {
+		// Same two notes, once as a crescendo and once as a decrescendo: the records
+		// are identical apart from `kind` (the opening-vs-closing shape is at emit time).
+		const cres = buildLayoutModel(
+			song([note({ crescendo: "start" }), note({ crescendo: "stop" })]),
+			200,
+		);
+		const dec = buildLayoutModel(
+			song([note({ decrescendo: "start" }), note({ decrescendo: "stop" })]),
+			200,
+		);
+		const [c] = spansOf(cres).filter((s) => s.kind === "crescendo");
+		const [d] = spansOf(dec).filter((s) => s.kind === "decrescendo");
+		expect(c.kind).toBe("crescendo");
+		expect(d.kind).toBe("decrescendo");
+		expect(c.yCenter).toBe(d.yCenter);
+		expect(c.aperture).toBe(d.aperture);
+		expect(c.x1).toBeCloseTo(d.x1, 6);
+		expect(c.x2).toBeCloseTo(d.x2, 6);
+	});
+
+	it("drops a dangling start-only or stop-only span (0 wedge records), never throwing", () => {
+		const startOnly = song([note({ crescendo: "start" }), note({})]);
+		const stopOnly = song([note({}), note({ crescendo: "stop" })]);
+		expect(() => buildLayoutModel(startOnly, 200)).not.toThrow();
+		expect(() => buildLayoutModel(stopOnly, 200)).not.toThrow();
+		expect(
+			spansOf(buildLayoutModel(startOnly, 200)).filter(
+				(s) => s.kind === "crescendo",
+			),
+		).toHaveLength(0);
+		expect(
+			spansOf(buildLayoutModel(stopOnly, 200)).filter(
+				(s) => s.kind === "crescendo",
+			),
+		).toHaveLength(0);
+	});
+
+	it("resolves two overlapping same-kind starts in one hand to exactly one record", () => {
+		// A second start before the stop drops the earlier (dangling) start.
+		const model = buildLayoutModel(
+			song([
+				note({ crescendo: "start" }),
+				note({ crescendo: "start" }),
+				note({ crescendo: "stop" }),
+			]),
+			200,
+		);
+		expect(spansOf(model).filter((s) => s.kind === "crescendo")).toHaveLength(
+			1,
+		);
+	});
+
+	it("drops a span whose endpoint lands on a rest / unplaceable note (0 records), never throwing", () => {
+		// The stop marker rides a rest, which records `anchor: null`; the shared guard
+		// skips the pair before the builder runs.
+		const restEnd = {
+			sections: [
+				{
+					measures: [
+						{
+							rightHand: [
+								note({ crescendo: "start" }),
+								{ type: "rest", duration: "quarter", crescendo: "stop" },
+							],
+						},
+					],
+				},
+			],
+		};
+		expect(() => buildLayoutModel(restEnd, 200)).not.toThrow();
+		expect(
+			spansOf(buildLayoutModel(restEnd, 200)).filter(
+				(s) => s.kind === "crescendo",
+			),
+		).toHaveLength(0);
+	});
+
+	it("builds a degenerate near-zero-width span (x1 ≈ x2) to one finite record, never throwing", () => {
+		// The builder reads `anchor.x` verbatim, so a start and stop at near-identical X
+		// produce a near-zero-width record. The aperture is the constant (never derived
+		// from `x2 - x1`), so there is no division by ~0 — coordinates stay finite.
+		const start = { anchor: { x: 50 }, laneY: 12, systemIndex: 0 };
+		const stop = { anchor: { x: 50.0000001 }, systemIndex: 0 };
+		let w;
+		expect(() => {
+			w = buildHairpinSpec("crescendo", start, stop, "rightHand");
+		}).not.toThrow();
+		expect(w.x1).toBeCloseTo(w.x2, 6); // x1 ≈ x2
+		expect(Number.isFinite(w.x1)).toBe(true);
+		expect(Number.isFinite(w.x2)).toBe(true);
+		expect(Number.isFinite(w.yCenter)).toBe(true);
+		expect(Number.isFinite(w.aperture)).toBe(true);
+		// The aperture is the constant, not width-derived, so it is finite regardless
+		// of how small `x2 - x1` is.
+		expect(w.aperture).toBe(HAIRPIN_APERTURE);
+	});
+
+	it("builds the wedge record directly from the carried lane Y and constant aperture", () => {
+		// A focused unit on the builder: yCenter is the carried `start.laneY` (it ignores
+		// the notehead Y and stem direction entirely), and crossSystem reflects the
+		// start/stop systems.
+		const start = {
+			anchor: { x: 10, y: 99, direction: "up" },
+			laneY: 12,
+			systemIndex: 0,
+		};
+		const stop = {
+			anchor: { x: 40, y: 77, direction: "down" },
+			systemIndex: 1,
+		};
+		const w = buildHairpinSpec("decrescendo", start, stop, "leftHand");
+		expect(w).toEqual({
+			kind: "decrescendo",
+			hand: "leftHand",
+			systemIndex: 0,
+			x1: 10,
+			x2: 40,
+			yCenter: 12, // the carried lane Y, NOT anchor.y (99)
+			aperture: HAIRPIN_APERTURE,
+			crossSystem: true, // start system 0 ≠ stop system 1
+		});
+	});
+
+	it("resolves a messa-di-voce hinge into a `< >` with a light gap, symmetric about the hinge X, sharing yCenter and aperture", () => {
+		// The middle note both stops the crescendo and starts the decrescendo.
+		const model = buildLayoutModel(
+			song([
+				note({ crescendo: "start" }),
+				note({ crescendo: "stop", decrescendo: "start" }),
+				note({ decrescendo: "stop" }),
+			]),
+			200,
+		);
+		const [cres] = spansOf(model).filter((s) => s.kind === "crescendo");
+		const [dec] = spansOf(model).filter((s) => s.kind === "decrescendo");
+		expect(cres).toBeDefined();
+		expect(dec).toBeDefined();
+		// A light space shows between the crescendo's tip and the decrescendo's mouth:
+		// the decrescendo starts HAIRPIN_HINGE_GAP to the right of where the crescendo ends.
+		expect(dec.x1).toBeGreaterThan(cres.x2);
+		expect(dec.x1 - cres.x2).toBeCloseTo(HAIRPIN_HINGE_GAP, 6);
+		// The gap is symmetric about the shared hinge X (each tip inset by half the gap).
+		const hingeX = (cres.x2 + dec.x1) / 2;
+		expect(cres.x2).toBeCloseTo(hingeX - HAIRPIN_HINGE_GAP / 2, 6);
+		expect(dec.x1).toBeCloseTo(hingeX + HAIRPIN_HINGE_GAP / 2, 6);
+		// Neither wedge is pushed backwards past its other end.
+		expect(cres.x2).toBeGreaterThan(cres.x1);
+		expect(dec.x1).toBeLessThan(dec.x2);
+		// They still share the flat lane and the constant aperture.
+		expect(cres.yCenter).toBe(dec.yCenter);
+		expect(cres.aperture).toBe(dec.aperture);
+	});
+
+	it("clears a point dynamic on the start note: shifts x1 right past the glyph + gap", () => {
+		const start = { anchor: { x: 10 }, laneY: 12, systemIndex: 0, dynamic: "mf" };
+		const stop = { anchor: { x: 40 }, systemIndex: 0 };
+		const w = buildHairpinSpec("crescendo", start, stop, "rightHand");
+		const halfWidth = ("mf".length * DYNAMIC_ADVANCE_EM * DYNAMIC_SIZE) / 2;
+		expect(w.x1).toBeCloseTo(10 + halfWidth + HAIRPIN_DYNAMIC_GAP, 6);
+		expect(w.x1).toBeGreaterThan(10); // shifted right off the dynamic
+		expect(w.x1).toBeLessThan(w.x2); // still a forward wedge
+		expect(w.x2).toBe(40); // the end is untouched
+	});
+
+	it("leaves x1 at the start note when it carries no dynamic", () => {
+		const start = { anchor: { x: 10 }, laneY: 12, systemIndex: 0 };
+		const stop = { anchor: { x: 40 }, systemIndex: 0 };
+		const w = buildHairpinSpec("crescendo", start, stop, "rightHand");
+		expect(w.x1).toBe(10);
+	});
+
+	it("clamps the dynamic clearance to the end X on a short within-system span (degenerate-safe)", () => {
+		// A wide dynamic on a very short span would shift x1 past x2; clamp to x2 so the
+		// wedge never runs backwards.
+		const start = { anchor: { x: 10 }, laneY: 12, systemIndex: 0, dynamic: "fff" };
+		const stop = { anchor: { x: 11 }, systemIndex: 0 };
+		const w = buildHairpinSpec("crescendo", start, stop, "rightHand");
+		expect(w.x1).toBe(11);
+		expect(w.x1).toBeLessThanOrEqual(w.x2);
+	});
+
+	it("keeps the dynamic clearance unclamped for a cross-system span (the clip trims the right edge later)", () => {
+		// Cross-system: stop.anchor.x is a foreign-frame X, so the within-system clamp is
+		// skipped; x1 keeps its full shift and the staff-end clip sets the right edge.
+		const start = { anchor: { x: 10 }, laneY: 12, systemIndex: 0, dynamic: "p" };
+		const stop = { anchor: { x: 3 }, systemIndex: 1 };
+		const w = buildHairpinSpec("crescendo", start, stop, "rightHand");
+		const halfWidth = ("p".length * DYNAMIC_ADVANCE_EM * DYNAMIC_SIZE) / 2;
+		expect(w.x1).toBeCloseTo(10 + halfWidth + HAIRPIN_DYNAMIC_GAP, 6);
+		expect(w.crossSystem).toBe(true);
+	});
+
+	it("flows the dynamic clearance through the full model (start-note dynamic shifts the wedge start right)", () => {
+		const withDyn = buildLayoutModel(
+			song([
+				note({ crescendo: "start", dynamic: "mf" }),
+				note({ crescendo: "stop" }),
+			]),
+			200,
+		);
+		const withoutDyn = buildLayoutModel(
+			song([note({ crescendo: "start" }), note({ crescendo: "stop" })]),
+			200,
+		);
+		const [a] = spansOf(withDyn).filter((s) => s.kind === "crescendo");
+		const [b] = spansOf(withoutDyn).filter((s) => s.kind === "crescendo");
+		expect(a.x1).toBeGreaterThan(b.x1); // the dynamic pushes the start right
+		expect(a.x2).toBeCloseTo(b.x2, 6); // the end is unaffected
+	});
+
+	it("resolves the wedge unchanged regardless of a bracketing point dynamic (all four cases)", () => {
+		// p at start, f at end, both, or neither: the wedge resolves in every case and
+		// the dynamics stay on the measure's hand texts, independent of the wedge.
+		const build = (startDyn, endDyn) =>
+			buildLayoutModel(
+				song([
+					note({
+						crescendo: "start",
+						...(startDyn ? { dynamic: startDyn } : {}),
+					}),
+					note({ crescendo: "stop", ...(endDyn ? { dynamic: endDyn } : {}) }),
+				]),
+				200,
+			);
+		for (const [s, e] of [
+			["p", null],
+			[null, "f"],
+			["p", "f"],
+			[null, null],
+		]) {
+			const model = build(s, e);
+			const [w] = spansOf(model).filter((sp) => sp.kind === "crescendo");
+			expect(w).toBeDefined();
+			expect(w.aperture).toBe(HAIRPIN_APERTURE);
+			// The dynamics live on the hand texts, not on the wedge record.
+			const texts = model.systems[0].measures[0].right.texts;
+			const dynamics = texts
+				.filter((t) => t.kind === "dynamic")
+				.map((t) => t.text);
+			if (s) {
+				expect(dynamics).toContain(s);
+			}
+			if (e) {
+				expect(dynamics).toContain(e);
+			}
+		}
+	});
+
+	it("resolves hairpins per hand (a left-hand crescendo rides the left lane)", () => {
+		const model = buildLayoutModel(
+			song(
+				[note({}, [{ step: "C", octave: 5 }])],
+				[
+					note({ crescendo: "start" }, [{ step: "C", octave: 3 }]),
+					note({ crescendo: "stop" }, [{ step: "E", octave: 3 }]),
+				],
+			),
+			200,
+		);
+		const [w] = spansOf(model).filter((s) => s.kind === "crescendo");
+		expect(w.hand).toBe("leftHand");
+		expect(w.yCenter).toBe(
+			model.systems[0].band.leftStaffBottomY + HAIRPIN_LANE_DY,
+		);
+	});
+
+	it("leaves tie/slur resolution unchanged — still dispatched to buildSpanSpec (Bézier records)", () => {
+		const model = buildLayoutModel(COMPREHENSIVE_SONG, 200);
+		const spans = spansOf(model);
+		const tie = spans.find((s) => s.kind === "tie");
+		const slur = spans.find((s) => s.kind === "slur");
+		// The Bézier records keep their arc-only fields (y1/y2/cx/cy) and carry no
+		// flat-lane wedge fields (yCenter/aperture).
+		for (const span of [tie, slur]) {
+			expect(span).toBeDefined();
+			expect(span).toHaveProperty("y1");
+			expect(span).toHaveProperty("y2");
+			expect(span).toHaveProperty("cx");
+			expect(span).toHaveProperty("cy");
+			expect(span).not.toHaveProperty("yCenter");
+			expect(span).not.toHaveProperty("aperture");
+		}
+	});
+});
+
+// ── Cross-system span clip (tie / slur / hairpin) ─────────────────────────────────
+//
+// A span whose endpoints fall on different systems must draw only its start-system
+// portion: filed under the start system, clipped to that system's `staffEndX`, never
+// a backwards stroke. The clip is a STRICT no-op for within-system spans (the only
+// case existing tests/examples exercise), and it touches horizontal coordinates only
+// — never any Y. `clipSpanToStartSystem` is the pure helper the bucketing loop runs
+// before filing each resolved span; the narrow-width `buildLayoutModel` idiom forces
+// the real multi-system path.
+
+describe("clipSpanToStartSystem — start-system clip for cross-system spans", () => {
+	it("leaves a within-system hairpin record byte-identical (strict no-op)", () => {
+		const span = {
+			kind: "crescendo",
+			hand: "rightHand",
+			systemIndex: 0,
+			x1: 10,
+			x2: 40,
+			yCenter: 12,
+			aperture: HAIRPIN_APERTURE,
+			crossSystem: false,
+		};
+		const before = { ...span };
+		const out = clipSpanToStartSystem(span, 28.5);
+		// Same object, mutated in place to nothing: every field equals the original.
+		expect(out).toEqual(before);
+	});
+
+	it("leaves a within-system tie/slur record byte-identical (strict no-op)", () => {
+		for (const kind of ["tie", "slur"]) {
+			const span = {
+				kind,
+				hand: "rightHand",
+				systemIndex: 0,
+				x1: 10,
+				y1: 5,
+				x2: 40,
+				y2: 7,
+				cx: 25,
+				cy: 4,
+				crossSystem: false,
+			};
+			const before = { ...span };
+			const out = clipSpanToStartSystem(span, 28.5);
+			expect(out).toEqual(before);
+		}
+	});
+
+	it("clips a cross-system hairpin's x2 to staffEndX (X only; yCenter untouched)", () => {
+		// A cross-system span's right edge is the start system's own staffEndX (28.5),
+		// regardless of the end note's foreign-frame X (50). yCenter is the flat lane Y —
+		// never touched.
+		const span = {
+			kind: "crescendo",
+			hand: "rightHand",
+			systemIndex: 0,
+			x1: 10,
+			x2: 50,
+			yCenter: 12,
+			aperture: HAIRPIN_APERTURE,
+			crossSystem: true,
+		};
+		const out = clipSpanToStartSystem(span, 28.5);
+		expect(out.x2).toBe(28.5);
+		expect(out.x1).toBe(10); // start untouched
+		expect(out.yCenter).toBe(12); // Y never touched
+		expect(out.aperture).toBe(HAIRPIN_APERTURE);
+		expect(out.systemIndex).toBe(0); // still filed under the start system
+	});
+
+	it("clips a cross-system tie/slur's x2 to staffEndX and recomputes cx; leaves y2/cy", () => {
+		for (const kind of ["tie", "slur"]) {
+			const span = {
+				kind,
+				hand: "rightHand",
+				systemIndex: 0,
+				x1: 10,
+				y1: 5,
+				x2: 50, // foreign end X past staffEndX
+				y2: 7, // a FOREIGN end-system notehead Y
+				cx: 30,
+				cy: 4, // a FOREIGN-derived control Y
+				crossSystem: true,
+			};
+			const out = clipSpanToStartSystem(span, 28.5);
+			expect(out.x2).toBe(28.5); // clamped to the start system's staff end
+			// cx recomputed to the NEW midpoint so the arc terminates at the new right edge.
+			expect(out.cx).toBeCloseTo((10 + 28.5) / 2, 10);
+			// y2 / cy are deliberately NOT clamped — accepted v1 best-effort (X-only clip).
+			expect(out.y2).toBe(7);
+			expect(out.cy).toBe(4);
+			expect(out.y1).toBe(5); // start Y untouched
+		}
+	});
+
+	it("never strokes backwards: a start at or past staffEndX clamps x2 to x1 (zero width)", () => {
+		// The clamp is max(x1, min(x2, staffEndX)); when x1 itself is past staffEndX the
+		// right edge collapses to x1, yielding a finite zero-width (never reversed) span.
+		const span = {
+			kind: "crescendo",
+			hand: "rightHand",
+			systemIndex: 0,
+			x1: 35, // already past staffEndX
+			x2: 60,
+			yCenter: 12,
+			aperture: HAIRPIN_APERTURE,
+			crossSystem: true,
+		};
+		const out = clipSpanToStartSystem(span, 28.5);
+		expect(out.x2).toBe(35); // never less than x1
+		expect(out.x2).toBeGreaterThanOrEqual(out.x1);
+		expect(Number.isFinite(out.x2)).toBe(true);
+	});
+
+	it("sets x2 to staffEndX even when the foreign end X is below it (foreign X is not consulted)", () => {
+		// The end note's X (20) is a coordinate in a DIFFERENT system's frame; it is
+		// meaningless in the start system's frame. The clip must set the right edge to the
+		// start system's own staffEndX (28.5), not leave it at the foreign 20 — that is the
+		// common cross-system case and the exact garbage stroke the clip exists to remove.
+		const span = {
+			kind: "crescendo",
+			hand: "rightHand",
+			systemIndex: 0,
+			x1: 10,
+			x2: 20,
+			yCenter: 12,
+			aperture: HAIRPIN_APERTURE,
+			crossSystem: true,
+		};
+		const out = clipSpanToStartSystem(span, 28.5);
+		expect(out.x2).toBe(28.5);
+		expect(out.x2).toBeGreaterThanOrEqual(out.x1);
+	});
+});
+
+describe("cross-system span clip — full buildLayoutModel (narrow width)", () => {
+	// Several single-note measures so a narrow render width forces multiple systems and
+	// a span authored from the first note to a last-system note crosses systems.
+	const crossSong = (kind) => {
+		const note = (markers = {}) => ({
+			type: "note",
+			duration: "whole",
+			pitches: [{ step: "C", octave: 5 }],
+			...markers,
+		});
+		const measures = [];
+		for (let i = 0; i < 8; i++) {
+			const markers = {};
+			if (i === 0) {
+				markers[kind] = "start";
+			}
+			if (i === 7) {
+				markers[kind] = "stop";
+			}
+			measures.push({ rightHand: [note(markers)] });
+		}
+		return { sections: [{ measures }] };
+	};
+
+	it("files a cross-system crescendo under the start system only, clipped to staffEndX, never throwing", () => {
+		let model;
+		expect(() => {
+			model = buildLayoutModel(crossSong("crescendo"), 30);
+		}).not.toThrow();
+		expect(model.systems.length).toBeGreaterThan(1);
+		const located = model.systems.flatMap((sys, i) =>
+			sys.spans
+				.filter((sp) => sp.kind === "crescendo")
+				.map((sp) => ({ arrayIndex: i, sp })),
+		);
+		// Exactly one wedge, filed under its own `systemIndex` and nowhere else.
+		expect(located).toHaveLength(1);
+		const { arrayIndex, sp } = located[0];
+		expect(sp.crossSystem).toBe(true);
+		expect(arrayIndex).toBe(sp.systemIndex); // filed under the start system only
+		const startSys = model.systems[sp.systemIndex];
+		// Clipped to the start system's staff end exactly: the right edge IS staffEndX,
+		// not the end note's foreign-frame X. (The end note's local X here is smaller than
+		// staffEndX, so a plain `min(x2, staffEndX)` clamp would leave a garbage foreign X;
+		// asserting equality to staffEndX is what distinguishes the fix from that bug.)
+		expect(sp.x2).toBeCloseTo(startSys.staffEndX, 6);
+		expect(sp.x2).toBeGreaterThanOrEqual(sp.x1 - 1e-9);
+		// No wedge with this span's foreign coordinates leaks into any OTHER system.
+		for (let i = 0; i < model.systems.length; i++) {
+			if (i === sp.systemIndex) {
+				continue;
+			}
+			expect(
+				model.systems[i].spans.some((other) => other.kind === "crescendo"),
+			).toBe(false);
+		}
+	});
+
+	it("clips a cross-system tie and slur to the start system's staff end and recomputes cx, never throwing", () => {
+		for (const kind of ["tie", "slur"]) {
+			let model;
+			expect(() => {
+				model = buildLayoutModel(crossSong(kind), 30);
+			}).not.toThrow();
+			const spans = model.systems.flatMap((s) => s.spans);
+			const sp = spans.find((s) => s.kind === kind);
+			expect(sp).toBeDefined();
+			expect(sp.crossSystem).toBe(true);
+			const startSys = model.systems[sp.systemIndex];
+			// X clamped to the start system's staff end exactly (the end note's foreign-frame
+			// X is below staffEndX here, so equality — not just `<=` — locks the latent-bug
+			// fix); cx is the recomputed midpoint of the clipped x-span.
+			expect(sp.x2).toBeCloseTo(startSys.staffEndX, 6);
+			expect(sp.x2).toBeGreaterThanOrEqual(sp.x1 - 1e-9);
+			expect(sp.cx).toBeCloseTo((sp.x1 + sp.x2) / 2, 6);
+		}
+	});
+
+	it("the clip changes horizontal coordinates only — y2/cy stay at the foreign end-system value", () => {
+		// Resolve the same cross-system tie WITHOUT the clip (read the raw record from a
+		// fresh resolve) to prove the clip touched x2/cx but left y2/cy untouched.
+		const model = buildLayoutModel(crossSong("tie"), 30);
+		const sp = model.systems.flatMap((s) => s.spans).find((s) => s.kind === "tie");
+		// y2 and cy derive from the foreign end note's notehead Y; the clip leaves them.
+		// They are finite (a real Y), and the clip is asserted not to have collapsed them
+		// to the start edge — the arc terminates at a foreign vertical position by design.
+		expect(Number.isFinite(sp.y2)).toBe(true);
+		expect(Number.isFinite(sp.cy)).toBe(true);
+		// The within-record consistency the clip DOES enforce: x2 ≤ staffEndX and cx is
+		// the recomputed midpoint of the clipped x-span (not the old foreign midpoint).
+		expect(sp.cx).toBeCloseTo((sp.x1 + sp.x2) / 2, 6);
+	});
+
+	it("a within-system crescendo across a barline is left untouched (one continuous wedge past the bar)", () => {
+		// Two notes in different measures of the SAME system: crossSystem is false and x2
+		// sits past the intervening barline X — the clip is a strict no-op here.
+		const song = {
+			sections: [
+				{
+					measures: [
+						{
+							rightHand: [
+								{
+									type: "note",
+									duration: "whole",
+									crescendo: "start",
+									pitches: [{ step: "C", octave: 5 }],
+								},
+							],
+						},
+						{
+							rightHand: [
+								{
+									type: "note",
+									duration: "whole",
+									crescendo: "stop",
+									pitches: [{ step: "C", octave: 5 }],
+								},
+							],
+						},
+					],
+				},
+			],
+		};
+		const model = buildLayoutModel(song, 200);
+		expect(model.systems.length).toBe(1); // both measures on one system
+		const [w] = model.systems
+			.flatMap((s) => s.spans)
+			.filter((s) => s.kind === "crescendo");
+		expect(w).toBeDefined();
+		expect(w.crossSystem).toBe(false);
+		// The barline between the two measures sits between the start and end note X, so
+		// the wedge spans it as one continuous element (x2 is past that barline X).
+		const m1 = model.systems[0].measures[0];
+		const barlineX = m1.x + m1.width;
+		expect(w.x1).toBeLessThan(barlineX);
+		expect(w.x2).toBeGreaterThan(barlineX);
+	});
+
+	it("produces byte-identical span records for a within-system tie/slur song (clip is a strict no-op)", () => {
+		// The clip must not perturb the only case existing tests exercise: a within-system
+		// tie/slur song. Resolve the comprehensive fixture and assert each within-system
+		// arc record carries its full original field set with x2/cx unmodified by a clip.
+		const model = buildLayoutModel(COMPREHENSIVE_SONG, 200);
+		const spans = model.systems.flatMap((s) => s.spans);
+		for (const kind of ["tie", "slur"]) {
+			const sp = spans.find((s) => s.kind === kind);
+			expect(sp).toBeDefined();
+			expect(sp.crossSystem).toBe(false);
+			// A within-system arc's cx is still exactly the midpoint of its UNCLIPPED span
+			// (the clip never ran), and x2 is the real end-note X (> x1).
+			expect(sp.cx).toBeCloseTo((sp.x1 + sp.x2) / 2, 6);
+			expect(sp.x2).toBeGreaterThan(sp.x1);
+		}
 	});
 });
