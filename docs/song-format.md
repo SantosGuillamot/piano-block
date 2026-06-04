@@ -289,10 +289,11 @@ So a pitch's sounding result is its note name plus its effective alteration, pla
 
 The format **has no `version` field**. It starts minimal and grows by adding **optional** fields to existing objects. A song you write today stays valid as the format grows, because new fields are optional and older songs simply omit them.
 
-Two consequences you can observe as an author:
+Three consequences you can observe as an author:
 
-- **Unknown fields are ignored.** A misspelled *optional* field — for example `dynmic` instead of `dynamic` — is silently dropped from meaning, not flagged as an error. The value you typed is still stored, but it carries no meaning. (Double-check your spelling of optional fields; a typo will not warn you.)
-- **A misspelled enumerated value *is* an error.** The closed vocabularies — durations, clefs, dynamics, barlines, `tie`/`slur`, event `type`, `beatType` — are checked strictly. A value like `"quaver"` for a duration, `"treble-clef"` for a clef, or `"mezzo"` for a dynamic is a conformance error.
+- **Unknown fields are ignored.** A misspelled *optional* field — for example `dynmic` instead of `dynamic`, or `cresendo` instead of `crescendo` — is silently dropped from meaning, not flagged as an error. The value you typed is still stored, but it carries no meaning. (Double-check your spelling of optional fields; a typo will not warn you.) This is why an older song that uses no gradual dynamics stays valid and unchanged as new optional fields like `crescendo` and `decrescendo` are added: the song simply omits them.
+- **A misspelled enumerated value *is* an error.** The closed vocabularies — durations, clefs, dynamics, barlines, `tie`/`slur`, `crescendo`/`decrescendo`, event `type`, `beatType` — are checked strictly. A value like `"quaver"` for a duration, `"treble-clef"` for a clef, `"mezzo"` for a dynamic, or anything other than `"start"` or `"stop"` for `crescendo` or `decrescendo` is a conformance error.
+- **Span pairing is not checked.** The start/stop markers that open and close a span — `tie`, `slur`, `crescendo`, and `decrescendo` — are validated only as individual `start | stop` values; their *pairing* is not. A lone `"start"` with no matching `"stop"` (or the reverse) is **not** a conformance error: the song still validates. Pairing is resolved best-effort at render time, so a dangling marker is simply drawn as far as it can be, never rejected.
 
 ## Annotated example song
 
