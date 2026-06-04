@@ -33,6 +33,7 @@ import {
 	DOT_GAP,
 	DOT_MUL,
 	DOT_OFFSET,
+	DYNAMICS_LANE_RESERVE,
 	EMPTY_MEASURE_WIDTH,
 	INTER_SYSTEM_GAP,
 	INTRA_STAFF_GAP,
@@ -40,8 +41,10 @@ import {
 	LEDGER_WIDTH,
 	MAX_STRETCH,
 	MEASURE_NUMBER_SIZE,
+	MID_GAP,
 	MIN_ADV,
 	NOTE_CLAMP_INSET,
+	NOTE_GAP_STAFF,
 	NOTE_SIZE,
 	NOTEHEAD_RX,
 	OTTAVA_SIZE,
@@ -1791,16 +1794,62 @@ export function buildLayoutModel(song, availableWidthInSp) {
 		});
 
 		// ── Vertical band layout for this system (computed from content). ───────────
+		// Four annotation bands flank the two staves — above/below each hand. Their
+		// reserved stack heights FLEX three system anchors: the above-RH lane (and so
+		// the top margin), the inter-staff gap (below-RH + above-LH stacks), and the
+		// bottom margin (below-LH stack). Each flex collapses to today's base value when
+		// its bands are empty, so a note-free system keeps its original geometry.
+		//
+		// One stack step (baseline-to-baseline) reuses the text-lane gap; the descent is
+		// the depth a note glyph drops below its own baseline, kept inside the reserve.
+		const STACK_STEP = NOTE_SIZE + TEXT_LANE_GAP;
+		const DESCENT = 0.22 * NOTE_SIZE;
+		// System-wide MAX same-anchor note count per band, plus per-hand dynamics.
+		const occ = bandOccupancy(members);
+		const rhHasDynamics = systemHandHasDynamics(members, "rightHand");
+		const lhHasDynamics = systemHandHasDynamics(members, "leftHand");
+		// A below band hugs the staff at the dynamics reserve when its hand prints
+		// dynamics (dodging the dynamics row), otherwise at the plain staff gap.
+		const baseOffsetBelow = (handHasDynamics) =>
+			handHasDynamics ? DYNAMICS_LANE_RESERVE : NOTE_GAP_STAFF;
+		const belowRHBase = baseOffsetBelow(rhHasDynamics);
+		const belowLHBase = baseOffsetBelow(lhHasDynamics);
+		// Reserved outward depth of each band's stack, measured from the staff edge.
+		// Zero (never negative) when the band has no notes.
+		const stackDepth = (n, base) =>
+			n > 0 ? base + (n - 1) * STACK_STEP + DESCENT : 0;
+		const belowRHStack = stackDepth(occ.belowRH, belowRHBase);
+		const belowLHStack = stackDepth(occ.belowLH, belowLHBase);
+		// The above-LH stack grows up into the inter-staff gap; it never dodges dynamics.
+		const aboveLHStack = stackDepth(occ.aboveLH, NOTE_GAP_STAFF);
+
 		// The top margin flexes to only the text lanes actually present above the staff
-		// (notes, an above-staff ottava, the tempo) stacked over the ledger zone,
-		// so the staff and tempo drop close to the staff when there is nothing above it
-		// Each present lane's baseline Y comes back in system coordinates.
-		const top = topMarginLayout(members, ledgerTopExtent(members));
+		// (the above-RH note stack, an above-staff ottava, the tempo) stacked over the
+		// ledger zone, so the staff and tempo drop close to the staff when there is
+		// nothing above it. Each present lane's baseline Y comes back in system
+		// coordinates; the above-RH lane reserves the full stack height.
+		const top = topMarginLayout(members, ledgerTopExtent(members), occ.aboveRH);
 		const topMargin = top.topMargin;
-		const bottomMargin = SYSTEM_BOTTOM_MARGIN + ledgerBottomExtent(members);
 		const rhBottomY = topMargin + STAFF_HEIGHT_SP;
-		const lhTopY = rhBottomY + INTRA_STAFF_GAP;
+
+		// The inter-staff gap flexes to fit the below-RH and above-LH stacks (with a
+		// mid-gap between them only when both are present), collapsing to the base gap
+		// when neither is present.
+		const bothInterStaff = occ.belowRH > 0 && occ.aboveLH > 0;
+		const effectiveInterStaffGap = Math.max(
+			INTRA_STAFF_GAP,
+			belowRHStack + aboveLHStack + (bothInterStaff ? MID_GAP : 0),
+		);
+		const lhTopY = rhBottomY + effectiveInterStaffGap;
 		const lhBottomY = lhTopY + STAFF_HEIGHT_SP;
+
+		// The bottom margin flexes to the below-LH stack (over its ledgers), never below
+		// today's base margin (also over its ledgers).
+		const ledgerBottom = ledgerBottomExtent(members);
+		const bottomMargin = Math.max(
+			SYSTEM_BOTTOM_MARGIN + ledgerBottom,
+			belowLHStack + ledgerBottom,
+		);
 		const systemHeight = lhBottomY + bottomMargin;
 
 		const band = {
@@ -1816,6 +1865,33 @@ export function buildLayoutModel(song, availableWidthInSp) {
 			tempoLaneY: top.tempoLaneY,
 			ottavaAboveLaneY: top.ottavaAboveLaneY,
 			noteAboveRHLaneY: top.noteAboveRHLaneY,
+			// The four placement bands. Each carries the note #0 baseline (`baseY`,
+			// hugging its staff at the band's base offset), the per-note `step`, and the
+			// `direction` notes stack — "up" (toward smaller Y) for above-* bands,
+			// "down" (toward larger Y) for below-* bands. Emit places note #k at
+			// `baseY + (direction === "up" ? −1 : 1) * k * step`.
+			bands: {
+				aboveRH: {
+					baseY: top.noteAboveRHLaneY,
+					step: STACK_STEP,
+					direction: "up",
+				},
+				belowRH: {
+					baseY: rhBottomY + belowRHBase,
+					step: STACK_STEP,
+					direction: "down",
+				},
+				aboveLH: {
+					baseY: lhTopY - NOTE_GAP_STAFF,
+					step: STACK_STEP,
+					direction: "up",
+				},
+				belowLH: {
+					baseY: lhBottomY + belowLHBase,
+					step: STACK_STEP,
+					direction: "down",
+				},
+			},
 		};
 
 		// ── Leading reserve content: brace + clefs + key sigs (+ time sig). ─────────
@@ -2364,16 +2440,103 @@ function systemHasOttavaAbove(members) {
 	);
 }
 
-/** Whether any event in either hand of this system carries a non-empty note text. */
-function systemHasNotes(members) {
-	const eventHasNote = (e) =>
-		(e?.notes ?? []).some(
-			(n) => typeof n?.text === "string" && n.text.length > 0,
-		);
-	return members.some(
-		(m) =>
-			(m.measure?.rightHand ?? []).some(eventHasNote) ||
-			(m.measure?.leftHand ?? []).some(eventHasNote),
+/** Whether a `notes` element carries drawable text (a non-empty string). */
+function noteHasText(n) {
+	return typeof n?.text === "string" && n.text.length > 0;
+}
+
+/** The hand key (`rightHand`/`leftHand`) each staff name maps to, for bucketing. */
+const STAFF_TO_HAND = { rightHand: "rightHand", leftHand: "leftHand" };
+
+/**
+ * The four placement-band occupancy for a system: for each band keyed by
+ * `(hand, placement)`, the system-wide MAXIMUM number of same-placement notes that
+ * stack at any single anchor. Both per-event notes and the measure-level standalone
+ * notes feed the count; a band's presence is simply `n > 0`.
+ *
+ * Anchors group notes that share a stacking column:
+ * - A per-event note's anchor is `(event, placement)` — every drawable note in one
+ *   event's `notes` array with the same placement stacks at that event's column.
+ * - A standalone note's anchor is `(staff, placement, raw beat ?? "noBeat")` — the
+ *   same key `collectStandaloneNotes` groups by, so two notes at the same raw beat,
+ *   staff, and placement stack together (and a `beat: 2` vs `beat: 2.0001` do not).
+ *
+ * @param {object[]} members The system's flattened measure entries (carry `measure`).
+ * @return {{ aboveRH: number, belowRH: number, aboveLH: number, belowLH: number }}
+ *   The per-band system-wide max stack counts (0 when the band is empty).
+ */
+function bandOccupancy(members) {
+	const max = { aboveRH: 0, belowRH: 0, aboveLH: 0, belowLH: 0 };
+	const bandKey = (hand, placement) => {
+		const side = placement === "below" ? "below" : "above";
+		const handPart = hand === "leftHand" ? "LH" : "RH";
+		return `${side}${handPart}`;
+	};
+	const bump = (key, count) => {
+		if (count > max[key]) {
+			max[key] = count;
+		}
+	};
+
+	for (const m of members) {
+		// Per-event notes: one anchor per (event, placement), counting drawable notes.
+		for (const hand of HANDS) {
+			for (const e of m.measure?.[hand] ?? []) {
+				let above = 0;
+				let below = 0;
+				for (const n of e?.notes ?? []) {
+					if (!noteHasText(n)) {
+						continue;
+					}
+					if (n.placement === "below") {
+						below += 1;
+					} else {
+						above += 1;
+					}
+				}
+				if (above > 0) {
+					bump(bandKey(hand, "above"), above);
+				}
+				if (below > 0) {
+					bump(bandKey(hand, "below"), below);
+				}
+			}
+		}
+		// Standalone notes: one anchor per (staff, placement, raw beat ?? "noBeat").
+		const counts = new Map();
+		for (const n of m.measure?.notes ?? []) {
+			if (!noteHasText(n)) {
+				continue;
+			}
+			const hand = STAFF_TO_HAND[n.staff];
+			if (!hand) {
+				continue;
+			}
+			const side = n.placement === "below" ? "below" : "above";
+			const hasBeat = typeof n.beat === "number";
+			const groupKey = `${hand}|${side}|${hasBeat ? n.beat : "noBeat"}`;
+			counts.set(groupKey, (counts.get(groupKey) ?? 0) + 1);
+		}
+		for (const [groupKey, count] of counts) {
+			const [hand, side] = groupKey.split("|");
+			bump(bandKey(hand, side), count);
+		}
+	}
+	return max;
+}
+
+/**
+ * Whether any event in this system's measures for the given hand carries a dynamic
+ * marking. Drives the per-hand below-band base offset: a below note dodges the
+ * dynamics row only when its own hand prints dynamics.
+ *
+ * @param {object[]} members The system's flattened measure entries.
+ * @param {string} hand The hand key (`rightHand` | `leftHand`).
+ * @return {boolean} True when any event of this hand in the system carries a dynamic.
+ */
+function systemHandHasDynamics(members, hand) {
+	return members.some((m) =>
+		(m.measure?.[hand] ?? []).some((e) => !!e?.dynamic),
 	);
 }
 
@@ -2382,15 +2545,22 @@ function systemHasNotes(members) {
  * present are stacked above the high-note/ledger zone — the above-RH note lane
  * nearest the staff, then an above-staff ottava, then the tempo at the very top — so
  * when there is nothing above the staff the margin (and the tempo) drop close to it.
- * Returns the staff's top margin plus each present lane's baseline Y in system-local
- * coordinates (null when that lane is absent).
+ * The above-RH lane reserves height for the WHOLE stack (every same-anchor note),
+ * not just one line, so a deep above-RH stack lifts the lanes (and the margin) above
+ * it. Returns the staff's top margin plus each present lane's baseline Y in
+ * system-local coordinates (null when that lane is absent).
  *
  * @param {object[]} members The system's flattened measure entries.
  * @param {number} ledgerTop The high-note/ledger extent above the staff top, in sp.
+ * @param {number} aboveRHCount The system-wide MAX above-RH same-anchor note count,
+ *   so the lane reserves `(n − 1)` extra stack steps above its baseline (0 ⇒ no lane).
  * @return {{ topMargin: number, noteAboveRHLaneY: ?number, ottavaAboveLaneY: ?number,
  *   tempoLaneY: ?number }} The top margin and lane baselines.
  */
-function topMarginLayout(members, ledgerTop) {
+function topMarginLayout(members, ledgerTop, aboveRHCount) {
+	// One above-RH stack step (baseline-to-baseline), so the lane reserves the full
+	// stack rather than a single line.
+	const stackStep = NOTE_SIZE + TEXT_LANE_GAP;
 	// The innermost reserved zone above the staff top holds whatever already lives
 	// there: the high notes/ledgers AND the system's measure number (drawn just above
 	// the top line at the left). The stacked text lanes clear both so the tempo never
@@ -2407,9 +2577,11 @@ function topMarginLayout(members, ledgerTop) {
 	let noteAboveRHD = null;
 	let ottavaD = null;
 	let tempoD = null;
-	if (systemHasNotes(members)) {
+	if (aboveRHCount > 0) {
 		noteAboveRHD = d;
-		topExtent = d + NOTE_SIZE;
+		// The lane's baseline is note #0; the stack grows UP, so the topmost note's
+		// glyph reaches `(n − 1)` steps higher plus its own ascent.
+		topExtent = d + (aboveRHCount - 1) * stackStep + NOTE_SIZE;
 		d = topExtent + TEXT_LANE_GAP;
 	}
 	if (systemHasOttavaAbove(members)) {

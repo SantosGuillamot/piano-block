@@ -11,11 +11,15 @@
 import {
 	ACCIDENTAL_GAP,
 	EMPTY_MEASURE_WIDTH,
+	INTRA_STAFF_GAP,
 	MAX_STRETCH,
 	MIN_ADV,
 	NOTE_CLAMP_INSET,
+	NOTE_GAP_STAFF,
+	NOTE_SIZE,
 	NOTEHEAD_RX,
 	STAFF_MARGIN_X,
+	TEXT_LANE_GAP,
 } from "../constants.js";
 import {
 	advanceFor,
@@ -2138,5 +2142,401 @@ describe("layout-polish fixes", () => {
 		// with the sharp it is pushed right to make room for the accidental glyph.
 		expect(plain.right.notes[0].x).toBeLessThan(NOTEHEAD_RX);
 		expect(sharp.right.notes[0].x).toBeGreaterThan(plain.right.notes[0].x);
+	});
+});
+
+// ── Four placement bands + the flexing inter-staff gap / bottom margin ─────────────
+describe("buildLayoutModel — placement bands, inter-staff flex, and dynamics dodge", () => {
+	// One stack step (baseline-to-baseline) and the descent of the lowest glyph box.
+	const STACK_STEP = NOTE_SIZE + TEXT_LANE_GAP;
+	const DESCENT = 0.22 * NOTE_SIZE;
+	const DYNAMICS_LANE_RESERVE = 4.5;
+	const MID_GAP = 1.2;
+
+	// A bare grand-staff measure with one note on each hand and no annotations.
+	const bareSong = {
+		sections: [
+			{
+				measures: [
+					{
+						rightHand: [
+							{
+								type: "note",
+								duration: "quarter",
+								pitches: [{ step: "G", octave: 4 }],
+							},
+						],
+						leftHand: [
+							{
+								type: "note",
+								duration: "quarter",
+								pitches: [{ step: "C", octave: 3 }],
+							},
+						],
+					},
+				],
+			},
+		],
+	};
+
+	// Builds a one-measure song whose single RH + LH events carry the given
+	// per-event notes / dynamics, so a test can probe one band in isolation.
+	const songWith = ({
+		rhNotes,
+		lhNotes,
+		rhDynamic,
+		lhDynamic,
+		measureNotes,
+	} = {}) => ({
+		sections: [
+			{
+				measures: [
+					{
+						notes: measureNotes,
+						rightHand: [
+							{
+								type: "note",
+								duration: "quarter",
+								...(rhDynamic ? { dynamic: rhDynamic } : {}),
+								...(rhNotes ? { notes: rhNotes } : {}),
+								pitches: [{ step: "G", octave: 4 }],
+							},
+						],
+						leftHand: [
+							{
+								type: "note",
+								duration: "quarter",
+								...(lhDynamic ? { dynamic: lhDynamic } : {}),
+								...(lhNotes ? { notes: lhNotes } : {}),
+								pitches: [{ step: "C", octave: 3 }],
+							},
+						],
+					},
+				],
+			},
+		],
+	});
+
+	it("collapses the inter-staff gap and bottom margin to base when no notes flex them", () => {
+		const sys = buildLayoutModel(bareSong, 200).systems[0];
+		// Nothing between or below the staves to flex either anchor.
+		expect(sys.band.leftStaffTopY - sys.band.rightStaffBottomY).toBeCloseTo(
+			INTRA_STAFF_GAP,
+			10,
+		);
+		// The plain bare song has no low ledgers, so the bottom margin is today's base.
+		expect(sys.band.bottomMargin).toBeCloseTo(5, 10);
+	});
+
+	it("keeps the LH staff below the RH staff with a below-RH + above-LH note (shallow → base floor)", () => {
+		// A single below-RH note plus a single above-LH note (no dynamics) reserve
+		// belowRH_stack + aboveLH_stack + MID_GAP, which is shallower than the base gap,
+		// so the gap floors at INTRA_STAFF_GAP — the LH staff stays strictly below.
+		const sys = buildLayoutModel(
+			songWith({
+				rhNotes: [{ text: "x", placement: "below" }],
+				lhNotes: [{ text: "y", placement: "above" }],
+			}),
+			200,
+		).systems[0];
+		const gap = sys.band.leftStaffTopY - sys.band.rightStaffBottomY;
+		expect(gap).toBeGreaterThanOrEqual(INTRA_STAFF_GAP);
+		// The LH staff still sits strictly below the RH staff.
+		expect(sys.band.leftStaffTopY).toBeGreaterThan(sys.band.rightStaffBottomY);
+	});
+
+	it("flexes the inter-staff gap PAST the base when the reserved stacks are deep", () => {
+		// Deep below-RH + above-LH stacks exceed the base gap, so the flex genuinely
+		// grows it: belowRH_stack (3 notes) + aboveLH_stack (3 notes) + MID_GAP > 8.
+		const triple = (placement) => [
+			{ text: "a", placement },
+			{ text: "b", placement },
+			{ text: "c", placement },
+		];
+		const sys = buildLayoutModel(
+			songWith({
+				rhNotes: triple("below"),
+				lhNotes: triple("above"),
+			}),
+			200,
+		).systems[0];
+		const gap = sys.band.leftStaffTopY - sys.band.rightStaffBottomY;
+		expect(gap).toBeGreaterThan(INTRA_STAFF_GAP);
+		expect(sys.band.leftStaffTopY).toBeGreaterThan(sys.band.rightStaffBottomY);
+	});
+
+	it("dodges a below-RH note past the dynamics row without reaching the LH staff", () => {
+		const sys = buildLayoutModel(
+			songWith({
+				rhNotes: [{ text: "x", placement: "below" }],
+				rhDynamic: "mf",
+			}),
+			200,
+		).systems[0];
+		// The furthest below-RH note baseline (note #0 dodging the dynamics row) clears
+		// its glyph descent and still stays strictly above the LH staff top.
+		const belowRHBand = sys.band.bands.belowRH;
+		const furthestBaseline = belowRHBand.baseY; // a single below-RH note → note #0
+		expect(furthestBaseline - DESCENT).toBeLessThan(sys.band.leftStaffTopY);
+		// The base offset is the dynamics reserve (the dodge), not the plain staff gap.
+		expect(belowRHBand.baseY - sys.band.rightStaffBottomY).toBeCloseTo(
+			DYNAMICS_LANE_RESERVE,
+			10,
+		);
+	});
+
+	it("keeps a DEEP dodged below-RH stack strictly above the LH staff top", () => {
+		// Two dodged below-RH notes deepen the stack past the base gap; the furthest
+		// baseline (rightStaffBottomY + belowRH_stack − DESCENT) must still clear the LH.
+		const sys = buildLayoutModel(
+			songWith({
+				rhNotes: [
+					{ text: "x", placement: "below" },
+					{ text: "y", placement: "below" },
+				],
+				rhDynamic: "mf",
+			}),
+			200,
+		).systems[0];
+		const belowRHStack = DYNAMICS_LANE_RESERVE + 1 * STACK_STEP + DESCENT; // n = 2
+		const furthestBaseline =
+			sys.band.rightStaffBottomY + belowRHStack - DESCENT;
+		expect(furthestBaseline).toBeLessThan(sys.band.leftStaffTopY);
+	});
+
+	it("uses the plain staff gap (no dodge) for a below-RH note when the RH has no dynamic", () => {
+		const sys = buildLayoutModel(
+			songWith({ rhNotes: [{ text: "x", placement: "below" }] }),
+			200,
+		).systems[0];
+		expect(
+			sys.band.bands.belowRH.baseY - sys.band.rightStaffBottomY,
+		).toBeCloseTo(NOTE_GAP_STAFF, 10);
+	});
+
+	it("flexes the bottom margin to the below-LH stack plus the ledger extent", () => {
+		// Two below-LH notes at the SAME anchor stack outward; one LH dynamic adds the dodge.
+		const sys = buildLayoutModel(
+			songWith({
+				lhNotes: [
+					{ text: "a", placement: "below" },
+					{ text: "b", placement: "below" },
+				],
+				lhDynamic: "p",
+			}),
+			200,
+		).systems[0];
+		// belowLH_stack = baseOffset + (n-1)*STACK_STEP + DESCENT, n = 2, dodged.
+		const belowLHStack = DYNAMICS_LANE_RESERVE + 1 * STACK_STEP + DESCENT;
+		// ledgerBottomExtent is 0 for this register, so the floor is the flexed stack.
+		expect(sys.band.bottomMargin).toBeGreaterThanOrEqual(belowLHStack - 1e-9);
+		expect(sys.band.bottomMargin).toBeGreaterThan(5);
+	});
+
+	it("never shrinks the bottom margin below today's base when the stack is shallow", () => {
+		// A single below-LH note (no dynamic) flexes less than the base bottom margin.
+		const sys = buildLayoutModel(
+			songWith({ lhNotes: [{ text: "a", placement: "below" }] }),
+			200,
+		).systems[0];
+		expect(sys.band.bottomMargin).toBeCloseTo(5, 10);
+	});
+
+	it("exposes the four bands with base anchors, a stack step, and outward growth", () => {
+		const sys = buildLayoutModel(
+			songWith({
+				rhNotes: [
+					{ text: "a", placement: "above" },
+					{ text: "b", placement: "below" },
+				],
+				lhNotes: [
+					{ text: "c", placement: "above" },
+					{ text: "d", placement: "below" },
+				],
+			}),
+			200,
+		).systems[0];
+		const { bands } = sys.band;
+		// All four bands are present with a numeric base anchor and the shared step.
+		for (const key of ["aboveRH", "belowRH", "aboveLH", "belowLH"]) {
+			expect(typeof bands[key].baseY).toBe("number");
+			expect(bands[key].step).toBeCloseTo(STACK_STEP, 10);
+		}
+		// Above-* bands grow toward smaller Y; below-* bands grow toward larger Y.
+		expect(bands.aboveRH.direction).toBe("up");
+		expect(bands.aboveLH.direction).toBe("up");
+		expect(bands.belowRH.direction).toBe("down");
+		expect(bands.belowLH.direction).toBe("down");
+		// note #k = baseY + dir * k * step. Verify note #0 hugs the staff and note #1
+		// lands exactly one step further outward, per band.
+		const noteY = (b, k) =>
+			b.baseY + (b.direction === "up" ? -1 : 1) * k * b.step;
+		// above-RH base = the above-RH lane just above the RH staff top.
+		expect(bands.aboveRH.baseY).toBeCloseTo(sys.band.noteAboveRHLaneY, 10);
+		expect(noteY(bands.aboveRH, 1)).toBeLessThan(noteY(bands.aboveRH, 0));
+		// below-RH base hugs the RH staff bottom by the plain gap (no dynamics here).
+		expect(bands.belowRH.baseY).toBeCloseTo(
+			sys.band.rightStaffBottomY + NOTE_GAP_STAFF,
+			10,
+		);
+		expect(noteY(bands.belowRH, 1)).toBeGreaterThan(noteY(bands.belowRH, 0));
+		// above-LH base hugs the LH staff top by the plain gap; grows up.
+		expect(bands.aboveLH.baseY).toBeCloseTo(
+			sys.band.leftStaffTopY - NOTE_GAP_STAFF,
+			10,
+		);
+		expect(noteY(bands.aboveLH, 1)).toBeLessThan(noteY(bands.aboveLH, 0));
+		// below-LH base hugs the LH staff bottom by the plain gap; grows down.
+		expect(bands.belowLH.baseY).toBeCloseTo(
+			sys.band.leftStaffBottomY + NOTE_GAP_STAFF,
+			10,
+		);
+		expect(noteY(bands.belowLH, 1)).toBeGreaterThan(noteY(bands.belowLH, 0));
+	});
+
+	it("reserves the above-RH lane height for the WHOLE stack, not just one line", () => {
+		// One above-RH note vs three above-RH notes at the same anchor: the deeper stack
+		// pushes the lane (and the whole top margin) higher.
+		const one = buildLayoutModel(
+			songWith({ rhNotes: [{ text: "a", placement: "above" }] }),
+			200,
+		).systems[0];
+		const three = buildLayoutModel(
+			songWith({
+				rhNotes: [
+					{ text: "a", placement: "above" },
+					{ text: "b", placement: "above" },
+					{ text: "c", placement: "above" },
+				],
+			}),
+			200,
+		).systems[0];
+		expect(three.band.topMargin).toBeGreaterThan(one.band.topMargin);
+	});
+
+	it("flexes the gap from the system-wide MAX same-anchor below-RH stack", () => {
+		// Measure 1 has a single below-RH note; measure 2 has THREE at one anchor.
+		// The system-wide MAX (3) drives the gap for the whole system.
+		const deepStackMeasure = {
+			rightHand: [
+				{
+					type: "note",
+					duration: "quarter",
+					notes: [
+						{ text: "a", placement: "below" },
+						{ text: "b", placement: "below" },
+						{ text: "c", placement: "below" },
+					],
+					pitches: [{ step: "G", octave: 4 }],
+				},
+			],
+		};
+		const shallow = buildLayoutModel(
+			songWith({ rhNotes: [{ text: "a", placement: "below" }] }),
+			200,
+		).systems[0];
+		const deep = buildLayoutModel(
+			{
+				sections: [
+					{
+						measures: [
+							{
+								rightHand: [
+									{
+										type: "note",
+										duration: "quarter",
+										notes: [{ text: "a", placement: "below" }],
+										pitches: [{ step: "G", octave: 4 }],
+									},
+								],
+							},
+							deepStackMeasure,
+						],
+					},
+				],
+			},
+			500,
+		).systems[0];
+		const gapOf = (s) => s.band.leftStaffTopY - s.band.rightStaffBottomY;
+		expect(gapOf(deep)).toBeGreaterThan(gapOf(shallow));
+	});
+
+	it("adds MID_GAP only when both inter-staff sub-bands are present", () => {
+		// Deep stacks (RH dynamics + 3 below-RH notes) lift the flexed gap above the base
+		// floor, so adding the above-LH sub-band's contribution is directly observable.
+		const triple = (placement) => [
+			{ text: "a", placement },
+			{ text: "b", placement },
+			{ text: "c", placement },
+		];
+		const belowRHOnly = buildLayoutModel(
+			songWith({ rhNotes: triple("below"), rhDynamic: "mf" }),
+			200,
+		).systems[0];
+		const both = buildLayoutModel(
+			songWith({
+				rhNotes: triple("below"),
+				rhDynamic: "mf",
+				lhNotes: triple("above"),
+			}),
+			200,
+		).systems[0];
+		const gap = (s) => s.band.leftStaffTopY - s.band.rightStaffBottomY;
+		const belowRHStack = DYNAMICS_LANE_RESERVE + 2 * STACK_STEP + DESCENT; // n = 3, dodged
+		const aboveLHStack = NOTE_GAP_STAFF + 2 * STACK_STEP + DESCENT; // n = 3
+		// below-RH alone flexes to its stack (above the base floor); no mid-gap.
+		expect(gap(belowRHOnly)).toBeCloseTo(
+			Math.max(INTRA_STAFF_GAP, belowRHStack),
+			10,
+		);
+		// Adding the above-LH sub-band lifts the gap by that stack PLUS the mid-gap.
+		expect(gap(both)).toBeCloseTo(belowRHStack + aboveLHStack + MID_GAP, 10);
+		expect(gap(both) - gap(belowRHOnly)).toBeCloseTo(
+			aboveLHStack + MID_GAP,
+			10,
+		);
+	});
+
+	it("buckets a standalone measure-level note into its (staff, placement) band", () => {
+		// A standalone below-LH note (no per-event notes) flexes the bottom margin and
+		// is bucketed by its own staff + placement.
+		const sys = buildLayoutModel(
+			songWith({
+				measureNotes: [
+					{ text: "ped", placement: "below", staff: "leftHand", beat: 0 },
+				],
+			}),
+			200,
+		).systems[0];
+		// A single below-LH standalone note flexes to base (n = 1, shallow).
+		expect(sys.band.bands.belowLH.baseY).toBeCloseTo(
+			sys.band.leftStaffBottomY + NOTE_GAP_STAFF,
+			10,
+		);
+		// Two standalone below-LH notes at the SAME beat stack and deepen the gap step.
+		const deeper = buildLayoutModel(
+			songWith({
+				measureNotes: [
+					{ text: "a", placement: "below", staff: "leftHand", beat: 0 },
+					{ text: "b", placement: "below", staff: "leftHand", beat: 0 },
+				],
+			}),
+			200,
+		).systems[0];
+		expect(deeper.band.bottomMargin).toBeGreaterThan(sys.band.bottomMargin);
+	});
+
+	it("keeps the dynamics dodge per-hand: an LH dynamic does not dodge below-RH notes", () => {
+		const sys = buildLayoutModel(
+			songWith({
+				rhNotes: [{ text: "x", placement: "below" }],
+				lhDynamic: "f", // a dynamic on the OTHER hand
+			}),
+			200,
+		).systems[0];
+		// The below-RH base offset stays the plain staff gap — the LH dynamic is irrelevant.
+		expect(
+			sys.band.bands.belowRH.baseY - sys.band.rightStaffBottomY,
+		).toBeCloseTo(NOTE_GAP_STAFF, 10);
 	});
 });
