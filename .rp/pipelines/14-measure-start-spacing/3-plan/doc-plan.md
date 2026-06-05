@@ -7,18 +7,34 @@ horizontal lead-in (an "opening clearance", `MEASURE_START_PAD = 1.0` sp) at the
 start of every measure on both staves, so the first event no longer hugs the
 barline / measure boundary. All changes live in `src/notation/` and are
 invisible at the author/song-format level — the same song JSON renders with
-~1 sp more breathing room before the opening note. A repository-wide sweep of
-the documentation surfaces (`README.md`, `AGENTS.md`, `docs/song-format.md`,
-`.rp.md`) found **no external or narrative documentation that describes
-measure-start spacing, names the layout spacing constants, or pins their numeric
-values** — so this change drifts no shipped prose. The only documentation
-surfaces the feature actually touches are **inline doc-comments in
-`src/notation/constants.js` and `src/notation/layout.js`**, and those are already
-fully authored by the code phase (code-plan tasks T1, T3, and T4). This doc plan
-therefore does **not** create new prose; it consists of a single verification
-task that confirms the external/narrative docs remain accurate after the code
-lands, so nothing silently goes out of sync. The rationale for scoping new docs
-out is recorded in the "Deliberately scoped out" section below.
+~1 sp more breathing room before the opening note.
+
+A repository-wide sweep of the documentation surfaces (`README.md`, `AGENTS.md`,
+`docs/song-format.md`, and the inline doc-comments under `src/notation/`) found
+**no external or author-facing documentation that describes measure-start
+spacing, names the layout spacing constants, or pins their numeric values** — so
+the user/contributor-facing prose drifts none. There is, however, **one
+narrative inline doc-comment that the feature falsifies**: the
+`ACCIDENTAL_LEAD_EXTRA` doc-comment in `src/notation/constants.js`. It currently
+asserts that a plain opening note "hugs the boundary" and that an accidental
+opening note "shifts right" relative to that hugging note — both claims become
+untrue once the lead-in lands (under the larger-of composition the design adopts,
+a plain opening note and an accidental opening note share the **same** opening
+slot, so neither hugs the boundary and neither shifts right relative to the
+other). The code phase does **not** own this comment — its enumerated
+comment-hygiene touch points are the new `MEASURE_START_PAD` comment (code-plan
+T1), the `BARLINE_POST_PAD` comment (T4), and the `layout.js` lead-inset /
+packing comments (T3); the `ACCIDENTAL_LEAD_EXTRA` comment is named by none of
+them. This doc plan therefore claims that comment as a doc-phase-owned surface
+(Task D2).
+
+In sum, the inline comments the code phase authors (`MEASURE_START_PAD`,
+`BARLINE_POST_PAD`, and the `layout.js` comments) are out of this plan's scope;
+the documentation surfaces this plan owns are (1) verifying the external /
+author-facing prose stays accurate (Task D1) and (2) refreshing the stale
+`ACCIDENTAL_LEAD_EXTRA` narrative the code phase leaves behind (Task D2). The
+plan creates no new user-facing prose. The rationale for scoping the remaining
+surfaces out is recorded in the "Deliberately scoped out" section below.
 
 ## Tasks
 
@@ -86,7 +102,81 @@ out is recorded in the "Deliberately scoped out" section below.
     unchanged); if a drift is found, the minimal correction is applied and
     contains no `.rp/`-workflow references.
   - No inline doc-comment in `src/notation/` is modified by this task (those are
-    owned by the code phase).
+    owned by the code phase). The `ACCIDENTAL_LEAD_EXTRA` comment is the separate
+    concern of Task D2.
+
+### Task D2: Refresh the `ACCIDENTAL_LEAD_EXTRA` doc-comment so it stops describing the old hugging behavior
+
+- **Goal:** Bring the `ACCIDENTAL_LEAD_EXTRA` doc-comment in
+  `src/notation/constants.js` back in sync with the landed code. Its narrative
+  currently describes the pre-lead-in world — that a plain opening note hugs the
+  measure boundary and that an accidental opening note shifts right relative to
+  that hugging note. After the lead-in lands, a plain opening note no longer hugs
+  the boundary (it sits a uniform opening slot in from it) and an accidental
+  opening note lands at the **same** opening position as a plain one (the two
+  compose by the larger-of rule, not by stacking), with the accidental glyph
+  drawn into / to the left of that opening slot rather than the note shifting
+  right. Rewrite the comment to describe this composed behavior so the prose no
+  longer contradicts the code.
+- **Audience:** Contributors reading the notation engine's constants — the
+  developer who needs to understand what role `ACCIDENTAL_LEAD_EXTRA` plays in
+  the opening-measure spacing now that a uniform lead-in also exists.
+- **Files:**
+  - `src/notation/constants.js` (edit — the `ACCIDENTAL_LEAD_EXTRA` doc-comment
+    only)
+- **Sections-scope:**
+  - Edit **only** the doc-comment block immediately above
+    `export const ACCIDENTAL_LEAD_EXTRA` (today around `constants.js:139-145`).
+    Do NOT change the constant's value (`= 1`), its name, or any code.
+  - The refreshed comment must drop the two now-false clauses — that the plain
+    opening note "hugs the boundary" and that an accidental opening note "shifts
+    right by this much" relative to a hugging note — and instead describe
+    `ACCIDENTAL_LEAD_EXTRA` as the accidental's share of the measure's opening
+    slot, which composes with the uniform opening lead-in by the larger-of rule
+    (so a plain and an accidental opening note share the same opening position),
+    with the accidental glyph occupying that slot / drawn to the left of the
+    notehead.
+  - Do NOT duplicate or restate the `MEASURE_START_PAD` doc-comment that the code
+    phase owns (code-plan T1). This comment may *refer* to the uniform opening
+    lead-in (and may name `MEASURE_START_PAD` as the constant that supplies it,
+    consistent with how `BARLINE_POST_PAD`'s comment cross-references it), but it
+    must not re-explain what that constant is or re-document its value — it stays
+    focused on the accidental's role.
+  - Do NOT touch any other doc-comment in `constants.js` (the
+    `MEASURE_START_PAD`, `BARLINE_POST_PAD`, and other comments are out of scope).
+  - The rewritten comment must read as standalone project documentation: it MUST
+    NOT reference the internal pipeline workflow or its artifacts (no `AC#`, `T#`,
+    `design §`, "spec", "Decision D#", "review N"), per `AGENTS.md`.
+- **Depends on:** Code phase (the `max()` composition landing — code-plan T3) and
+  Task D1 (so all `constants.js` comment edits are reasoned about together).
+  Executed in phase 5 **after** the code has landed, so the writer describes the
+  shipped post-composition behavior by reading the actual `buildLayoutModel`
+  logic and the final `MEASURE_START_PAD` / `BARLINE_POST_PAD` comments, not a
+  predicted one.
+- **Traces to:** Spec Acceptance Criterion 7 (no stale "hug the boundary"
+  narrative left contradicting the lead-in) and Spec Acceptance Criterion 3 (an
+  opening accidental note lands at the same opening position as a plain one, the
+  glyph occupying the opening slot); code-plan T3 (the
+  `openingClearance = max(MEASURE_START_PAD, noteAccidentalLead)` composition that
+  falsifies the old comment).
+- **Acceptance:**
+  - A contributor reading the `ACCIDENTAL_LEAD_EXTRA` doc-comment understands that
+    `ACCIDENTAL_LEAD_EXTRA` is the accidental's share of the measure's opening
+    slot and that it composes with the uniform opening lead-in by the larger-of
+    rule, so a plain opening note and an accidental opening note end up at the
+    same opening position.
+  - The comment no longer states or implies that a plain opening note hugs the
+    measure boundary, and no longer states that an accidental opening note shifts
+    right relative to a hugging plain note.
+  - The comment still explains what the accidental glyph does with the slot (it
+    occupies it / is drawn to the left of the notehead), so the constant's purpose
+    remains clear.
+  - The comment does not re-document `MEASURE_START_PAD` (no duplication of the
+    constant the code phase owns), and contains no `.rp/`-workflow references
+    (`AC#`, `T#`, `design §`, "spec", etc.).
+  - The constant's value and declaration (`export const ACCIDENTAL_LEAD_EXTRA = 1`)
+    are unchanged, and no other comment or code in `constants.js` is modified by
+    this task.
 
 ## Deliberately scoped out
 
