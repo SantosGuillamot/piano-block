@@ -104,4 +104,115 @@ re-derives nothing, so the change is confined to the pure layout layer.
 (≈ 0.6 sp); `:2030-2040` asserts only a barline→measure-EDGE gap > NOTEHEAD_RX
 (not a barline→first-NOTE gap).
 
-### Q2 — Scope + first-of-system handling (asked)
+**Numerical trace (researcher, A1 follow-up — confirms the magnitude):**
+
+- INTERIOR measure, regular bar, no accidental: the next measure's left edge is
+  `x_next = x_prev + scaledContent + trailingPad`, where
+  `trailingPad = barlineSpec("regular").width + BARLINE_POST_PAD = 0.13 + 0.7 =
+  0.83` sp. So `x_next` is exactly `BARLINE_POST_PAD = 0.7` sp right of the
+  barline stroke's right edge. With `leadInset = 0`, the first note's CENTER =
+  `x_next`. The barline-stroke→note-center gap ≈ 0.7 sp; minus the notehead left
+  half-width `NOTEHEAD_RX = 0.6`, the VISIBLE whitespace from barline to notehead
+  left edge is only ≈ 0.1 sp — this is the "crammed" look.
+- SYSTEM-FIRST measure: left edge at `x = STAFF_MARGIN_X + reserve`
+  (`layout.js:1966`); `reserve` includes `RESERVE_PAD = 1` sp after the
+  clef/keysig/timesig block. With `leadInset = 0` the first note hugs that edge,
+  i.e. it already gets `RESERVE_PAD = 1` sp past the time signature. A
+  section change at a system head does NOT add `sectionReserve` to `leadInset`
+  (gated on `localIdx > 0`, `layout.js:1975`) because the head `reserve` already
+  restates clef/key/time.
+
+**Caveats the researcher flagged (facts, not design):**
+
+- `leadInset` also feeds standalone-annotation X (beat-0 → `leadInset`,
+  `layout.js:1604/1642`, used by `collectStandaloneAnnotations` at 2042-2051)
+  and `scaledContent = leadInset + scaledGrid` (`layout.js:1982`), which sets
+  `measureRightX` and thus measure width. So any lead-in added to `leadInset`
+  MUST also be added to the measure's intrinsic `contentWidth` used for packing
+  (`layout.js:1767`), exactly as `noteAccidentalLead` already is.
+- `leadInset` is NOT scaled by justify (only `scaledGrid` is,
+  `layout.js:1980-1982`). A constant lead-in therefore stays fixed under
+  justification — the desirable behavior for an engraving lead-in.
+
+### Q2 — Scope across measure types + downstream consumers
+
+**Researcher findings (A2):**
+
+(a) SYSTEM-FIRST measure. Its left edge is `STAFF_MARGIN_X + reserve`
+(`layout.js:1966`); the positioned reserve model lays out brace
+(`BRACE_WIDTH=1.5`) → clef (`CLEF_WIDTH=3.8`) → keysig cluster → time sig, then
+`reserve` adds `RESERVE_PAD = 1` sp at the end (`layout.js:1291,1318`). So a
+system-first measure's first note ALREADY sits ~1 sp (`RESERVE_PAD`) past the
+clef/keysig/timesig block. Crucially, a system-first measure has NO left barline
+(left barlines are only drawn for `repeat-start`, never the score's first
+measure; ordinary barlines are drawn at each measure's END — `layout.js:2021,
+2028-2032`). So the system-first "left edge" is the reserve/clef block, not a
+barline. Adding the SAME additive lead-in to `leadInset` for ALL measures would
+give the system-first note `RESERVE_PAD (1) + lead-in` of clearance — i.e. it
+would be indented MORE than an interior measure's barline gap (the lead-in
+stacks on top of `RESERVE_PAD`).
+
+(b) INTERIOR measures — confirmed. Every interior measure's first column sits at
+`cx = leadInset` (`layout.js:1987`), shared by both hands via the single
+`columnX` map. A generic lead-in added to `leadInset` applies to both staves
+uniformly — same rail as `noteAccidentalLead`/`ACCIDENTAL_LEAD_EXTRA`.
+
+(c) EMPTY measure — no first note, so a lead-in is visually irrelevant, but
+HARMLESS and self-consistent via the existing width accounting: an empty grid
+returns `columns: []`, `contentWidth = EMPTY_MEASURE_WIDTH = 3.3`; the lead-in
+just widens it (and must be in `contentWidth` for packing). No NaN/crash
+(empty-grid short-circuit, `layout.js:810-820`). Only effect: an empty measure
+gets slightly wider — arguably desirable for consistent measure starts.
+
+(d) Downstream consumers — NOTHING assumes column-0 X == 0:
+- Notes/rests/stems/flags/ledgers/dots/accidentals: `x = columnX.get(onsets[idx])
+  ?? 0` (`layout.js:1438`); the `?? 0` is a missing-key fallback, not a
+  column-0-at-0 assumption — a present onset returns its real `columnX` value.
+- Beams: built from `note.x` — move with the notes.
+- Ties/slurs/hairpins/point-dynamics: anchored at `measureX + note.x`
+  (`layout.js:2375`) — consistent.
+- Standalone annotations: built explicitly in the `leadInset` frame
+  (beat-0 → `leadInset`, `layout.js:1604,1642,1645-1646`) and receive `leadInset`/
+  `scaledContent` directly (`layout.js:2048-2049`) — track the shift automatically.
+- Barlines: end bar at `measureRightX = x + scaledContent`
+  (`scaledContent = leadInset + scaledGrid`) — moves right by the lead-in, i.e.
+  the measure simply gets wider on the LEFT. A `repeat-start` LEFT bar is drawn
+  at `x` (the measure's left edge, BEFORE the lead-in), so a left barline stays
+  flush at the boundary and the first note sits the lead-in past it — correct
+  engraving. These code paths are ALREADY exercised with a nonzero `leadInset`
+  today (via `noteAccidentalLead`/`sectionReserve`), so a generic lead-in rides
+  the same rails.
+
+**The one hard invariant:** the lead-in MUST be folded into the measure's
+`contentWidth` used for system packing (`layout.js:1767`, where
+`noteAccidentalLead`/`sectionReserve` already are), or packing/justify mis-budgets.
+
+**DECISION (D1) — scope of the lead-in (resolved autonomously):**
+Apply the lead-in to EVERY measure's first column (both hands) via the
+`leadInset` (placement) + `contentWidth` (packing) rail, INCLUDING the
+system-first and section-first measures. Rationale grounded in the issue + code:
+
+- The issue says "EACH measure should begin with enough horizontal breathing
+  room," and the screenshot shows crowding both right after the clef block (a
+  system-first measure) and in interior measures. So the requirement is
+  every-measure, not interior-only.
+- We do NOT special-case the system-first measure to subtract `RESERVE_PAD`.
+  `RESERVE_PAD = 1` sp is the clef-block trailing slack, a DIFFERENT engraving
+  concern from a musical note lead-in; engraving practice routinely leaves a bit
+  more air after a clef/key/time block before the first note than after a plain
+  interior barline. Letting the lead-in stack on top of `RESERVE_PAD` at a system
+  head is acceptable and conventional (the opening of a line gets a touch more
+  room). This keeps the change to ONE uniform mechanism (no branching on
+  measure position), which is simpler and matches how `noteAccidentalLead` is
+  applied unconditionally-by-predicate today.
+- Net: the testable contract becomes "the first note's measure-relative X
+  (`notes[0].x`) is ≥ the lead-in on every measure," uniformly, rather than a
+  position-dependent rule. (The exact magnitude is Q3.)
+
+This is a real design choice; the design phase MAY instead choose to equalize
+(fold the lead-in into the reserve so system-first == interior gap). Either is
+defensible. The spec's REQUIREMENT is the visible barline/boundary→notehead gap;
+the uniform-`leadInset` approach is the recommended default and the one the
+acceptance tests below are written against.
+
+### Q3 — Concrete, testable lead-in magnitude (asked)
