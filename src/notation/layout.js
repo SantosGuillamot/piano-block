@@ -2664,11 +2664,13 @@ function systemHasTempo(members) {
 	);
 }
 
-/** Whether any measure in this system carries an above-staff (positive) octave shift. */
-function systemHasOttavaAbove(members) {
-	return members.some(
-		(m) => m.ctx.rightHand.octaveShift > 0 || m.ctx.leftHand.octaveShift > 0,
-	);
+/** Whether any measure in this system carries a RIGHT-hand positive octave shift. */
+function systemHasRightOttavaAbove(members) {
+	return members.some((m) => m.ctx.rightHand.octaveShift > 0);
+}
+/** Whether any measure in this system carries a LEFT-hand positive octave shift. */
+function systemHasLeftOttavaAbove(members) {
+	return members.some((m) => m.ctx.leftHand.octaveShift > 0);
 }
 
 /** Whether a `notes` element carries drawable text (a non-empty string). */
@@ -2837,7 +2839,7 @@ function topMarginLayout(members, ledgerTop, aboveRHCount) {
 		topExtent = d + (aboveRHCount - 1) * stackStep + NOTE_SIZE;
 		d = topExtent + TEXT_LANE_GAP;
 	}
-	if (systemHasOttavaAbove(members)) {
+	if (systemHasRightOttavaAbove(members)) {
 		ottavaD = d;
 		topExtent = d + OTTAVA_SIZE;
 		d = topExtent + TEXT_LANE_GAP;
