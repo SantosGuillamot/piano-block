@@ -1908,6 +1908,12 @@ export function buildLayoutModel(song, availableWidthInSp) {
 			// null when that element is absent from the system).
 			tempoLaneY: top.tempoLaneY,
 			ottavaAboveLaneY: top.ottavaAboveLaneY,
+			// LH "above" ottava lane: low edge of the OTTAVA_SIZE band, sitting in the
+			// inter-staff gap above the LH content. Null when no LH-above shift is present
+			// on this system (and never read in that case — see buildSystemTexts).
+			ottavaLeftAboveLaneY: hasLHOttavaAbove
+				? lhTopY - Math.max(lhAboveExtent, aboveLHStack) - NOTE_GAP_STAFF
+				: null,
 			annotationAboveRHLaneY: top.annotationAboveRHLaneY,
 			// The four placement bands. Each carries the note #0 baseline (`baseY`,
 			// hugging its staff at the band's base offset), the per-note `step`, and the
