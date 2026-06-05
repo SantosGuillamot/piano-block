@@ -364,25 +364,38 @@ export function eventDuration(event) {
 }
 
 /**
- * The grouping beat length, in quarter-beats, derived from the time signature FOR
- * GROUPING ONLY. Compound (`beatType ∈ {8,16}` AND `beats % 3 == 0`,
- * e.g. 6/8, 9/8, 12/8) groups in dotted beats (three `beatType` units); simple
- * (everything else) is one `beatType` unit per beat (4/4 eighths beam in 2s).
+ * The grouping unit length, in quarter-beats, derived from the time signature FOR
+ * GROUPING ONLY. Compound (`beatType ∈ {8,16}` AND `beats % 3 == 0`, e.g. 6/8,
+ * 9/8, 12/8) groups in dotted beats (three `beatType` units). Simple metres group
+ * by the HALF-BAR, so a chained run joins under one beam (4/4 → fours, 2/2 →
+ * 4+4); small simple metres whose half-bar is under a half-note (2/4, 3/4, 2/8)
+ * group by the WHOLE BAR instead, since a half-bar there would re-introduce pairs.
+ * The unit is floored at one notated beat (binds only in 1/1), and an absent time
+ * signature defaults to 4/4 grouping.
  *
  * @param {{ beats?: number, beatType?: number }} [timeSignature] The active time
  *   signature; defaults to 4/4-like grouping when absent.
- * @return {number} The beat length in quarter-beats (always > 0).
+ * @return {number} The grouping unit in quarter-beats (always > 0).
  */
 export function beatGroupLength(timeSignature) {
 	const beats = timeSignature?.beats;
 	const beatType = timeSignature?.beatType;
-	// One `beatType` unit in quarter-beats (a quarter = 1): 4 / beatType.
-	const unit = beatType ? 4 / beatType : 1;
+	const beat = beatType ? 4 / beatType : 1; // one notated beat (quarter-beats)
 	const isCompound =
 		(beatType === 8 || beatType === 16) &&
 		typeof beats === "number" &&
 		beats % 3 === 0;
-	return isCompound ? unit * 3 : unit;
+	if (isCompound) return beat * 3; // dotted beat — UNCHANGED
+	// SIMPLE: group by the HALF-BAR so a chained run joins under one beam
+	// (4/4 -> 4, 2/2 -> 4+4). For small simple metres whose half-bar is under a
+	// half-note (2 quarter-beats) — 2/4, 3/4, 2/8 — the half-bar would re-introduce
+	// pairs, so group by the WHOLE BAR. Absent ts defaults to 4/4 (beats -> 4).
+	const b = typeof beats === "number" ? beats : 4; // NaN guard (absent ts)
+	const barLength = b * beat;
+	const halfBar = barLength / 2;
+	const unit = halfBar >= 2 ? halfBar : barLength;
+	// Never finer than one beat; this floor binds only in 1/1 (whole-note beat).
+	return Math.max(unit, beat);
 }
 
 /**
