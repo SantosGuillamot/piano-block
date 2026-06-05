@@ -30,12 +30,12 @@ import {
 	BARLINE_THIN,
 	BASE_DUR,
 	BEAM_COUNT,
-	CHORD_SYMBOL_SIZE,
 	DOT_GAP,
 	DOT_MUL,
 	DOT_OFFSET,
 	DYNAMIC_ADVANCE_EM,
 	DYNAMIC_SIZE,
+	DYNAMICS_LANE_RESERVE,
 	EMPTY_MEASURE_WIDTH,
 	HAIRPIN_APERTURE,
 	HAIRPIN_DYNAMIC_GAP,
@@ -47,7 +47,11 @@ import {
 	LEDGER_WIDTH,
 	MAX_STRETCH,
 	MEASURE_NUMBER_SIZE,
+	MID_GAP,
 	MIN_ADV,
+	NOTE_CLAMP_INSET,
+	NOTE_GAP_STAFF,
+	NOTE_SIZE,
 	NOTEHEAD_RX,
 	OTTAVA_SIZE,
 	STAFF_HEIGHT_SP,
@@ -1395,7 +1399,7 @@ export function systemScale(contentSp, availSp, { isLast = false } = {}) {
 // measure's two hands onto the union grid, packs measures into systems,
 // and assembles the positioned-primitive model: systems → grand-staff bands
 // → (staff lines, clefs, key sig, time sig, barlines, brace) + per-event primitives
-// + spans (ties/slurs) + texts (dynamics, chord symbols, tempo, measure numbers,
+// + spans (ties/slurs) + texts (dynamics, notes, tempo, measure numbers,
 // ottava). Everything is in sp units — NO DOM, NO sp→px. Resize re-runs only the
 // packing/justify because the per-measure intrinsic widths and pitch Ys are
 // sp-relative invariants.
@@ -1545,21 +1549,143 @@ function layoutHand(events, columnX, onsets, ctx, timeSignature) {
 }
 
 /**
- * Collect an event's per-event text primitives (dynamic + chord symbol) at X `x`.
- * Dynamics render below the hand's staff; chord symbols above the RH
- * staff. The hand placement (RH vs LH offset) is applied later by the band assembly.
+ * Collect an event's per-event text primitives — a dynamic plus every author `note`
+ * — at the event's column X. This is the locked contract the band model and the emit
+ * layer route on; it computes NO Y and does NOT bucket by placement (that is done
+ * later from this flat list).
  *
- * @param {{ dynamic?: string, chordSymbol?: string }} event The event.
- * @param {number} x The event's relative X.
- * @param {object[]} out The list to push texts onto.
+ * The dynamic (when present) pushes one `{ kind: "dynamic", x, text }`. Then each
+ * element of `event.annotations` whose `text` is a NON-EMPTY string pushes exactly one
+ * `{ kind: "annotation", x, text, placement }`, in array order — array order IS the
+ * stacking order the later layers consume. Elements with an empty or absent `text`
+ * push nothing; an absent or empty `notes` pushes no note primitives at all. The
+ * routine is identical for a `note` and a `rest` event (the caller invokes it on
+ * both), so a rest's `notes` are collected the same way at the rest's column X.
+ *
+ * @param {{ dynamic?: string, notes?: { text?: string, placement?: string }[] }}
+ *   event The event. `dynamic` is the optional dynamic marking; `notes` is the
+ *   optional array of author annotations, each `{ text, placement }`.
+ * @param {number} x The event's relative column X (shared by every primitive pushed
+ *   for this event), in sp.
+ * @param {{ kind: string, x: number, text: string, placement?: string }[]} out The
+ *   list this routine pushes primitives onto (mutated in place).
  */
-function collectEventTexts(event, x, out) {
+export function collectEventTexts(event, x, out) {
 	if (event?.dynamic) {
 		out.push({ kind: "dynamic", x, text: event.dynamic });
 	}
-	if (typeof event?.chordSymbol === "string" && event.chordSymbol.length > 0) {
-		out.push({ kind: "chordSymbol", x, text: event.chordSymbol });
+	for (const el of event?.annotations ?? []) {
+		if (typeof el?.text === "string" && el.text.length > 0) {
+			out.push({
+				kind: "annotation",
+				x,
+				text: el.text,
+				placement: el.placement,
+			});
+		}
 	}
+}
+
+/**
+ * Resolve a measure's standalone (measure-level) `notes` into positioned
+ * primitives, computing each note's horizontal X by interpolating its `beat`
+ * onset over the measure's SCALED relative column grid (the same `columnX` frame
+ * the per-event notes carry), with an over-content clamp. It computes NO Y — the
+ * band model places notes vertically later — and carries a RAW-`beat` group key
+ * so later stacking groups by the raw beat, never the resolved X.
+ *
+ * Every X this produces is MEASURE-RELATIVE: the same frame as `ctx.columnX`
+ * (which starts at `ctx.leadInset`, the content-left edge) and `ctx.scaledContent`
+ * (the relative right edge, `= measureRightX − measure.x`). The caller therefore
+ * emits the primitives under the measure's own `translate(measure.x 0)` group with
+ * no `measure.x` subtraction.
+ *
+ * X resolution, all terms measure-relative:
+ * - A note with no `beat` is treated as `beat: 0`, mapping to `ctx.leadInset`.
+ * - For a `beat` value, `beatToX` finds the bracketing onsets `[t_i, t_next]` with
+ *   `t_i ≤ beat < t_next` and lerps between their relative X positions, where the
+ *   last column's far edge is `t_next = ctx.measureEnd` at X = `ctx.scaledContent`.
+ *   A `beat` coinciding with an event column lands exactly at that column's X.
+ * - Over-content clamp: `x = min(beatToX(min(beat, measureEnd)), scaledContent −
+ *   NOTE_CLAMP_INSET)`, so a `beat` past the content (e.g. 99) is reined in to one
+ *   `NOTE_CLAMP_INSET` inside the trailing barline.
+ *
+ * The group key is the RAW `beat` (pre-interpolation), stored as a precomputed
+ * `group` string `` `${staff}|${placement}|${beat ?? "noBeat"}` ``. Two records
+ * sharing `(staff, placement, raw beat ?? "noBeat")` share a `group`; a `beat: 2`
+ * and a `beat: 2.0001` note (same staff/placement) get DIFFERENT groups, and two
+ * distinct over-content beats that clamp to the same resolved X (e.g. `50` and
+ * `99`) likewise stay distinct — grouping never reads the resolved X.
+ *
+ * Elements whose `text` is empty or absent push nothing.
+ *
+ * @param {{ text?: string, placement?: string, staff?: string, beat?: number }[]}
+ *   [measureNotes] The measure's standalone notes. `text` is the annotation text;
+ *   `placement` is `"above"`/`"below"`; `staff` is `"rightHand"`/`"leftHand"`;
+ *   `beat` is the optional onset (quarter-beats) that anchors the X.
+ * @param {{ columnX: Map<number, number>, gridOnsets: number[], measureEnd: number,
+ *   leadInset: number, scaledContent: number }} ctx The measure's scaled relative
+ *   geometry. `columnX` maps each onset to its scaled relative X; `gridOnsets` is
+ *   the ascending onset list (the `columnX` keys in column order); `measureEnd` is
+ *   the measure's content end in quarter-beats; `leadInset` is the content-left X;
+ *   `scaledContent` is the relative right edge.
+ * @return {{ kind: "annotation", x: number, text: string, placement?: string,
+ *   staff?: string, group: string }[]} One record per non-empty-text note, in
+ *   array order (= stacking order within a group).
+ */
+export function collectStandaloneAnnotations(measureNotes, ctx) {
+	const { columnX, gridOnsets, measureEnd, leadInset, scaledContent } = ctx;
+
+	// Interpolate a (measure-relative) X for a beat over the scaled column grid.
+	const beatToX = (beat) => {
+		if (gridOnsets.length === 0) {
+			return leadInset;
+		}
+		// Before/at the first onset: hug the first column (normally onset 0 = leadInset).
+		if (beat <= gridOnsets[0]) {
+			return columnX.get(gridOnsets[0]) ?? leadInset;
+		}
+		// Find the bracketing segment [t_i, t_next). The last column's far edge is
+		// `measureEnd` at X = `scaledContent`.
+		for (let i = 0; i < gridOnsets.length; i++) {
+			const ti = gridOnsets[i];
+			const tNext = i + 1 < gridOnsets.length ? gridOnsets[i + 1] : measureEnd;
+			const xi = columnX.get(ti) ?? leadInset;
+			const nextX =
+				i + 1 < gridOnsets.length ? columnX.get(tNext) : scaledContent;
+			if (beat < tNext) {
+				const span = tNext - ti || 1;
+				return xi + (nextX - xi) * ((beat - ti) / span);
+			}
+		}
+		// At/after the last onset's far edge: the relative right edge.
+		return scaledContent;
+	};
+
+	const out = [];
+	for (const el of measureNotes ?? []) {
+		if (typeof el?.text !== "string" || el.text.length === 0) {
+			continue;
+		}
+		const hasBeat = typeof el.beat === "number";
+		const beat = hasBeat ? el.beat : 0;
+		// Over-content clamp (both sides measure-relative): rein an over-content beat
+		// to one NOTE_CLAMP_INSET inside the trailing barline.
+		const x = Math.min(
+			beatToX(Math.min(beat, measureEnd)),
+			scaledContent - NOTE_CLAMP_INSET,
+		);
+		out.push({
+			kind: "annotation",
+			x,
+			text: el.text,
+			placement: el.placement,
+			staff: el.staff,
+			// Group by the RAW beat (absent ⇒ "noBeat"), never the resolved X.
+			group: `${el.staff}|${el.placement}|${hasBeat ? el.beat : "noBeat"}`,
+		});
+	}
+	return out;
 }
 
 /**
@@ -1568,7 +1694,7 @@ function collectEventTexts(event, x, out) {
  * `{ systems }`, where each system carries its Y band layout, leading reserve
  * (brace + clefs + key sig + optional time sig), per-measure barlines, both hands'
  * per-event primitives + beams, the resolved spans (ties/slurs), and the texts
- * (tempo, measure number, dynamics, chord symbols, ottava). Resize need only re-run
+ * (tempo, measure number, dynamics, notes, ottava). Resize need only re-run
  * the packing/justify — the intrinsic widths and pitch Ys are sp-relative invariants.
  *
  * @param {{ defaults?: object, sections?: object[] }} song The parsed, conformant
@@ -1679,16 +1805,71 @@ export function buildLayoutModel(song, availableWidthInSp) {
 		});
 
 		// ── Vertical band layout for this system (computed from content). ───────────
+		// Four annotation bands flank the two staves — above/below each hand. Their
+		// reserved stack heights FLEX three system anchors: the above-RH lane (and so
+		// the top margin), the inter-staff gap (below-RH + above-LH stacks), and the
+		// bottom margin (below-LH stack). Each flex collapses to today's base value when
+		// its bands are empty, so a note-free system keeps its original geometry.
+		//
+		// One stack step (baseline-to-baseline) reuses the text-lane gap; the descent is
+		// the depth a note glyph drops below its own baseline, kept inside the reserve.
+		const STACK_STEP = NOTE_SIZE + TEXT_LANE_GAP;
+		const DESCENT = 0.22 * NOTE_SIZE;
+		// System-wide MAX same-anchor note count per band, plus per-hand below-staff
+		// dynamics occupants. The below-staff dynamics region holds TWO independent
+		// occupants a below note must clear: a point dynamic glyph (`dynamic`) and/or a
+		// gradual-dynamic hairpin lane (a crescendo/decrescendo span). Either one present
+		// for a hand means that hand's below band must dodge the region.
+		const occ = bandOccupancy(members);
+		const rhHasDynamics = systemHandHasDynamics(members, "rightHand");
+		const lhHasDynamics = systemHandHasDynamics(members, "leftHand");
+		const rhHasHairpin = systemHandHasHairpin(members, "rightHand");
+		const lhHasHairpin = systemHandHasHairpin(members, "leftHand");
+		// A below band hugs the staff at the dynamics reserve when its hand prints a
+		// point dynamic OR carries a hairpin lane (dodging the whole below-staff dynamics
+		// region — the dynamics row AND the hairpin lane), otherwise at the plain staff
+		// gap. The reserve (DYNAMICS_LANE_RESERVE) exceeds the hairpin lane's lower edge
+		// (HAIRPIN_LANE_DY + HAIRPIN_APERTURE / 2), so one reserve clears both occupants.
+		const baseOffsetBelow = (hasBelowStaffDynamics) =>
+			hasBelowStaffDynamics ? DYNAMICS_LANE_RESERVE : NOTE_GAP_STAFF;
+		const belowRHBase = baseOffsetBelow(rhHasDynamics || rhHasHairpin);
+		const belowLHBase = baseOffsetBelow(lhHasDynamics || lhHasHairpin);
+		// Reserved outward depth of each band's stack, measured from the staff edge.
+		// Zero (never negative) when the band has no notes.
+		const stackDepth = (n, base) =>
+			n > 0 ? base + (n - 1) * STACK_STEP + DESCENT : 0;
+		const belowRHStack = stackDepth(occ.belowRH, belowRHBase);
+		const belowLHStack = stackDepth(occ.belowLH, belowLHBase);
+		// The above-LH stack grows up into the inter-staff gap; it never dodges dynamics.
+		const aboveLHStack = stackDepth(occ.aboveLH, NOTE_GAP_STAFF);
+
 		// The top margin flexes to only the text lanes actually present above the staff
-		// (chord symbols, an above-staff ottava, the tempo) stacked over the ledger zone,
-		// so the staff and tempo drop close to the staff when there is nothing above it
-		// Each present lane's baseline Y comes back in system coordinates.
-		const top = topMarginLayout(members, ledgerTopExtent(members));
+		// (the above-RH note stack, an above-staff ottava, the tempo) stacked over the
+		// ledger zone, so the staff and tempo drop close to the staff when there is
+		// nothing above it. Each present lane's baseline Y comes back in system
+		// coordinates; the above-RH lane reserves the full stack height.
+		const top = topMarginLayout(members, ledgerTopExtent(members), occ.aboveRH);
 		const topMargin = top.topMargin;
-		const bottomMargin = SYSTEM_BOTTOM_MARGIN + ledgerBottomExtent(members);
 		const rhBottomY = topMargin + STAFF_HEIGHT_SP;
-		const lhTopY = rhBottomY + INTRA_STAFF_GAP;
+
+		// The inter-staff gap flexes to fit the below-RH and above-LH stacks (with a
+		// mid-gap between them only when both are present), collapsing to the base gap
+		// when neither is present.
+		const bothInterStaff = occ.belowRH > 0 && occ.aboveLH > 0;
+		const effectiveInterStaffGap = Math.max(
+			INTRA_STAFF_GAP,
+			belowRHStack + aboveLHStack + (bothInterStaff ? MID_GAP : 0),
+		);
+		const lhTopY = rhBottomY + effectiveInterStaffGap;
 		const lhBottomY = lhTopY + STAFF_HEIGHT_SP;
+
+		// The bottom margin flexes to the below-LH stack (over its ledgers), never below
+		// today's base margin (also over its ledgers).
+		const ledgerBottom = ledgerBottomExtent(members);
+		const bottomMargin = Math.max(
+			SYSTEM_BOTTOM_MARGIN + ledgerBottom,
+			belowLHStack + ledgerBottom,
+		);
 		const systemHeight = lhBottomY + bottomMargin;
 
 		const band = {
@@ -1703,7 +1884,34 @@ export function buildLayoutModel(song, availableWidthInSp) {
 			// null when that element is absent from the system).
 			tempoLaneY: top.tempoLaneY,
 			ottavaAboveLaneY: top.ottavaAboveLaneY,
-			chordSymbolY: top.chordSymbolY,
+			annotationAboveRHLaneY: top.annotationAboveRHLaneY,
+			// The four placement bands. Each carries the note #0 baseline (`baseY`,
+			// hugging its staff at the band's base offset), the per-note `step`, and the
+			// `direction` notes stack — "up" (toward smaller Y) for above-* bands,
+			// "down" (toward larger Y) for below-* bands. Emit places note #k at
+			// `baseY + (direction === "up" ? −1 : 1) * k * step`.
+			bands: {
+				aboveRH: {
+					baseY: top.annotationAboveRHLaneY,
+					step: STACK_STEP,
+					direction: "up",
+				},
+				belowRH: {
+					baseY: rhBottomY + belowRHBase,
+					step: STACK_STEP,
+					direction: "down",
+				},
+				aboveLH: {
+					baseY: lhTopY - NOTE_GAP_STAFF,
+					step: STACK_STEP,
+					direction: "up",
+				},
+				belowLH: {
+					baseY: lhBottomY + belowLHBase,
+					step: STACK_STEP,
+					direction: "down",
+				},
+			},
 		};
 
 		// ── Leading reserve content: brace + clefs + key sigs (+ time sig). ─────────
@@ -1829,6 +2037,19 @@ export function buildLayoutModel(song, availableWidthInSp) {
 					? inlineSectionChange(m, x)
 					: null;
 
+			// Measure-level standalone notes, X resolved by beat→column interpolation in
+			// the same measure-relative frame as `columnX` (see collectStandaloneAnnotations).
+			const standaloneAnnotations = collectStandaloneAnnotations(
+				m.measure?.annotations,
+				{
+					columnX,
+					gridOnsets: ml.columns.map((col) => col.onset),
+					measureEnd: ml.measureEnd,
+					leadInset,
+					scaledContent,
+				},
+			);
+
 			// Record tie/slur markers + the laid-out note X for span resolution.
 			recordSpanMarkers(m.measure?.rightHand, right, {
 				measureX: x,
@@ -1854,6 +2075,7 @@ export function buildLayoutModel(song, availableWidthInSp) {
 				left,
 				barlines,
 				inline,
+				standaloneAnnotations,
 			});
 
 			// Advance past the full trailing room so the next measure clears the bar.
@@ -2299,7 +2521,8 @@ export function buildHairpinSpec(kind, start, stop, hand) {
 	let x1 = start.anchor.x;
 	if (start.dynamic) {
 		// Clear the center-anchored dynamic glyph: shift past its half-width + a gap.
-		const halfWidth = (start.dynamic.length * DYNAMIC_ADVANCE_EM * DYNAMIC_SIZE) / 2;
+		const halfWidth =
+			(start.dynamic.length * DYNAMIC_ADVANCE_EM * DYNAMIC_SIZE) / 2;
 		x1 = start.anchor.x + halfWidth + HAIRPIN_DYNAMIC_GAP;
 		// Within a system, never let the cleared start run past the end (degenerate-safe);
 		// cross-system keeps the shift — the staff-end clip sets the right edge later.
@@ -2429,29 +2652,149 @@ function systemHasOttavaAbove(members) {
 	);
 }
 
-/** Whether any RH event in this system carries a chord symbol. */
-function systemHasChordSymbols(members) {
+/** Whether a `notes` element carries drawable text (a non-empty string). */
+function noteHasText(n) {
+	return typeof n?.text === "string" && n.text.length > 0;
+}
+
+/** The hand key (`rightHand`/`leftHand`) each staff name maps to, for bucketing. */
+const STAFF_TO_HAND = { rightHand: "rightHand", leftHand: "leftHand" };
+
+/**
+ * The four placement-band occupancy for a system: for each band keyed by
+ * `(hand, placement)`, the system-wide MAXIMUM number of same-placement notes that
+ * stack at any single anchor. Both per-event notes and the measure-level standalone
+ * notes feed the count; a band's presence is simply `n > 0`.
+ *
+ * Anchors group notes that share a stacking column:
+ * - A per-event note's anchor is `(event, placement)` — every drawable note in one
+ *   event's `notes` array with the same placement stacks at that event's column.
+ * - A standalone note's anchor is `(staff, placement, raw beat ?? "noBeat")` — the
+ *   same key `collectStandaloneAnnotations` groups by, so two notes at the same raw beat,
+ *   staff, and placement stack together (and a `beat: 2` vs `beat: 2.0001` do not).
+ *
+ * @param {object[]} members The system's flattened measure entries (carry `measure`).
+ * @return {{ aboveRH: number, belowRH: number, aboveLH: number, belowLH: number }}
+ *   The per-band system-wide max stack counts (0 when the band is empty).
+ */
+function bandOccupancy(members) {
+	const max = { aboveRH: 0, belowRH: 0, aboveLH: 0, belowLH: 0 };
+	const bandKey = (hand, placement) => {
+		const side = placement === "below" ? "below" : "above";
+		const handPart = hand === "leftHand" ? "LH" : "RH";
+		return `${side}${handPart}`;
+	};
+	const bump = (key, count) => {
+		if (count > max[key]) {
+			max[key] = count;
+		}
+	};
+
+	for (const m of members) {
+		// Per-event notes: one anchor per (event, placement), counting drawable notes.
+		for (const hand of HANDS) {
+			for (const e of m.measure?.[hand] ?? []) {
+				let above = 0;
+				let below = 0;
+				for (const n of e?.annotations ?? []) {
+					if (!noteHasText(n)) {
+						continue;
+					}
+					if (n.placement === "below") {
+						below += 1;
+					} else {
+						above += 1;
+					}
+				}
+				if (above > 0) {
+					bump(bandKey(hand, "above"), above);
+				}
+				if (below > 0) {
+					bump(bandKey(hand, "below"), below);
+				}
+			}
+		}
+		// Standalone notes: one anchor per (staff, placement, raw beat ?? "noBeat").
+		const counts = new Map();
+		for (const n of m.measure?.annotations ?? []) {
+			if (!noteHasText(n)) {
+				continue;
+			}
+			const hand = STAFF_TO_HAND[n.staff];
+			if (!hand) {
+				continue;
+			}
+			const side = n.placement === "below" ? "below" : "above";
+			const hasBeat = typeof n.beat === "number";
+			const groupKey = `${hand}|${side}|${hasBeat ? n.beat : "noBeat"}`;
+			counts.set(groupKey, (counts.get(groupKey) ?? 0) + 1);
+		}
+		for (const [groupKey, count] of counts) {
+			const [hand, side] = groupKey.split("|");
+			bump(bandKey(hand, side), count);
+		}
+	}
+	return max;
+}
+
+/**
+ * Whether any event in this system's measures for the given hand carries a dynamic
+ * marking. Drives the per-hand below-band base offset: a below note dodges the
+ * dynamics row only when its own hand prints dynamics.
+ *
+ * @param {object[]} members The system's flattened measure entries.
+ * @param {string} hand The hand key (`rightHand` | `leftHand`).
+ * @return {boolean} True when any event of this hand in the system carries a dynamic.
+ */
+function systemHandHasDynamics(members, hand) {
 	return members.some((m) =>
-		(m.measure?.rightHand ?? []).some(
-			(e) => typeof e?.chordSymbol === "string" && e.chordSymbol.length > 0,
-		),
+		(m.measure?.[hand] ?? []).some((e) => !!e?.dynamic),
+	);
+}
+
+/**
+ * Whether any event in this system's measures for the given hand carries a gradual-
+ * dynamic (crescendo/decrescendo) marker — i.e. the hand has a hairpin lane occupant.
+ * The hairpin lane lives in the same below-staff dynamics region as point dynamics, so
+ * this drives the per-hand below-band dodge alongside `systemHandHasDynamics`: a below
+ * note dodges the region when its hand has either a point dynamic or a hairpin.
+ *
+ * Any single crescendo/decrescendo marker (`start` OR `stop`) in the hand's stream is
+ * enough — the lane is present wherever a wedge is drawn or carried, and the dodge is a
+ * per-system reservation (a dangling start/stop is still drawn best-effort and so still
+ * occupies the lane within this system).
+ *
+ * @param {object[]} members The system's flattened measure entries.
+ * @param {string} hand The hand key (`rightHand` | `leftHand`).
+ * @return {boolean} True when any event of this hand in the system carries a hairpin marker.
+ */
+function systemHandHasHairpin(members, hand) {
+	return members.some((m) =>
+		(m.measure?.[hand] ?? []).some((e) => !!e?.crescendo || !!e?.decrescendo),
 	);
 }
 
 /**
  * The flexible top-margin layout for a system. Only the lanes actually
- * present are stacked above the high-note/ledger zone — chord symbols nearest the
- * staff, then an above-staff ottava, then the tempo at the very top — so when there is
- * nothing above the staff the margin (and the tempo) drop close to it. Returns the
- * staff's top margin plus each present lane's baseline Y in system-local coordinates
- * (null when that lane is absent).
+ * present are stacked above the high-note/ledger zone — the above-RH note lane
+ * nearest the staff, then an above-staff ottava, then the tempo at the very top — so
+ * when there is nothing above the staff the margin (and the tempo) drop close to it.
+ * The above-RH lane reserves height for the WHOLE stack (every same-anchor note),
+ * not just one line, so a deep above-RH stack lifts the lanes (and the margin) above
+ * it. Returns the staff's top margin plus each present lane's baseline Y in
+ * system-local coordinates (null when that lane is absent).
  *
  * @param {object[]} members The system's flattened measure entries.
  * @param {number} ledgerTop The high-note/ledger extent above the staff top, in sp.
- * @return {{ topMargin: number, chordSymbolY: ?number, ottavaAboveLaneY: ?number,
+ * @param {number} aboveRHCount The system-wide MAX above-RH same-anchor note count,
+ *   so the lane reserves `(n − 1)` extra stack steps above its baseline (0 ⇒ no lane).
+ * @return {{ topMargin: number, annotationAboveRHLaneY: ?number, ottavaAboveLaneY: ?number,
  *   tempoLaneY: ?number }} The top margin and lane baselines.
  */
-function topMarginLayout(members, ledgerTop) {
+function topMarginLayout(members, ledgerTop, aboveRHCount) {
+	// One above-RH stack step (baseline-to-baseline), so the lane reserves the full
+	// stack rather than a single line.
+	const stackStep = NOTE_SIZE + TEXT_LANE_GAP;
 	// The innermost reserved zone above the staff top holds whatever already lives
 	// there: the high notes/ledgers AND the system's measure number (drawn just above
 	// the top line at the left). The stacked text lanes clear both so the tempo never
@@ -2465,12 +2808,14 @@ function topMarginLayout(members, ledgerTop) {
 	// Distances ABOVE the staff top line (positive = up); each present lane stacks out.
 	let d = innerZone + ABOVE_STAFF_PAD;
 	let topExtent = innerZone;
-	let chordD = null;
+	let annotationAboveRHD = null;
 	let ottavaD = null;
 	let tempoD = null;
-	if (systemHasChordSymbols(members)) {
-		chordD = d;
-		topExtent = d + CHORD_SYMBOL_SIZE;
+	if (aboveRHCount > 0) {
+		annotationAboveRHD = d;
+		// The lane's baseline is note #0; the stack grows UP, so the topmost note's
+		// glyph reaches `(n − 1)` steps higher plus its own ascent.
+		topExtent = d + (aboveRHCount - 1) * stackStep + NOTE_SIZE;
 		d = topExtent + TEXT_LANE_GAP;
 	}
 	if (systemHasOttavaAbove(members)) {
@@ -2487,7 +2832,7 @@ function topMarginLayout(members, ledgerTop) {
 	const at = (dist) => (dist === null ? null : topMargin - dist);
 	return {
 		topMargin,
-		chordSymbolY: at(chordD),
+		annotationAboveRHLaneY: at(annotationAboveRHD),
 		ottavaAboveLaneY: at(ottavaD),
 		tempoLaneY: at(tempoD),
 	};

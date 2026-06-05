@@ -80,6 +80,10 @@ const songSchema = {
 				barlineEnd: {
 					enum: ["regular", "repeat-start", "repeat-end", "double", "final"],
 				},
+				annotations: {
+					type: "array",
+					items: { $ref: "#/$defs/standaloneAnnotation" },
+				},
 			},
 		},
 
@@ -142,7 +146,10 @@ const songSchema = {
 				dots: { type: "integer", minimum: 0, maximum: 2 },
 				pitches: { type: "array", items: { $ref: "#/$defs/pitch" } },
 				dynamic: { enum: ["pp", "p", "mp", "mf", "f", "ff", "sf", "sfz"] },
-				chordSymbol: { type: "string" },
+				annotations: {
+					type: "array",
+					items: { $ref: "#/$defs/eventAnnotation" },
+				},
 				tie: { enum: ["start", "stop"] },
 				slur: { enum: ["start", "stop"] },
 				crescendo: { enum: ["start", "stop"] },
@@ -164,6 +171,35 @@ const songSchema = {
 				step: { type: "string" },
 				octave: { type: "integer", minimum: 0, maximum: 9 },
 				alter: { type: "integer", minimum: -2, maximum: 2 },
+			},
+		},
+
+		// A free-text annotation attached to a single event (e.g. a chord symbol
+		// or fingering hint). It carries only `text` and `placement`: it has NO
+		// `staff` or `beat`, because it is anchored to its host event's hand and
+		// horizontal position. A stray `staff`/`beat` is therefore an unknown key,
+		// permissively ignored — never an error.
+		eventAnnotation: {
+			type: "object",
+			required: ["text", "placement"],
+			properties: {
+				text: { type: "string" },
+				placement: { enum: ["above", "below"] },
+			},
+		},
+
+		// A free-text annotation placed directly on a measure rather than an event
+		// (e.g. a tempo word like "rit."). Unanchored to any event, it must say
+		// which `staff` it belongs to, and may give an optional `beat` (≥ 0) for
+		// its horizontal position within the measure.
+		standaloneAnnotation: {
+			type: "object",
+			required: ["text", "placement", "staff"],
+			properties: {
+				text: { type: "string" },
+				placement: { enum: ["above", "below"] },
+				staff: { enum: ["rightHand", "leftHand"] },
+				beat: { type: "number", minimum: 0 },
 			},
 		},
 	},

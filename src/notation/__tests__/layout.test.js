@@ -17,10 +17,15 @@ import {
 	HAIRPIN_DYNAMIC_GAP,
 	HAIRPIN_HINGE_GAP,
 	HAIRPIN_LANE_DY,
+	INTRA_STAFF_GAP,
 	MAX_STRETCH,
 	MIN_ADV,
+	NOTE_CLAMP_INSET,
+	NOTE_GAP_STAFF,
+	NOTE_SIZE,
 	NOTEHEAD_RX,
 	STAFF_MARGIN_X,
+	TEXT_LANE_GAP,
 } from "../constants.js";
 import {
 	advanceFor,
@@ -32,6 +37,8 @@ import {
 	buildHairpinSpec,
 	buildLayoutModel,
 	clipSpanToStartSystem,
+	collectEventTexts,
+	collectStandaloneAnnotations,
 	decodeDuration,
 	diatonicIndex,
 	diffContext,
@@ -820,16 +827,19 @@ describe("measureLayout", () => {
 // ── Section resolution + diff, wrapping/justify, spans/texts/barlines/ottava,
 // and the full buildLayoutModel ──────────────────────────────────────────────────
 //
-// The diff fixture below is the `docs/song-format.md` annotated 2-section example,
-// transcribed verbatim (and identical to the validator's COMPREHENSIVE fixture). It
-// is the shared full-coverage song.
+// The diff fixture below mirrors the `docs/song-format.md` annotated 2-section example
+// (and is identical to the validator's COMPREHENSIVE fixture). It is the shared
+// full-coverage song. It adds a `slur` for span coverage and deliberately omits the
+// gradual-dynamics (crescendo/decrescendo) span the docs example carries — hairpin
+// resolution has its own dedicated fixtures below, and several tie/slur tests rely on
+// this fixture resolving NO hairpin spans.
 
 /**
- * The annotated comprehensive example song (`docs/song-format.md`), transcribed
- * verbatim. It exercises every element and is the verified 2-section diff fixture:
- * tempo 120→90, time sig 4/4→3/4, RH clef treble unchanged, LH clef bass→tenor,
- * RH alters {}→{F,C}, LH alters {B:-1}→{}, RH octaveShift 0→1, LH octaveShift
- * unchanged.
+ * The annotated comprehensive example song (`docs/song-format.md`). It exercises a
+ * broad spread of elements and is the verified 2-section diff fixture: tempo 120→90,
+ * time sig 4/4→3/4, RH clef treble unchanged, LH clef bass→tenor, RH alters {}→{F,C},
+ * LH alters {B:-1}→{}, RH octaveShift 0→1, LH octaveShift unchanged. It carries a
+ * tie + a slur (for span coverage) but no crescendo/decrescendo span.
  */
 const COMPREHENSIVE_SONG = {
 	metadata: { title: "Example", composer: "A. Composer" },
@@ -850,7 +860,7 @@ const COMPREHENSIVE_SONG = {
 							duration: "half",
 							dots: 1,
 							dynamic: "mf",
-							chordSymbol: "C",
+							annotations: [{ text: "C", placement: "above" }],
 							slur: "start",
 							tie: "start",
 							pitches: [
@@ -1097,6 +1107,480 @@ describe("tempoMark", () => {
 	});
 });
 
+// ── Per-event note collection (placement-aware, band-independent) ─────────────────
+//
+// `collectEventTexts` is the contract the band model + emit later route on: one
+// `{ kind: "annotation", x, text, placement }` primitive per non-empty `event.annotations`
+// element, in array order (= stacking order), for BOTH notes and rests. These tests
+// pin that contract WITHOUT any band geometry — no buckets, no Y, just the primitive
+// list at the event's column X.
+
+describe("collectEventTexts — per-event notes with placement", () => {
+	/** Pull only the `kind: "annotation"` primitives out of a collected list. */
+	const annotationsOnly = (out) => out.filter((t) => t.kind === "annotation");
+
+	it("emits one note primitive per element, carrying each element's placement", () => {
+		const out = [];
+		const event = {
+			annotations: [
+				{ text: "C", placement: "above" },
+				{ text: "pedal", placement: "below" },
+			],
+		};
+		collectEventTexts(event, 7, out);
+		const notes = annotationsOnly(out);
+		expect(notes).toEqual([
+			{ kind: "annotation", x: 7, text: "C", placement: "above" },
+			{ kind: "annotation", x: 7, text: "pedal", placement: "below" },
+		]);
+	});
+
+	it("preserves array order (= stacking order) for same-placement notes, all at the column X", () => {
+		const out = [];
+		const event = {
+			annotations: [
+				{ text: "one", placement: "above" },
+				{ text: "two", placement: "above" },
+				{ text: "three", placement: "above" },
+			],
+		};
+		collectEventTexts(event, 3.5, out);
+		const notes = annotationsOnly(out);
+		expect(notes.map((n) => n.text)).toEqual(["one", "two", "three"]);
+		expect(notes.every((n) => n.placement === "above")).toBe(true);
+		expect(notes.every((n) => n.x === 3.5)).toBe(true);
+	});
+
+	it("collects a rest event's notes identically (same routine, at the rest's X)", () => {
+		const out = [];
+		const event = {
+			type: "rest",
+			annotations: [{ text: "pedal", placement: "below" }],
+		};
+		collectEventTexts(event, 12, out);
+		const notes = annotationsOnly(out);
+		expect(notes).toEqual([
+			{ kind: "annotation", x: 12, text: "pedal", placement: "below" },
+		]);
+	});
+
+	it("pushes nothing for an element whose text is empty or absent", () => {
+		const out = [];
+		const event = {
+			annotations: [
+				{ text: "", placement: "above" },
+				{ placement: "below" },
+				{ text: "keep", placement: "above" },
+			],
+		};
+		collectEventTexts(event, 0, out);
+		const notes = annotationsOnly(out);
+		expect(notes.map((n) => n.text)).toEqual(["keep"]);
+	});
+
+	it("emits no note primitives for an event with no notes (absent or empty)", () => {
+		const absent = [];
+		collectEventTexts({ dynamic: "mf" }, 0, absent);
+		expect(annotationsOnly(absent)).toEqual([]);
+		const empty = [];
+		collectEventTexts({ annotations: [] }, 0, empty);
+		expect(annotationsOnly(empty)).toEqual([]);
+	});
+});
+
+// ── Standalone (measure-level) notes — collectStandaloneAnnotations ────────────────────
+//
+// `collectStandaloneAnnotations` resolves `measure.annotations` into measure-level primitives,
+// computing each note's horizontal X by interpolating its `beat` onset over the
+// SCALED relative column grid (the same `columnX` frame the per-event notes use),
+// with an over-content clamp. It computes NO Y (the band model does that) and
+// carries a RAW-`beat` group key so later stacking groups by the raw beat, never
+// the resolved X. Every X it stores is measure-relative (the `columnX` frame).
+
+describe("collectStandaloneAnnotations — measure-level notes with beat→X interpolation", () => {
+	// A two-column measure: onsets 0 and 2 over a 4-beat span. `leadInset` is the
+	// content-left edge; the grid is justified, so column X positions are scaled
+	// and the last column's segment [2, measureEnd] runs to `scaledContent`.
+	const LEAD = 3;
+	const COL2 = 9; // columnX(2): the second column's scaled relative X
+	const SCALED_CONTENT = 15; // the measure's relative right edge (= measureRightX − x)
+	const baseCtx = () => ({
+		columnX: new Map([
+			[0, LEAD],
+			[2, COL2],
+		]),
+		gridOnsets: [0, 2],
+		measureEnd: 4,
+		leadInset: LEAD,
+		scaledContent: SCALED_CONTENT,
+	});
+
+	it("resolves beat 0 and beat 2 to ascending X, both carrying kind/text/placement/staff", () => {
+		const out = collectStandaloneAnnotations(
+			[
+				{ text: "a", placement: "above", staff: "rightHand", beat: 0 },
+				{ text: "b", placement: "above", staff: "rightHand", beat: 2 },
+			],
+			baseCtx(),
+		);
+		expect(out).toHaveLength(2);
+		expect(out[0]).toMatchObject({
+			kind: "annotation",
+			text: "a",
+			placement: "above",
+			staff: "rightHand",
+		});
+		expect(out[1]).toMatchObject({
+			kind: "annotation",
+			text: "b",
+			placement: "above",
+			staff: "rightHand",
+		});
+		expect(out[1].x).toBeGreaterThan(out[0].x);
+	});
+
+	it("places a beat-0 note at the content-left edge (leadInset)", () => {
+		const [note] = collectStandaloneAnnotations(
+			[{ text: "a", placement: "above", staff: "rightHand", beat: 0 }],
+			baseCtx(),
+		);
+		expect(note.x).toBeCloseTo(LEAD, 6);
+	});
+
+	it("treats a no-`beat` note as beat 0 — same X as an explicit beat 0, both left of beat 2", () => {
+		const out = collectStandaloneAnnotations(
+			[
+				{ text: "none", placement: "above", staff: "rightHand" },
+				{ text: "zero", placement: "above", staff: "rightHand", beat: 0 },
+				{ text: "two", placement: "above", staff: "rightHand", beat: 2 },
+			],
+			baseCtx(),
+		);
+		const [none, zero, two] = out;
+		expect(none.x).toBeCloseTo(zero.x, 6);
+		expect(none.x).toBeCloseTo(LEAD, 6);
+		expect(none.x).toBeLessThan(two.x);
+		expect(zero.x).toBeLessThan(two.x);
+	});
+
+	it("lands a beat coinciding with an event column at that column's X", () => {
+		const [note] = collectStandaloneAnnotations(
+			[{ text: "b", placement: "above", staff: "rightHand", beat: 2 }],
+			baseCtx(),
+		);
+		expect(note.x).toBeCloseTo(COL2, 6);
+	});
+
+	it("interpolates a mid-segment beat linearly between bracketing columns", () => {
+		// beat 1 is halfway between onset 0 (X=LEAD) and onset 2 (X=COL2).
+		const [note] = collectStandaloneAnnotations(
+			[{ text: "mid", placement: "above", staff: "rightHand", beat: 1 }],
+			baseCtx(),
+		);
+		expect(note.x).toBeCloseTo((LEAD + COL2) / 2, 6);
+	});
+
+	it("clamps an over-content beat to scaledContent − NOTE_CLAMP_INSET (inside the content)", () => {
+		const [note] = collectStandaloneAnnotations(
+			[{ text: "far", placement: "above", staff: "rightHand", beat: 99 }],
+			baseCtx(),
+		);
+		expect(note.x).toBeCloseTo(SCALED_CONTENT - NOTE_CLAMP_INSET, 6);
+		expect(note.x).toBeLessThanOrEqual(SCALED_CONTENT);
+		expect(note.x).toBeGreaterThan(LEAD);
+	});
+
+	it("clamps two DIFFERENT over-content beats to the same resolved X yet keeps them distinct groups", () => {
+		const out = collectStandaloneAnnotations(
+			[
+				{ text: "fifty", placement: "above", staff: "rightHand", beat: 50 },
+				{
+					text: "ninetynine",
+					placement: "above",
+					staff: "rightHand",
+					beat: 99,
+				},
+			],
+			baseCtx(),
+		);
+		expect(out[0].x).toBeCloseTo(out[1].x, 6);
+		expect(out[0].group).not.toEqual(out[1].group);
+	});
+
+	it("groups by the RAW (staff, placement, beat) key — beat 2 and beat 2.0001 differ", () => {
+		const out = collectStandaloneAnnotations(
+			[
+				{ text: "x", placement: "above", staff: "rightHand", beat: 2 },
+				{ text: "y", placement: "above", staff: "rightHand", beat: 2.0001 },
+			],
+			baseCtx(),
+		);
+		expect(out[0].group).not.toEqual(out[1].group);
+	});
+
+	it("shares a group for two notes with the same (staff, placement, raw beat)", () => {
+		const out = collectStandaloneAnnotations(
+			[
+				{ text: "x", placement: "above", staff: "rightHand", beat: 2 },
+				{ text: "y", placement: "above", staff: "rightHand", beat: 2 },
+			],
+			baseCtx(),
+		);
+		expect(out[0].group).toEqual(out[1].group);
+	});
+
+	it("separates groups that differ only in staff or placement at the same raw beat", () => {
+		const out = collectStandaloneAnnotations(
+			[
+				{ text: "a", placement: "above", staff: "rightHand", beat: 0 },
+				{ text: "b", placement: "below", staff: "rightHand", beat: 0 },
+				{ text: "c", placement: "above", staff: "leftHand", beat: 0 },
+			],
+			baseCtx(),
+		);
+		const groups = new Set(out.map((n) => n.group));
+		expect(groups.size).toBe(3);
+	});
+
+	it("uses a no-beat group key distinct from an explicit beat-0 group", () => {
+		const out = collectStandaloneAnnotations(
+			[
+				{ text: "none", placement: "above", staff: "rightHand" },
+				{ text: "zero", placement: "above", staff: "rightHand", beat: 0 },
+			],
+			baseCtx(),
+		);
+		expect(out[0].group).not.toEqual(out[1].group);
+	});
+
+	it("produces no record for an empty-string text", () => {
+		const out = collectStandaloneAnnotations(
+			[
+				{ text: "", placement: "above", staff: "rightHand", beat: 0 },
+				{ placement: "above", staff: "rightHand", beat: 0 },
+				{ text: "keep", placement: "above", staff: "rightHand", beat: 0 },
+			],
+			baseCtx(),
+		);
+		expect(out.map((n) => n.text)).toEqual(["keep"]);
+	});
+
+	it("returns an empty array for an absent or empty notes input", () => {
+		expect(collectStandaloneAnnotations(undefined, baseCtx())).toEqual([]);
+		expect(collectStandaloneAnnotations([], baseCtx())).toEqual([]);
+	});
+});
+
+describe("buildLayoutModel — standalone notes on measureModel.standaloneAnnotations", () => {
+	/** A minimal one-section song with a single measure carrying `notes`. */
+	const songWithNotes = (notes) => ({
+		metadata: { title: "T" },
+		defaults: {
+			tempo: { bpm: 120, beatUnit: "quarter" },
+			timeSignature: { beats: 4, beatType: 4 },
+			rightHand: { clef: "treble" },
+			leftHand: { clef: "bass" },
+		},
+		sections: [
+			{
+				measures: [
+					{
+						annotations: notes,
+						rightHand: [
+							{
+								type: "note",
+								duration: "half",
+								pitches: [{ step: "C", octave: 5 }],
+							},
+							{
+								type: "note",
+								duration: "half",
+								pitches: [{ step: "E", octave: 5 }],
+							},
+						],
+						leftHand: [
+							{
+								type: "note",
+								duration: "whole",
+								pitches: [{ step: "C", octave: 3 }],
+							},
+						],
+					},
+				],
+			},
+		],
+	});
+
+	it("attaches a standaloneAnnotations array to each measure model (parallel to barlines)", () => {
+		const model = buildLayoutModel(songWithNotes([]), 200);
+		const measure = model.systems[0].measures[0];
+		expect(Array.isArray(measure.standaloneAnnotations)).toBe(true);
+		expect(measure.standaloneAnnotations).toHaveLength(0);
+	});
+
+	it("resolves beat 0 left of beat 2, both as kind:note with text/placement/staff/group", () => {
+		const model = buildLayoutModel(
+			songWithNotes([
+				{ text: "a", placement: "above", staff: "rightHand", beat: 0 },
+				{ text: "b", placement: "above", staff: "rightHand", beat: 2 },
+			]),
+			200,
+		);
+		const sn = model.systems[0].measures[0].standaloneAnnotations;
+		expect(sn).toHaveLength(2);
+		expect(sn[1].x).toBeGreaterThan(sn[0].x);
+		for (const rec of sn) {
+			expect(rec.kind).toBe("annotation");
+			expect(typeof rec.text).toBe("string");
+			expect(rec.placement).toBe("above");
+			expect(rec.staff).toBe("rightHand");
+			expect(rec.group).toBeDefined();
+		}
+	});
+
+	it("stores measure-relative X — a beat-0 note in a non-first measure sits at ~leadInset, not offset by measure.x", () => {
+		const song = {
+			metadata: { title: "T" },
+			defaults: {
+				tempo: { bpm: 120, beatUnit: "quarter" },
+				timeSignature: { beats: 4, beatType: 4 },
+				rightHand: { clef: "treble" },
+				leftHand: { clef: "bass" },
+			},
+			sections: [
+				{
+					measures: [
+						{
+							rightHand: [
+								{
+									type: "note",
+									duration: "whole",
+									pitches: [{ step: "C", octave: 5 }],
+								},
+							],
+							leftHand: [
+								{
+									type: "note",
+									duration: "whole",
+									pitches: [{ step: "C", octave: 3 }],
+								},
+							],
+						},
+						{
+							annotations: [
+								{ text: "a", placement: "above", staff: "rightHand", beat: 0 },
+							],
+							rightHand: [
+								{
+									type: "note",
+									duration: "whole",
+									pitches: [{ step: "C", octave: 5 }],
+								},
+							],
+							leftHand: [
+								{
+									type: "note",
+									duration: "whole",
+									pitches: [{ step: "C", octave: 3 }],
+								},
+							],
+						},
+					],
+				},
+			],
+		};
+		const model = buildLayoutModel(song, 400);
+		const second = model.systems[0].measures[1];
+		const [note] = second.standaloneAnnotations;
+		// The non-first measure starts well into the system; a measure-relative beat-0
+		// X is a small leadInset (≥ 0, far below the absolute measure.x), NOT offset by
+		// the absolute measure.x.
+		expect(second.x).toBeGreaterThan(15);
+		expect(note.x).toBeGreaterThanOrEqual(0);
+		expect(note.x).toBeLessThan(5);
+		expect(note.x).toBeLessThan(second.x);
+	});
+
+	it("clamps an over-content beat to (measure-relative) scaledContent − NOTE_CLAMP_INSET in a non-first measure", () => {
+		const song = {
+			metadata: { title: "T" },
+			defaults: {
+				tempo: { bpm: 120, beatUnit: "quarter" },
+				timeSignature: { beats: 4, beatType: 4 },
+				rightHand: { clef: "treble" },
+				leftHand: { clef: "bass" },
+			},
+			sections: [
+				{
+					measures: [
+						{
+							rightHand: [
+								{
+									type: "note",
+									duration: "whole",
+									pitches: [{ step: "C", octave: 5 }],
+								},
+							],
+							leftHand: [
+								{
+									type: "note",
+									duration: "whole",
+									pitches: [{ step: "C", octave: 3 }],
+								},
+							],
+						},
+						{
+							annotations: [
+								{
+									text: "far",
+									placement: "above",
+									staff: "rightHand",
+									beat: 99,
+								},
+							],
+							rightHand: [
+								{
+									type: "note",
+									duration: "whole",
+									pitches: [{ step: "C", octave: 5 }],
+								},
+							],
+							leftHand: [
+								{
+									type: "note",
+									duration: "whole",
+									pitches: [{ step: "C", octave: 3 }],
+								},
+							],
+						},
+					],
+				},
+			],
+		};
+		const model = buildLayoutModel(song, 400);
+		const second = model.systems[0].measures[1];
+		expect(second.x).toBeGreaterThan(0);
+		const [note] = second.standaloneAnnotations;
+		// Measure-relative clamp: one NOTE_CLAMP_INSET back from the relative right
+		// edge (`width` = scaledContent), strictly inside the content.
+		expect(note.x).toBeCloseTo(second.width - NOTE_CLAMP_INSET, 6);
+		expect(note.x).toBeLessThanOrEqual(second.width);
+		expect(note.x).toBeGreaterThan(0);
+	});
+
+	it("emits no record for an empty-string text at the measure level", () => {
+		const model = buildLayoutModel(
+			songWithNotes([
+				{ text: "", placement: "above", staff: "rightHand", beat: 0 },
+				{ text: "keep", placement: "above", staff: "rightHand", beat: 0 },
+			]),
+			200,
+		);
+		const sn = model.systems[0].measures[0].standaloneAnnotations;
+		expect(sn.map((n) => n.text)).toEqual(["keep"]);
+	});
+});
+
 describe("barlineSpec", () => {
 	it("regular = one thin stroke", () => {
 		const b = barlineSpec("regular");
@@ -1311,7 +1795,7 @@ describe("buildLayoutModel — the full positioned-primitive model", () => {
 		expect(spans.some((s) => s.kind === "slur")).toBe(true);
 	});
 
-	it("surfaces per-event dynamics + chord symbols and barlines", () => {
+	it("surfaces per-event dynamics + notes and barlines", () => {
 		const model = buildLayoutModel(COMPREHENSIVE_SONG, 200);
 		const allRightTexts = model.systems.flatMap((s) =>
 			s.measures.flatMap((m) => m.right.texts),
@@ -1320,7 +1804,7 @@ describe("buildLayoutModel — the full positioned-primitive model", () => {
 			allRightTexts.some((t) => t.kind === "dynamic" && t.text === "mf"),
 		).toBe(true);
 		expect(
-			allRightTexts.some((t) => t.kind === "chordSymbol" && t.text === "C"),
+			allRightTexts.some((t) => t.kind === "annotation" && t.text === "C"),
 		).toBe(true);
 		const allBarlines = model.systems.flatMap((s) =>
 			s.measures.flatMap((m) => m.barlines.map((b) => `${b.side}/${b.type}`)),
@@ -1485,16 +1969,20 @@ describe("layout-polish fixes", () => {
 		expect(reserve.timeSignatureX).toBeGreaterThan(keySigX + maxCluster);
 	});
 
-	it("tempo, ottava, and chord lanes stack above the staff", () => {
+	it("tempo, ottava, and note lanes stack above the staff", () => {
 		const sys = buildLayoutModel(COMPREHENSIVE_SONG, 200).systems[0];
 		const above = sys.texts.ottavas.filter((o) => o.placement === "above");
 		expect(sys.texts.tempos.length).toBeGreaterThan(0);
 		expect(above.length).toBeGreaterThan(0);
-		// Stacked top→bottom: tempo above the ottava above the chord lane, all above the
-		// staff top (smaller Y is higher).
+		// Stacked top→bottom: tempo above the ottava above the above-RH note lane, all
+		// above the staff top (smaller Y is higher).
 		expect(sys.band.tempoLaneY).toBeLessThan(sys.band.ottavaAboveLaneY);
-		expect(sys.band.ottavaAboveLaneY).toBeLessThan(sys.band.chordSymbolY);
-		expect(sys.band.chordSymbolY).toBeLessThan(sys.band.rightStaffTopY);
+		expect(sys.band.ottavaAboveLaneY).toBeLessThan(
+			sys.band.annotationAboveRHLaneY,
+		);
+		expect(sys.band.annotationAboveRHLaneY).toBeLessThan(
+			sys.band.rightStaffTopY,
+		);
 		for (const t of sys.texts.tempos) {
 			expect(t.y).toBeCloseTo(sys.band.tempoLaneY, 10);
 		}
@@ -1503,10 +1991,10 @@ describe("layout-polish fixes", () => {
 		}
 	});
 
-	it("the top margin flexes: no chord/ottava → a shallower margin than with them", () => {
-		// The comprehensive song's first system carries chord + ottava + tempo.
+	it("the top margin flexes: no note/ottava → a shallower margin than with them", () => {
+		// The comprehensive song's first system carries a note lane + ottava + tempo.
 		const rich = buildLayoutModel(COMPREHENSIVE_SONG, 200).systems[0];
-		// A plain song with only notes — no tempo, ottava, or chord symbol above.
+		// A plain song with only notes — no tempo, ottava, or note annotation above.
 		const plainSong = {
 			sections: [
 				{
@@ -1536,7 +2024,7 @@ describe("layout-polish fixes", () => {
 		// (and everything above) sits higher than in the text-rich system.
 		expect(plain.band.topMargin).toBeLessThan(rich.band.topMargin);
 		expect(plain.band.tempoLaneY).toBeNull();
-		expect(plain.band.chordSymbolY).toBeNull();
+		expect(plain.band.annotationAboveRHLaneY).toBeNull();
 	});
 
 	it("every barline leaves a gap wider than a notehead before the next measure", () => {
@@ -1670,6 +2158,489 @@ describe("layout-polish fixes", () => {
 		// with the sharp it is pushed right to make room for the accidental glyph.
 		expect(plain.right.notes[0].x).toBeLessThan(NOTEHEAD_RX);
 		expect(sharp.right.notes[0].x).toBeGreaterThan(plain.right.notes[0].x);
+	});
+});
+
+// ── Four placement bands + the flexing inter-staff gap / bottom margin ─────────────
+describe("buildLayoutModel — placement bands, inter-staff flex, and dynamics dodge", () => {
+	// One stack step (baseline-to-baseline) and the descent of the lowest glyph box.
+	const STACK_STEP = NOTE_SIZE + TEXT_LANE_GAP;
+	const DESCENT = 0.22 * NOTE_SIZE;
+	const DYNAMICS_LANE_RESERVE = 6.9;
+	const MID_GAP = 1.2;
+
+	// A bare grand-staff measure with one note on each hand and no annotations.
+	const bareSong = {
+		sections: [
+			{
+				measures: [
+					{
+						rightHand: [
+							{
+								type: "note",
+								duration: "quarter",
+								pitches: [{ step: "G", octave: 4 }],
+							},
+						],
+						leftHand: [
+							{
+								type: "note",
+								duration: "quarter",
+								pitches: [{ step: "C", octave: 3 }],
+							},
+						],
+					},
+				],
+			},
+		],
+	};
+
+	// Builds a one-measure (or two-event) song whose RH + LH events carry the given
+	// per-event notes / dynamics / hairpin markers, so a test can probe one band in
+	// isolation. When `rhHairpin`/`lhHairpin` is set the hand gets a SECOND note so the
+	// span has a start and a later stop (a one-note span is not expressible).
+	const songWith = ({
+		rhNotes,
+		lhNotes,
+		rhDynamic,
+		lhDynamic,
+		rhHairpin,
+		lhHairpin,
+		measureNotes,
+	} = {}) => {
+		const handEvents = (dynamic, notes, hairpin, step) => {
+			const first = {
+				type: "note",
+				duration: "quarter",
+				...(dynamic ? { dynamic } : {}),
+				...(notes ? { annotations: notes } : {}),
+				...(hairpin ? { [hairpin]: "start" } : {}),
+				pitches: [{ step, octave: step === "C" ? 3 : 4 }],
+			};
+			if (!hairpin) {
+				return [first];
+			}
+			// A span needs a distinct, later stop note.
+			return [
+				first,
+				{
+					type: "note",
+					duration: "quarter",
+					[hairpin]: "stop",
+					pitches: [{ step, octave: step === "C" ? 3 : 4 }],
+				},
+			];
+		};
+		return {
+			sections: [
+				{
+					measures: [
+						{
+							annotations: measureNotes,
+							rightHand: handEvents(rhDynamic, rhNotes, rhHairpin, "G"),
+							leftHand: handEvents(lhDynamic, lhNotes, lhHairpin, "C"),
+						},
+					],
+				},
+			],
+		};
+	};
+
+	it("collapses the inter-staff gap and bottom margin to base when no notes flex them", () => {
+		const sys = buildLayoutModel(bareSong, 200).systems[0];
+		// Nothing between or below the staves to flex either anchor.
+		expect(sys.band.leftStaffTopY - sys.band.rightStaffBottomY).toBeCloseTo(
+			INTRA_STAFF_GAP,
+			10,
+		);
+		// The plain bare song has no low ledgers, so the bottom margin is today's base.
+		expect(sys.band.bottomMargin).toBeCloseTo(5, 10);
+	});
+
+	it("keeps the LH staff below the RH staff with a below-RH + above-LH note (shallow → base floor)", () => {
+		// A single below-RH note plus a single above-LH note (no dynamics) reserve
+		// belowRH_stack + aboveLH_stack + MID_GAP, which is shallower than the base gap,
+		// so the gap floors at INTRA_STAFF_GAP — the LH staff stays strictly below.
+		const sys = buildLayoutModel(
+			songWith({
+				rhNotes: [{ text: "x", placement: "below" }],
+				lhNotes: [{ text: "y", placement: "above" }],
+			}),
+			200,
+		).systems[0];
+		const gap = sys.band.leftStaffTopY - sys.band.rightStaffBottomY;
+		expect(gap).toBeGreaterThanOrEqual(INTRA_STAFF_GAP);
+		// The LH staff still sits strictly below the RH staff.
+		expect(sys.band.leftStaffTopY).toBeGreaterThan(sys.band.rightStaffBottomY);
+	});
+
+	it("flexes the inter-staff gap PAST the base when the reserved stacks are deep", () => {
+		// Deep below-RH + above-LH stacks exceed the base gap, so the flex genuinely
+		// grows it: belowRH_stack (3 notes) + aboveLH_stack (3 notes) + MID_GAP > 8.
+		const triple = (placement) => [
+			{ text: "a", placement },
+			{ text: "b", placement },
+			{ text: "c", placement },
+		];
+		const sys = buildLayoutModel(
+			songWith({
+				rhNotes: triple("below"),
+				lhNotes: triple("above"),
+			}),
+			200,
+		).systems[0];
+		const gap = sys.band.leftStaffTopY - sys.band.rightStaffBottomY;
+		expect(gap).toBeGreaterThan(INTRA_STAFF_GAP);
+		expect(sys.band.leftStaffTopY).toBeGreaterThan(sys.band.rightStaffBottomY);
+	});
+
+	it("dodges a below-RH note past the dynamics row without reaching the LH staff", () => {
+		const sys = buildLayoutModel(
+			songWith({
+				rhNotes: [{ text: "x", placement: "below" }],
+				rhDynamic: "mf",
+			}),
+			200,
+		).systems[0];
+		// The furthest below-RH note baseline (note #0 dodging the dynamics row) clears
+		// its glyph descent and still stays strictly above the LH staff top.
+		const belowRHBand = sys.band.bands.belowRH;
+		const furthestBaseline = belowRHBand.baseY; // a single below-RH note → note #0
+		expect(furthestBaseline - DESCENT).toBeLessThan(sys.band.leftStaffTopY);
+		// The base offset is the dynamics reserve (the dodge), not the plain staff gap.
+		expect(belowRHBand.baseY - sys.band.rightStaffBottomY).toBeCloseTo(
+			DYNAMICS_LANE_RESERVE,
+			10,
+		);
+	});
+
+	it("keeps a DEEP dodged below-RH stack strictly above the LH staff top", () => {
+		// Two dodged below-RH notes deepen the stack past the base gap; the furthest
+		// baseline (rightStaffBottomY + belowRH_stack − DESCENT) must still clear the LH.
+		const sys = buildLayoutModel(
+			songWith({
+				rhNotes: [
+					{ text: "x", placement: "below" },
+					{ text: "y", placement: "below" },
+				],
+				rhDynamic: "mf",
+			}),
+			200,
+		).systems[0];
+		const belowRHStack = DYNAMICS_LANE_RESERVE + 1 * STACK_STEP + DESCENT; // n = 2
+		const furthestBaseline =
+			sys.band.rightStaffBottomY + belowRHStack - DESCENT;
+		expect(furthestBaseline).toBeLessThan(sys.band.leftStaffTopY);
+	});
+
+	it("uses the plain staff gap (no dodge) for a below-RH note when the RH has no dynamic", () => {
+		const sys = buildLayoutModel(
+			songWith({ rhNotes: [{ text: "x", placement: "below" }] }),
+			200,
+		).systems[0];
+		expect(
+			sys.band.bands.belowRH.baseY - sys.band.rightStaffBottomY,
+		).toBeCloseTo(NOTE_GAP_STAFF, 10);
+	});
+
+	it("dodges a below-RH note past the dynamics region when the RH has a HAIRPIN but no point dynamic", () => {
+		// A crescendo span (no point dynamic) puts a hairpin lane in the below-staff
+		// dynamics region. The below-RH band must dodge it just as it dodges a point
+		// dynamic — to the same DYNAMICS_LANE_RESERVE depth (which clears the lane).
+		const sys = buildLayoutModel(
+			songWith({
+				rhNotes: [{ text: "x", placement: "below" }],
+				rhHairpin: "crescendo",
+			}),
+			200,
+		).systems[0];
+		expect(
+			sys.band.bands.belowRH.baseY - sys.band.rightStaffBottomY,
+		).toBeCloseTo(DYNAMICS_LANE_RESERVE, 10);
+	});
+
+	it("keeps the below-RH note clear of the hairpin lane it dodges (no overlap)", () => {
+		// The hairpin lane rides HAIRPIN_LANE_DY below the staff bottom, fanning ±aperture/2.
+		// The dodged below-RH note #0 baseline sits at the reserve depth; its glyph TOP
+		// (baseline − NOTE_SIZE ascent) must clear the lane's LOWER edge so the two never
+		// touch. (Both are below-staff dynamics-region occupants on the same hand.)
+		const sys = buildLayoutModel(
+			songWith({
+				rhNotes: [{ text: "x", placement: "below" }],
+				rhHairpin: "decrescendo",
+			}),
+			200,
+		).systems[0];
+		const laneLowerEdge =
+			sys.band.rightStaffBottomY + HAIRPIN_LANE_DY + HAIRPIN_APERTURE / 2;
+		const noteBaseline = sys.band.bands.belowRH.baseY;
+		// The note baseline is the bottom of its glyph box; the dodge keeps that baseline
+		// at/below the lane's lower edge so the wedge sits between the staff and the note.
+		expect(noteBaseline).toBeGreaterThan(laneLowerEdge);
+	});
+
+	it("dodges a below-LH note for a left-hand HAIRPIN too (per-hand)", () => {
+		const sys = buildLayoutModel(
+			songWith({
+				lhNotes: [{ text: "y", placement: "below" }],
+				lhHairpin: "crescendo",
+			}),
+			200,
+		).systems[0];
+		expect(
+			sys.band.bands.belowLH.baseY - sys.band.leftStaffBottomY,
+		).toBeCloseTo(DYNAMICS_LANE_RESERVE, 10);
+	});
+
+	it("keeps the hairpin dodge per-hand: an LH hairpin does not dodge below-RH notes", () => {
+		const sys = buildLayoutModel(
+			songWith({
+				rhNotes: [{ text: "x", placement: "below" }],
+				lhHairpin: "crescendo", // a hairpin on the OTHER hand
+			}),
+			200,
+		).systems[0];
+		// The below-RH base offset stays the plain staff gap — the LH hairpin is irrelevant.
+		expect(
+			sys.band.bands.belowRH.baseY - sys.band.rightStaffBottomY,
+		).toBeCloseTo(NOTE_GAP_STAFF, 10);
+	});
+
+	it("flexes the bottom margin to the below-LH stack plus the ledger extent", () => {
+		// Two below-LH notes at the SAME anchor stack outward; one LH dynamic adds the dodge.
+		const sys = buildLayoutModel(
+			songWith({
+				lhNotes: [
+					{ text: "a", placement: "below" },
+					{ text: "b", placement: "below" },
+				],
+				lhDynamic: "p",
+			}),
+			200,
+		).systems[0];
+		// belowLH_stack = baseOffset + (n-1)*STACK_STEP + DESCENT, n = 2, dodged.
+		const belowLHStack = DYNAMICS_LANE_RESERVE + 1 * STACK_STEP + DESCENT;
+		// ledgerBottomExtent is 0 for this register, so the floor is the flexed stack.
+		expect(sys.band.bottomMargin).toBeGreaterThanOrEqual(belowLHStack - 1e-9);
+		expect(sys.band.bottomMargin).toBeGreaterThan(5);
+	});
+
+	it("never shrinks the bottom margin below today's base when the stack is shallow", () => {
+		// A single below-LH note (no dynamic) flexes less than the base bottom margin.
+		const sys = buildLayoutModel(
+			songWith({ lhNotes: [{ text: "a", placement: "below" }] }),
+			200,
+		).systems[0];
+		expect(sys.band.bottomMargin).toBeCloseTo(5, 10);
+	});
+
+	it("exposes the four bands with base anchors, a stack step, and outward growth", () => {
+		const sys = buildLayoutModel(
+			songWith({
+				rhNotes: [
+					{ text: "a", placement: "above" },
+					{ text: "b", placement: "below" },
+				],
+				lhNotes: [
+					{ text: "c", placement: "above" },
+					{ text: "d", placement: "below" },
+				],
+			}),
+			200,
+		).systems[0];
+		const { bands } = sys.band;
+		// All four bands are present with a numeric base anchor and the shared step.
+		for (const key of ["aboveRH", "belowRH", "aboveLH", "belowLH"]) {
+			expect(typeof bands[key].baseY).toBe("number");
+			expect(bands[key].step).toBeCloseTo(STACK_STEP, 10);
+		}
+		// Above-* bands grow toward smaller Y; below-* bands grow toward larger Y.
+		expect(bands.aboveRH.direction).toBe("up");
+		expect(bands.aboveLH.direction).toBe("up");
+		expect(bands.belowRH.direction).toBe("down");
+		expect(bands.belowLH.direction).toBe("down");
+		// note #k = baseY + dir * k * step. Verify note #0 hugs the staff and note #1
+		// lands exactly one step further outward, per band.
+		const annotationY = (b, k) =>
+			b.baseY + (b.direction === "up" ? -1 : 1) * k * b.step;
+		// above-RH base = the above-RH lane just above the RH staff top.
+		expect(bands.aboveRH.baseY).toBeCloseTo(
+			sys.band.annotationAboveRHLaneY,
+			10,
+		);
+		expect(annotationY(bands.aboveRH, 1)).toBeLessThan(
+			annotationY(bands.aboveRH, 0),
+		);
+		// below-RH base hugs the RH staff bottom by the plain gap (no dynamics here).
+		expect(bands.belowRH.baseY).toBeCloseTo(
+			sys.band.rightStaffBottomY + NOTE_GAP_STAFF,
+			10,
+		);
+		expect(annotationY(bands.belowRH, 1)).toBeGreaterThan(
+			annotationY(bands.belowRH, 0),
+		);
+		// above-LH base hugs the LH staff top by the plain gap; grows up.
+		expect(bands.aboveLH.baseY).toBeCloseTo(
+			sys.band.leftStaffTopY - NOTE_GAP_STAFF,
+			10,
+		);
+		expect(annotationY(bands.aboveLH, 1)).toBeLessThan(
+			annotationY(bands.aboveLH, 0),
+		);
+		// below-LH base hugs the LH staff bottom by the plain gap; grows down.
+		expect(bands.belowLH.baseY).toBeCloseTo(
+			sys.band.leftStaffBottomY + NOTE_GAP_STAFF,
+			10,
+		);
+		expect(annotationY(bands.belowLH, 1)).toBeGreaterThan(
+			annotationY(bands.belowLH, 0),
+		);
+	});
+
+	it("reserves the above-RH lane height for the WHOLE stack, not just one line", () => {
+		// One above-RH note vs three above-RH notes at the same anchor: the deeper stack
+		// pushes the lane (and the whole top margin) higher.
+		const one = buildLayoutModel(
+			songWith({ rhNotes: [{ text: "a", placement: "above" }] }),
+			200,
+		).systems[0];
+		const three = buildLayoutModel(
+			songWith({
+				rhNotes: [
+					{ text: "a", placement: "above" },
+					{ text: "b", placement: "above" },
+					{ text: "c", placement: "above" },
+				],
+			}),
+			200,
+		).systems[0];
+		expect(three.band.topMargin).toBeGreaterThan(one.band.topMargin);
+	});
+
+	it("flexes the gap from the system-wide MAX same-anchor below-RH stack", () => {
+		// Measure 1 has a single below-RH note; measure 2 has THREE at one anchor.
+		// The system-wide MAX (3) drives the gap for the whole system.
+		const deepStackMeasure = {
+			rightHand: [
+				{
+					type: "note",
+					duration: "quarter",
+					annotations: [
+						{ text: "a", placement: "below" },
+						{ text: "b", placement: "below" },
+						{ text: "c", placement: "below" },
+					],
+					pitches: [{ step: "G", octave: 4 }],
+				},
+			],
+		};
+		const shallow = buildLayoutModel(
+			songWith({ rhNotes: [{ text: "a", placement: "below" }] }),
+			200,
+		).systems[0];
+		const deep = buildLayoutModel(
+			{
+				sections: [
+					{
+						measures: [
+							{
+								rightHand: [
+									{
+										type: "note",
+										duration: "quarter",
+										annotations: [{ text: "a", placement: "below" }],
+										pitches: [{ step: "G", octave: 4 }],
+									},
+								],
+							},
+							deepStackMeasure,
+						],
+					},
+				],
+			},
+			500,
+		).systems[0];
+		const gapOf = (s) => s.band.leftStaffTopY - s.band.rightStaffBottomY;
+		expect(gapOf(deep)).toBeGreaterThan(gapOf(shallow));
+	});
+
+	it("adds MID_GAP only when both inter-staff sub-bands are present", () => {
+		// Deep stacks (RH dynamics + 3 below-RH notes) lift the flexed gap above the base
+		// floor, so adding the above-LH sub-band's contribution is directly observable.
+		const triple = (placement) => [
+			{ text: "a", placement },
+			{ text: "b", placement },
+			{ text: "c", placement },
+		];
+		const belowRHOnly = buildLayoutModel(
+			songWith({ rhNotes: triple("below"), rhDynamic: "mf" }),
+			200,
+		).systems[0];
+		const both = buildLayoutModel(
+			songWith({
+				rhNotes: triple("below"),
+				rhDynamic: "mf",
+				lhNotes: triple("above"),
+			}),
+			200,
+		).systems[0];
+		const gap = (s) => s.band.leftStaffTopY - s.band.rightStaffBottomY;
+		const belowRHStack = DYNAMICS_LANE_RESERVE + 2 * STACK_STEP + DESCENT; // n = 3, dodged
+		const aboveLHStack = NOTE_GAP_STAFF + 2 * STACK_STEP + DESCENT; // n = 3
+		// below-RH alone flexes to its stack (above the base floor); no mid-gap.
+		expect(gap(belowRHOnly)).toBeCloseTo(
+			Math.max(INTRA_STAFF_GAP, belowRHStack),
+			10,
+		);
+		// Adding the above-LH sub-band lifts the gap by that stack PLUS the mid-gap.
+		expect(gap(both)).toBeCloseTo(belowRHStack + aboveLHStack + MID_GAP, 10);
+		expect(gap(both) - gap(belowRHOnly)).toBeCloseTo(
+			aboveLHStack + MID_GAP,
+			10,
+		);
+	});
+
+	it("buckets a standalone measure-level note into its (staff, placement) band", () => {
+		// A standalone below-LH note (no per-event notes) flexes the bottom margin and
+		// is bucketed by its own staff + placement.
+		const sys = buildLayoutModel(
+			songWith({
+				measureNotes: [
+					{ text: "ped", placement: "below", staff: "leftHand", beat: 0 },
+				],
+			}),
+			200,
+		).systems[0];
+		// A single below-LH standalone note flexes to base (n = 1, shallow).
+		expect(sys.band.bands.belowLH.baseY).toBeCloseTo(
+			sys.band.leftStaffBottomY + NOTE_GAP_STAFF,
+			10,
+		);
+		// Two standalone below-LH notes at the SAME beat stack and deepen the gap step.
+		const deeper = buildLayoutModel(
+			songWith({
+				measureNotes: [
+					{ text: "a", placement: "below", staff: "leftHand", beat: 0 },
+					{ text: "b", placement: "below", staff: "leftHand", beat: 0 },
+				],
+			}),
+			200,
+		).systems[0];
+		expect(deeper.band.bottomMargin).toBeGreaterThan(sys.band.bottomMargin);
+	});
+
+	it("keeps the dynamics dodge per-hand: an LH dynamic does not dodge below-RH notes", () => {
+		const sys = buildLayoutModel(
+			songWith({
+				rhNotes: [{ text: "x", placement: "below" }],
+				lhDynamic: "f", // a dynamic on the OTHER hand
+			}),
+			200,
+		).systems[0];
+		// The below-RH base offset stays the plain staff gap — the LH dynamic is irrelevant.
+		expect(
+			sys.band.bands.belowRH.baseY - sys.band.rightStaffBottomY,
+		).toBeCloseTo(NOTE_GAP_STAFF, 10);
 	});
 });
 
@@ -2053,7 +3024,12 @@ describe("hairpin span resolution (crescendo / decrescendo)", () => {
 	});
 
 	it("clears a point dynamic on the start note: shifts x1 right past the glyph + gap", () => {
-		const start = { anchor: { x: 10 }, laneY: 12, systemIndex: 0, dynamic: "mf" };
+		const start = {
+			anchor: { x: 10 },
+			laneY: 12,
+			systemIndex: 0,
+			dynamic: "mf",
+		};
 		const stop = { anchor: { x: 40 }, systemIndex: 0 };
 		const w = buildHairpinSpec("crescendo", start, stop, "rightHand");
 		const halfWidth = ("mf".length * DYNAMIC_ADVANCE_EM * DYNAMIC_SIZE) / 2;
@@ -2073,7 +3049,12 @@ describe("hairpin span resolution (crescendo / decrescendo)", () => {
 	it("clamps the dynamic clearance to the end X on a short within-system span (degenerate-safe)", () => {
 		// A wide dynamic on a very short span would shift x1 past x2; clamp to x2 so the
 		// wedge never runs backwards.
-		const start = { anchor: { x: 10 }, laneY: 12, systemIndex: 0, dynamic: "fff" };
+		const start = {
+			anchor: { x: 10 },
+			laneY: 12,
+			systemIndex: 0,
+			dynamic: "fff",
+		};
 		const stop = { anchor: { x: 11 }, systemIndex: 0 };
 		const w = buildHairpinSpec("crescendo", start, stop, "rightHand");
 		expect(w.x1).toBe(11);
@@ -2083,7 +3064,12 @@ describe("hairpin span resolution (crescendo / decrescendo)", () => {
 	it("keeps the dynamic clearance unclamped for a cross-system span (the clip trims the right edge later)", () => {
 		// Cross-system: stop.anchor.x is a foreign-frame X, so the within-system clamp is
 		// skipped; x1 keeps its full shift and the staff-end clip sets the right edge.
-		const start = { anchor: { x: 10 }, laneY: 12, systemIndex: 0, dynamic: "p" };
+		const start = {
+			anchor: { x: 10 },
+			laneY: 12,
+			systemIndex: 0,
+			dynamic: "p",
+		};
 		const stop = { anchor: { x: 3 }, systemIndex: 1 };
 		const w = buildHairpinSpec("crescendo", start, stop, "rightHand");
 		const halfWidth = ("p".length * DYNAMIC_ADVANCE_EM * DYNAMIC_SIZE) / 2;
@@ -2401,7 +3387,9 @@ describe("cross-system span clip — full buildLayoutModel (narrow width)", () =
 		// Resolve the same cross-system tie WITHOUT the clip (read the raw record from a
 		// fresh resolve) to prove the clip touched x2/cx but left y2/cy untouched.
 		const model = buildLayoutModel(crossSong("tie"), 30);
-		const sp = model.systems.flatMap((s) => s.spans).find((s) => s.kind === "tie");
+		const sp = model.systems
+			.flatMap((s) => s.spans)
+			.find((s) => s.kind === "tie");
 		// y2 and cy derive from the foreign end note's notehead Y; the clip leaves them.
 		// They are finite (a real Y), and the clip is asserted not to have collapsed them
 		// to the start edge — the arc terminates at a foreign vertical position by design.

@@ -93,7 +93,11 @@ export const SYSTEM_BOTTOM_MARGIN = 5;
  */
 export const ABOVE_STAFF_PAD = 1;
 
-/** Vertical gap between two stacked above-staff text lanes (chord / ottava / tempo). */
+/**
+ * Vertical gap between two stacked above-staff text lanes (chord / ottava / tempo).
+ * Also reused as the per-note stack gap, so one stack step is
+ * `NOTE_SIZE + TEXT_LANE_GAP` = 3.4 sp.
+ */
 export const TEXT_LANE_GAP = 0.6;
 
 /**
@@ -154,8 +158,8 @@ export const TIE_NOTE_CLEARANCE = 0.9;
 /** Dynamics (bold-italic) text size. */
 export const DYNAMIC_SIZE = 2.8;
 
-/** Chord-symbol text size (free author text above the RH staff). */
-export const CHORD_SYMBOL_SIZE = 2.8;
+/** Note-annotation text size (free author text placed around the staves). */
+export const NOTE_SIZE = 2.8;
 
 /** Tempo marking text size ("[note-glyph] = [bpm]"). */
 export const TEMPO_SIZE = 2.8;
@@ -165,6 +169,37 @@ export const MEASURE_NUMBER_SIZE = 2.2;
 
 /** Ottava-bracket label text size ("8va" / "8vb" / "15ma" / "15mb"). */
 export const OTTAVA_SIZE = 2.2;
+
+/** Clearance, in sp, between a staff line and the nearest note baseline. */
+export const NOTE_GAP_STAFF = 1;
+
+/**
+ * Clearance, in sp, between the below-RH and above-LH note sub-bands inside the
+ * inter-staff gap, applied only when both sub-bands are present.
+ */
+export const MID_GAP = 1.2;
+
+/**
+ * Below-staff dynamics-region depth, in sp, that a below-RH/below-LH annotation
+ * dodges when its hand carries a below-staff dynamics occupant — a point dynamic
+ * glyph AND/OR a gradual-dynamic hairpin lane (both live in this region). Serves as
+ * the `baseOffset` for such a below band, feeding BOTH the per-annotation baseline
+ * and the gap/bottom-margin flex.
+ *
+ * Set to the dynamic baseline (3.5 sp below the staff) plus one full `STACK_STEP`
+ * (`NOTE_SIZE + TEXT_LANE_GAP` = 3.4 sp), so a dodged annotation sits a whole text
+ * lane below the dynamic — its TOP clears the dynamic glyph's BODY, not merely its
+ * baseline (the prior 4.5 separated only the baselines by 1 sp, so the ~2.8 sp
+ * glyphs still overlapped). 6.9 also clears the hairpin lane's lower edge
+ * (`HAIRPIN_LANE_DY + HAIRPIN_APERTURE / 2` = 3.5). Tunable.
+ */
+export const DYNAMICS_LANE_RESERVE = 6.9;
+
+/**
+ * Horizontal back-off, in sp, from the trailing barline used when clamping an
+ * over-content `beat`-anchored note so it stays inside the measure.
+ */
+export const NOTE_CLAMP_INSET = 1;
 
 // ── Hairpins (crescendo / decrescendo wedges) ───────────────────────────────────
 
