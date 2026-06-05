@@ -215,4 +215,139 @@ defensible. The spec's REQUIREMENT is the visible barline/boundary→notehead ga
 the uniform-`leadInset` approach is the recommended default and the one the
 acceptance tests below are written against.
 
-### Q3 — Concrete, testable lead-in magnitude (asked)
+### Q3 — Concrete, testable lead-in magnitude
+
+**Empirical baseline (spec-analyst ran `buildLayoutModel` directly):**
+
+- Interior measure, plain quarter notes: `notes[0].x` (measure-relative) =
+  **0.000**; barline → first-note-CENTER gap = **0.830** sp
+  (= `BARLINE_THIN 0.13 + BARLINE_POST_PAD 0.7`). Visible barline-stroke →
+  notehead-left-edge whitespace ≈ 0.83 − 0.6 − 0.13 ≈ 0.1 sp → the cramped look.
+- System-first measure: `notes[0].x` = 0.000 at `m.x = STAFF_MARGIN_X + reserve`.
+- Empty measure: width = 3.300 (`EMPTY_MEASURE_WIDTH`), zero notes.
+- Leading rest: the rest occupies the first column at relX 0.000 — so the lead-in
+  pushes in whatever occupies onset 0 (note OR rest), uniformly. Good.
+
+**Researcher findings (A3):**
+
+1. Magnitude. Convention: post-barline gap before the first note ≈ 1–1.5
+   notehead-widths; a notehead here ≈ 1.18 sp (`2·NOTEHEAD_RX`). `MEASURE_START_PAD
+   = 1.0` sp makes the visible gap ≈ 0.1 + 1.0 ≈ 1.1 sp (just over one
+   notehead-width — clearly better, not excessive), matches the peer constants
+   `RESERVE_PAD = 1` and `ACCIDENTAL_LEAD_EXTRA = 1`, and stays below
+   `MIN_ADV = 2.2` so the opening gap never exceeds the smallest note-to-note
+   advance. 1.2 (one notehead-width) is the tasteful upper bound; do not exceed
+   ~1.5. Make it ADDITIVE via a new `leadInset` term — do NOT raise
+   `BARLINE_POST_PAD` (which is consumed in the PREVIOUS measure's `trailingPad`
+   and would entangle trailing-bar / repeat geometry).
+2. Composition with the accidental lead. Both terms occupy the SAME slot (the gap
+   before the first column); `ACCIDENTAL_LEAD_EXTRA` is space the accidental
+   GLYPH then fills, while `MEASURE_START_PAD` is empty breathing room. Use
+   `max(MEASURE_START_PAD, accidentalLead)`, NOT additive — so every measure's
+   first NOTE lands at a uniform lead-in and an accidental measure isn't pushed
+   in twice as far. With both = 1.0 today they coincide; `max()` is future-proof
+   if the pad is later bumped. This preserves today's accidental clearance (no
+   regression: `ACCIDENTAL_GAP = 1.2`, so at 1.0 lead-in the accidental center
+   sits ~0.2 sp left of the boundary, exactly as `ACCIDENTAL_LEAD_EXTRA = 1`
+   already does).
+3. Test assertions (measure-relative `notes[0].x`):
+   - Plain opening note: `notes[0].x` is EXACTLY `MEASURE_START_PAD` (leadInset is
+     NOT justify-scaled), so `toBeCloseTo(MEASURE_START_PAD)`.
+   - Replace `layout.test.js:2120` `< NOTEHEAD_RX` →
+     `toBeCloseTo(MEASURE_START_PAD)`; keep `:2121` `< m.width/2`.
+   - Replace `layout.test.js:2159` `< NOTEHEAD_RX` →
+     `toBeCloseTo(MEASURE_START_PAD)`.
+   - `layout.test.js:2160` (`sharp > plain`) FLIPS under `max()` (both = 1.0):
+     rewrite to assert the two note X's are EQUAL and add a check that the sharp's
+     accidental glyph still draws to the LEFT of the notehead (the faithful intent:
+     "uniform note lead-in; the accidental occupies that lead-in").
+   - Reword the test names/comments at `:2118-2119` and `:2138` (the note no
+     longer "hugs" the start).
+
+**DECISIONS (resolved autonomously):**
+
+- **D2 — magnitude.** `MEASURE_START_PAD = 1.0` sp. Rationale above. (Design may
+  choose 1.2 for a roomier look if the owner wants it obviously less cramped;
+  1.0 is the recommended default and what the acceptance tests below assume.)
+- **D3 — composition.** Opening clearance = `max(MEASURE_START_PAD,
+  firstColumnHasAccidental ? ACCIDENTAL_LEAD_EXTRA : 0)`. Uniform note position;
+  no regression in accidental clearance.
+- **D4 — mechanism.** A new additive `leadInset` term applied to EVERY measure
+  (not gated on `localIdx`), AND folded into `m.contentWidth` for packing
+  (`layout.js:1767`). Leave `BARLINE_POST_PAD = 0.7` and `trailingPad` untouched.
+  The `sectionReserve` term stays additive and separate (cautionary clef/key/time
+  glyphs genuinely precede the lead-in), so a mid-system section-change measure
+  gets `sectionReserve + openingClearance`.
+
+The Q&A is complete; the requirements and acceptance criteria below are the
+deliverable.
+
+---
+
+## Requirements (testable)
+
+All in staff-spaces (sp). New constant `MEASURE_START_PAD = 1.0` sp.
+
+- **R1 — Every measure has a leading lead-in.** Each measure's first content
+  column (the onset-0 note OR rest, on BOTH staves, which share one `columnX`)
+  is inset from the measure's left edge by an "opening clearance" of at least
+  `MEASURE_START_PAD`. In code terms, the first note's measure-relative
+  `notes[0].x` equals the opening clearance.
+- **R2 — Magnitude.** The opening clearance for a measure with no opening
+  accidental = `MEASURE_START_PAD` (1.0 sp). This makes the visible barline →
+  notehead-left-edge whitespace ≈ 1.1 sp (vs ≈ 0.1 sp today) for an interior
+  measure — clearly roomier, below `MIN_ADV`.
+- **R3 — Accidental composition.** When the opening note has an accidental, the
+  opening clearance = `max(MEASURE_START_PAD, ACCIDENTAL_LEAD_EXTRA)`. With both
+  = 1.0 the note position is identical to the no-accidental case, and the
+  accidental glyph still seats to the left of the notehead (no clearance
+  regression).
+- **R4 — Packing invariant.** The opening clearance is folded into the measure's
+  intrinsic `contentWidth` used for system packing/justify (the same rail
+  `noteAccidentalLead`/`sectionReserve` use), so wrapping and justification
+  budget the lead-in correctly. The lead-in is NOT scaled by justify.
+- **R5 — Uniform across measure types.** Applies to the score-first measure,
+  every system-first measure, every interior measure, and section-first
+  measures (where it ADDS to `sectionReserve`). An empty measure (no events)
+  simply widens by the clearance with no notes to place — no crash/NaN.
+- **R6 — No regressions.** Notes, rests, beams, ties, slurs, hairpins, point
+  dynamics, octave (ottava) brackets, standalone annotations, and barlines all
+  derive from the shifted `columnX`/`leadInset`, so they stay mutually
+  consistent; a `repeat-start` LEFT barline stays flush at the measure boundary
+  with the first note sitting the clearance past it. `BARLINE_POST_PAD` and
+  trailing-bar geometry are unchanged.
+
+## Acceptance criteria
+
+- **AC1.** For a plain (no accidental, no section change) measure on either
+  staff, `measure.right.notes[0].x` (and `left.notes[0].x`) is
+  `toBeCloseTo(MEASURE_START_PAD)`. Replaces `layout.test.js:2120` and `:2159`
+  (`< NOTEHEAD_RX`).
+- **AC2.** The visible gap between a measure's left barline and its first
+  notehead is at least one notehead-width: for an interior measure,
+  `(measures[i].x + measures[i].right.notes[0].x) − barlineStrokeX ≥
+  MEASURE_START_PAD + BARLINE_POST_PAD − NOTEHEAD_RX` (≈ a notehead-width). A
+  new assertion strengthening `layout.test.js:2030-2040` from a barline→edge gap
+  to a barline→first-NOTE gap.
+- **AC3.** A measure whose opening note has an accidental places that note at
+  the SAME `notes[0].x` as the no-accidental case (`max()` rule), and the
+  accidental glyph's X is less than the notehead X (draws to the left).
+  Rewrites `layout.test.js:2160`.
+- **AC4.** `notes[0].x` for a whole-note opening measure remains `< m.width/2`
+  (left of center, not centered). Keeps `layout.test.js:2121`.
+- **AC5.** `MEASURE_START_PAD` is unscaled by justify: a narrow (heavily
+  justified) and a wide rendering of the same measure both yield
+  `notes[0].x === MEASURE_START_PAD`.
+- **AC6.** No NaN/throw for an empty measure; its width grows by the clearance
+  and it places no notes. Existing empty/one-hand measure tests still pass.
+- **AC7.** The full existing `layout.test.js` / `svg.test.js` suites pass with
+  only the targeted assertion/name updates above; no unrelated test regresses.
+
+## Out of scope
+
+- Changing inter-note (within-measure) spacing, `MIN_ADV`/`ADV_K`, beaming,
+  chord stacking, or any vertical geometry.
+- Reworking `BARLINE_POST_PAD` or trailing-bar/repeat geometry.
+- Equalizing system-first vs interior lead-in by folding the pad into the
+  reserve (a viable alternative the design phase MAY adopt; the default here is
+  the uniform-additive `leadInset` approach).
