@@ -402,9 +402,10 @@ export function beatGroupLength(timeSignature) {
  * Best-effort beaming of one hand's events in one measure. Walks
  * events tracking a running `pos` in quarter-beats (`eventDuration`), accumulating
  * consecutive beamable notes and breaking at a rest, a non-beamable note, the
- * measure end, or a beat-boundary crossing (`floor(pos / beatLen)` changes). The
- * time signature is consulted ONLY for the beat length (grouping); `pos` is purely
- * a grouping aid — it never clamps or crashes on overflow.
+ * measure end, or a crossing into a new grouping unit (`floor(pos / beatLen)`
+ * changes — `beatLen` is the metric group's span, which may be wider than one
+ * notated beat). The time signature is consulted ONLY for that grouping unit; `pos`
+ * is purely a grouping aid — it never clamps or crashes on overflow.
  *
  * A group of length 1 is returned as a single FLAGGED note (`isBeam: false`), not
  * a one-note beam. Groups of two or more are beams (`isBeam: true`). The result
@@ -451,7 +452,7 @@ export function beamGroups(events, timeSignature) {
 			continue;
 		}
 
-		// A beamable note that starts past a beat boundary opens a new group; a
+		// A beamable note that starts in a new grouping unit opens a new group; a
 		// note straddling a boundary still starts a fresh group (never split).
 		if (current && startBeat !== current.startBeat) {
 			flush();
@@ -462,13 +463,13 @@ export function beamGroups(events, timeSignature) {
 		current.indices.push(i);
 		current.beamCounts.push(beamCountFor(event.duration));
 
-		// If this note crosses into the next beat, the next note must start a new
-		// group; record the crossing so the boundary check above fires.
+		// If this note crosses into the next grouping unit, the next note must start
+		// a new group; record the crossing so the boundary check above fires.
 		if (endBeat !== startBeat) {
 			// Keep the note in THIS group but mark the run so the following note
-			// breaks: advance the group's notion of its beat to the end beat is
-			// wrong (it would let the next note join); instead flush now so the
-			// next beamable note opens fresh. We flush AFTER appending so a single
+			// breaks: advancing the group's notion of its grouping unit to the end
+			// unit is wrong (it would let the next note join); instead flush now so
+			// the next beamable note opens fresh. We flush AFTER appending so a single
 			// straddling note becomes its own (flagged) group if nothing follows.
 			flush();
 		}
