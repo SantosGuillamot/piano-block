@@ -1856,9 +1856,33 @@ export function buildLayoutModel(song, availableWidthInSp) {
 		// mid-gap between them only when both are present), collapsing to the base gap
 		// when neither is present.
 		const bothInterStaff = occ.belowRH > 0 && occ.aboveLH > 0;
+
+		// LH-above ottava lane reservation (R1.3): when a LH positive shift is present,
+		// the gap must also fit a lane above the LH content and clear of the RH
+		// below-staff region. Inert (0) when no LH-above shift is on this system.
+		const hasLHOttavaAbove = systemHasLeftOttavaAbove(members);
+		const lhAboveExtent = lhAboveTopExtent(members);
+
+		// The RH below-staff region's downward reach. Independent of occ.belowRH so a
+		// dynamics-only / hairpin-only RH (occ.belowRH === 0, belowRHStack === 0) still
+		// reserves its row — stackDepth returns 0 when the note count is 0.
+		const rhBelowRegionReach = Math.max(
+			belowRHStack,
+			rhHasDynamics || rhHasHairpin ? DYNAMICS_LANE_RESERVE : 0,
+		);
+
+		// The LH-above column rising from lhTopY: clear the taller of the raw LH highs
+		// and the above-LH note annotations, a pad (NOTE_GAP_STAFF), then the
+		// OTTAVA_SIZE glyph band.
+		const lhAboveColumn = hasLHOttavaAbove
+			? Math.max(lhAboveExtent, aboveLHStack) + NOTE_GAP_STAFF + OTTAVA_SIZE
+			: 0;
+
+		const bothRegions = rhBelowRegionReach > 0 && lhAboveColumn > 0;
 		const effectiveInterStaffGap = Math.max(
 			INTRA_STAFF_GAP,
 			belowRHStack + aboveLHStack + (bothInterStaff ? MID_GAP : 0),
+			rhBelowRegionReach + (bothRegions ? MID_GAP : 0) + lhAboveColumn,
 		);
 		const lhTopY = rhBottomY + effectiveInterStaffGap;
 		const lhBottomY = lhTopY + STAFF_HEIGHT_SP;
