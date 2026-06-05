@@ -61,9 +61,11 @@ Key geometry facts the tasks rely on (all in staff-spaces, sp):
     Do NOT place it in the "Barlines" section; this is intentionally a
     horizontal-spacing / measure-width budget value, not a barline-side change.
   - In `src/notation/layout.js`, add `MEASURE_START_PAD` to the named import block
-    from `"../constants.js"` (the block that currently spans `layout.js:22-…` and
-    already imports `MAX_STRETCH` at `:48` and `MIN_ADV` at `:51`). Insert it in
-    alphabetical order, between `MAX_STRETCH` and `MIN_ADV`.
+    from `"../constants.js"` (the block that currently spans `layout.js:22-…`).
+    Insert `MEASURE_START_PAD` in alphabetical order, between `MEASURE_NUMBER_SIZE`
+    (`:49`) and `MID_GAP` (`:50`). (Note: `MEASURE_START_PAD` sorts after
+    `MEASURE_NUMBER_SIZE` and before `MID_GAP`; do NOT place it next to `MAX_STRETCH`
+    at `:48`, which would break alphabetical order.)
   - Do NOT yet use `MEASURE_START_PAD` anywhere in `layout.js` logic (that is T3).
     Adding an unused import is acceptable at this task boundary because the value is
     consumed in T3, which depends on T1.
