@@ -12,6 +12,7 @@ import {
 	ACCIDENTAL_GAP,
 	DYNAMIC_ADVANCE_EM,
 	DYNAMIC_SIZE,
+	DYNAMICS_LANE_RESERVE,
 	EMPTY_MEASURE_WIDTH,
 	HAIRPIN_APERTURE,
 	HAIRPIN_DYNAMIC_GAP,
@@ -24,6 +25,7 @@ import {
 	NOTE_GAP_STAFF,
 	NOTE_SIZE,
 	NOTEHEAD_RX,
+	OTTAVA_SIZE,
 	STAFF_MARGIN_X,
 	TEXT_LANE_GAP,
 } from "../constants.js";
@@ -3512,5 +3514,221 @@ describe("lhAboveTopExtent — LH high-note extent above the LH top line", () =>
 			memberWithLeft([{ step: "G", octave: 5 }]), // bass G5 → 6.5 sp, the max
 		];
 		expect(lhAboveTopExtent(members)).toBeCloseTo(6.5, 6);
+	});
+});
+
+// ── Octave-shift ottava placement (#13: Bug 1 vertical lanes, Bug 2 x-span) ────────
+describe("ottava placement — per-hand 'above' lanes and per-system measure-extent span", () => {
+	const note = (step, octave, extra = {}) => ({
+		type: "note",
+		duration: "quarter",
+		pitches: [{ step, octave }],
+		...extra,
+	});
+	const rest = { type: "rest", duration: "quarter" };
+
+	it("places a LH +1 ottava in the inter-staff gap above the LH notes, not in the top-margin lane", () => {
+		// LH carries a high note (bass G5 → 6.5 sp above its top line) under a +1 shift,
+		// and the RH prints a point dynamic so the RH below-staff region is non-empty
+		// (rhBelowRegionReach = DYNAMICS_LANE_RESERVE). The LH "above" bracket must sit
+		// in the reserved gap lane, clear of both the LH highs and the RH below region.
+		const song = {
+			sections: [
+				{
+					leftHand: { octaveShift: 1 },
+					measures: [
+						{
+							rightHand: [note("G", 4, { dynamic: "f" })],
+							leftHand: [note("G", 5)],
+						},
+					],
+				},
+			],
+		};
+		const sys = buildLayoutModel(song, 200).systems[0];
+		const band = sys.band;
+		const above = sys.texts.ottavas.filter((o) => o.placement === "above");
+		expect(above).toHaveLength(1);
+		const o = above[0];
+		expect(o.hand).toBe("leftHand");
+		expect(o.placement).toBe("above");
+
+		// The LH "above" bracket lives in the gap lane, NOT the top-margin lane.
+		expect(o.y).toBe(band.ottavaLeftAboveLaneY);
+		expect(o.y).not.toBe(band.ottavaAboveLaneY); // null here (no RH-above shift)
+		expect(band.ottavaAboveLaneY).toBeNull();
+		expect(o.y).toBeLessThan(band.leftStaffTopY); // in the inter-staff gap
+
+		// Baseline sits strictly above the LH high notes (G5 reaches 6.5 sp above the
+		// LH top line). Strict because GAP_PAD = NOTE_GAP_STAFF > 0.
+		const lhHighNoteExtent = 6.5; // bass G5, from lhAboveTopExtent
+		expect(o.y).toBeLessThan(band.leftStaffTopY - lhHighNoteExtent);
+
+		// Glyph top (y − OTTAVA_SIZE) clears the RH below-staff region. Operator is `>=`
+		// (per design non-blocking note 2): this fixture's RH dynamic makes the margin
+		// strictly positive, but the bound the spec requires is `>=`, not strict `>`.
+		const glyphTop = o.y - OTTAVA_SIZE;
+		expect(glyphTop).toBeGreaterThanOrEqual(
+			band.rightStaffBottomY + DYNAMICS_LANE_RESERVE,
+		);
+		// And the glyph top clears the staff bottom itself (no overlap with RH content).
+		expect(glyphTop).toBeGreaterThanOrEqual(band.rightStaffBottomY);
+	});
+
+	it("does not deepen the top margin for a left-hand-only +1 shift", () => {
+		// Identical above-the-RH-staff content (an above-RH note annotation), differing
+		// only in whether the LH carries a +1 shift. A LH-only shift must not reserve a
+		// top-margin ottava lane, so the top margin equals the no-shift baseline.
+		const songWithLeftShift = (leftShift) => ({
+			sections: [
+				{
+					...(leftShift ? { leftHand: { octaveShift: leftShift } } : {}),
+					measures: [
+						{
+							rightHand: [
+								note("G", 4, {
+									annotations: [{ text: "C", placement: "above" }],
+								}),
+							],
+							leftHand: [note("C", 3)],
+						},
+					],
+				},
+			],
+		});
+		const lhShifted = buildLayoutModel(songWithLeftShift(1), 200).systems[0];
+		const noShift = buildLayoutModel(songWithLeftShift(0), 200).systems[0];
+
+		// The LH-only shift does not reserve a top-margin ottava lane.
+		expect(lhShifted.band.topMargin).toBeCloseTo(noShift.band.topMargin, 10);
+		// No RH-above shift ⇒ the top-margin lane is not reserved.
+		expect(lhShifted.band.ottavaAboveLaneY).toBeNull();
+		// The LH +1 still produces a gap-lane bracket (sanity: the shift is live).
+		const above = lhShifted.texts.ottavas.filter(
+			(o) => o.placement === "above",
+		);
+		expect(above).toHaveLength(1);
+		expect(above[0].hand).toBe("leftHand");
+		expect(above[0].y).toBe(lhShifted.band.ottavaLeftAboveLaneY);
+	});
+
+	it("places two 'above' ottavas at distinct, non-overlapping Ys when both hands are +1", () => {
+		const song = {
+			sections: [
+				{
+					rightHand: { octaveShift: 1 },
+					leftHand: { octaveShift: 1 },
+					measures: [
+						{
+							rightHand: [note("G", 4)],
+							leftHand: [note("G", 5)],
+						},
+					],
+				},
+			],
+		};
+		const sys = buildLayoutModel(song, 200).systems[0];
+		const band = sys.band;
+		const above = sys.texts.ottavas.filter((o) => o.placement === "above");
+		expect(above).toHaveLength(2);
+		const rh = above.find((o) => o.hand === "rightHand");
+		const lh = above.find((o) => o.hand === "leftHand");
+		expect(rh).toBeDefined();
+		expect(lh).toBeDefined();
+
+		// RH in the top-margin lane, LH in the inter-staff-gap lane.
+		expect(rh.y).toBe(band.ottavaAboveLaneY);
+		expect(lh.y).toBe(band.ottavaLeftAboveLaneY);
+
+		// The RH lane is higher (smaller Y) than the LH lane, and the two are distinct.
+		expect(band.ottavaAboveLaneY).toBeLessThan(band.ottavaLeftAboveLaneY);
+		expect(rh.y).not.toBe(lh.y);
+
+		// The RH glyph band [y − OTTAVA_SIZE, y] sits entirely above the LH lane, so the
+		// two markings cannot overlap.
+		expect(band.ottavaAboveLaneY).toBeLessThan(
+			band.ottavaLeftAboveLaneY - OTTAVA_SIZE,
+		);
+	});
+
+	it("emits a bracket on a rest-only run-portion and spans a sparse run's full measure extent", () => {
+		// Rest-only: the shift is on ctx, the LH measure has no noteheads. A bracket is
+		// still emitted, spanning the measure's left edge to its right barline.
+		const restOnlySong = {
+			sections: [
+				{
+					leftHand: { octaveShift: 1 },
+					measures: [{ rightHand: [note("G", 4)], leftHand: [rest] }],
+				},
+			],
+		};
+		const restSys = buildLayoutModel(restOnlySong, 200).systems[0];
+		const restOttavas = restSys.texts.ottavas.filter(
+			(o) => o.hand === "leftHand" && o.placement === "above",
+		);
+		expect(restOttavas).toHaveLength(1);
+		const r = restOttavas[0];
+		const m0 = restSys.measures[0];
+		expect(r.x1).toBe(m0.x); // measure left edge — no note refinement
+		expect(r.x2).toBe(m0.x + m0.width); // right barline
+		expect(r.x1).toBeLessThan(r.x2); // EMPTY_MEASURE_WIDTH floor ⇒ non-degenerate
+
+		// Sparse: [rest, note, rest] for the LH. The bracket spans the full run extent,
+		// NOT a tiny ±NOTEHEAD_RX window around the lone middle note.
+		const sparseSong = {
+			sections: [
+				{
+					leftHand: { octaveShift: 1 },
+					measures: [
+						{ rightHand: [note("G", 4)], leftHand: [rest] },
+						{ rightHand: [note("G", 4)], leftHand: [note("G", 5)] },
+						{ rightHand: [note("G", 4)], leftHand: [rest] },
+					],
+				},
+			],
+		};
+		const sparseSys = buildLayoutModel(sparseSong, 200).systems[0];
+		const sparseOttavas = sparseSys.texts.ottavas.filter(
+			(o) => o.hand === "leftHand" && o.placement === "above",
+		);
+		expect(sparseOttavas).toHaveLength(1);
+		const s = sparseOttavas[0];
+		const first = sparseSys.measures[0];
+		const last = sparseSys.measures[2];
+		// First measure is rest-only ⇒ no note refinement: x1 is the first measure's
+		// left edge, and x2 reaches the last measure's right barline.
+		expect(s.x1).toBe(first.x);
+		expect(s.x2).toBe(last.x + last.width);
+		// The span covers more than one measure — not a tiny window around the lone note.
+		expect(s.x2 - s.x1).toBeGreaterThan(first.width);
+	});
+
+	it("restates exactly one bracket per system across a multi-system note-bearing run", () => {
+		// A single same-shift (LH +1) note-bearing run over six measures, wrapped narrow
+		// so it spans several systems. Each spanned system carries exactly one matching
+		// bracket; the total equals the number of systems.
+		const song = {
+			sections: [
+				{
+					leftHand: { octaveShift: 1 },
+					measures: Array.from({ length: 6 }, () => ({
+						rightHand: [note("G", 4)],
+						leftHand: [note("G", 5)],
+					})),
+				},
+			],
+		};
+		const model = buildLayoutModel(song, 25); // narrow ⇒ wraps to multiple systems
+		expect(model.systems.length).toBeGreaterThan(1);
+		const perSystem = model.systems.map(
+			(s) =>
+				s.texts.ottavas.filter(
+					(o) => o.hand === "leftHand" && o.label === "8va",
+				).length,
+		);
+		// Exactly one matching bracket on every spanned system.
+		expect(perSystem.every((c) => c === 1)).toBe(true);
+		// And the total equals the number of systems the run spans.
+		expect(perSystem.reduce((a, b) => a + b, 0)).toBe(model.systems.length);
 	});
 });
