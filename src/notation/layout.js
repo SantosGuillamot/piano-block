@@ -2952,19 +2952,33 @@ function buildSystemTexts(members, measureModels, band) {
 				return;
 			}
 			const ott = ottavaFor(run.shift);
-			if (ott && run.xs.length > 0) {
+			if (ott && run.firstModel) {
 				const staffBottomY =
 					hand === "rightHand" ? band.rightStaffBottomY : band.leftStaffBottomY;
 				const aboveY =
 					hand === "rightHand"
 						? band.ottavaAboveLaneY
 						: band.ottavaLeftAboveLaneY;
+				// Span this system's run-portion's full measure extent: from the first
+				// run-measure's left edge (refined left to its earliest note when it has
+				// any) to the last run-measure's right barline. Keying the left-start
+				// refinement to the FIRST run-measure's own notes (not a global min over
+				// the run) avoids under-spanning a rest-leading sparse run; x2 is monotone
+				// and always reaches the true barline (the last note sits inside it).
+				const x2 = run.lastModel.x + run.lastModel.width;
+				const firstNotesX = run.firstHandNotes.map(
+					(n) => run.firstModel.x + n.x,
+				);
+				const x1 =
+					firstNotesX.length > 0
+						? Math.min(...firstNotesX) - NOTEHEAD_RX
+						: run.firstModel.x;
 				ottavas.push({
 					hand,
 					label: ott.label,
 					placement: ott.placement,
-					x1: Math.min(...run.xs) - NOTEHEAD_RX,
-					x2: Math.max(...run.xs) + NOTEHEAD_RX,
+					x1,
+					x2,
 					// Above: RH in the top-margin lane, LH in the inter-staff-gap lane.
 					// Below: in the bottom margin, clear of low ledgers (unchanged).
 					y: ott.placement === "above" ? aboveY : staffBottomY + 2,
@@ -2980,13 +2994,15 @@ function buildSystemTexts(members, measureModels, band) {
 			}
 			if (!run || run.shift !== shift) {
 				flush();
-				run = { shift, xs: [] };
+				run = { shift, firstModel: null, lastModel: null, firstHandNotes: null };
 			}
 			const laid =
 				hand === "rightHand" ? measureModels[i].right : measureModels[i].left;
-			for (const n of laid.notes) {
-				run.xs.push(measureModels[i].x + n.x);
+			if (!run.firstModel) {
+				run.firstModel = measureModels[i];
+				run.firstHandNotes = laid.notes; // the first run-measure's own notes
 			}
+			run.lastModel = measureModels[i];
 		});
 		flush();
 	}
