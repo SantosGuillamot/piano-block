@@ -2955,18 +2955,19 @@ function buildSystemTexts(members, measureModels, band) {
 			if (ott && run.xs.length > 0) {
 				const staffBottomY =
 					hand === "rightHand" ? band.rightStaffBottomY : band.leftStaffBottomY;
+				const aboveY =
+					hand === "rightHand"
+						? band.ottavaAboveLaneY
+						: band.ottavaLeftAboveLaneY;
 				ottavas.push({
 					hand,
 					label: ott.label,
 					placement: ott.placement,
 					x1: Math.min(...run.xs) - NOTEHEAD_RX,
 					x2: Math.max(...run.xs) + NOTEHEAD_RX,
-					// Above: its own lane below the tempo and above the notes.
-					// Below: in the bottom margin, clear of low ledgers.
-					y:
-						ott.placement === "above"
-							? band.ottavaAboveLaneY
-							: staffBottomY + 2,
+					// Above: RH in the top-margin lane, LH in the inter-staff-gap lane.
+					// Below: in the bottom margin, clear of low ledgers (unchanged).
+					y: ott.placement === "above" ? aboveY : staffBottomY + 2,
 				});
 			}
 			run = null;
