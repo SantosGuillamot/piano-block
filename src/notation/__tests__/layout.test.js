@@ -49,6 +49,7 @@ import {
 	isBeamable,
 	keySignatureCluster,
 	ledgerLinesFor,
+	lhAboveTopExtent,
 	matchSpans,
 	measureLayout,
 	normalizeAlters,
@@ -3461,5 +3462,55 @@ describe("cross-system span clip — full buildLayoutModel (narrow width)", () =
 			expect(sp.cx).toBeCloseTo((sp.x1 + sp.x2) / 2, 6);
 			expect(sp.x2).toBeGreaterThan(sp.x1);
 		}
+	});
+});
+
+describe("lhAboveTopExtent — LH high-note extent above the LH top line", () => {
+	// A flattened member only needs `measure.leftHand` plus `ctx.leftHand.clef`.
+	const memberWithLeft = (pitches, clef = "bass") => ({
+		measure: pitches
+			? { leftHand: [{ type: "note", pitches }] }
+			: { leftHand: [{ type: "rest" }] },
+		ctx: { leftHand: { clef } },
+	});
+
+	it("returns 0 for an empty members list", () => {
+		expect(lhAboveTopExtent([])).toBe(0);
+	});
+
+	it("returns 0 for a rest-only LH measure", () => {
+		expect(lhAboveTopExtent([memberWithLeft(null)])).toBe(0);
+	});
+
+	it("returns 0 for an absent leftHand", () => {
+		expect(lhAboveTopExtent([{ measure: {}, ctx: { leftHand: { clef: "bass" } } }])).toBe(0);
+	});
+
+	it("returns 4.5 sp for bass C5 (step 17)", () => {
+		expect(
+			lhAboveTopExtent([memberWithLeft([{ step: "C", octave: 5 }])]),
+		).toBeCloseTo(4.5, 6);
+	});
+
+	it("returns 6.5 sp for bass G5 (step 21)", () => {
+		expect(
+			lhAboveTopExtent([memberWithLeft([{ step: "G", octave: 5 }])]),
+		).toBeCloseTo(6.5, 6);
+	});
+
+	it("returns 0 for LH notes at or below the top line (bass C3)", () => {
+		expect(
+			lhAboveTopExtent([memberWithLeft([{ step: "C", octave: 3 }])]),
+		).toBe(0);
+	});
+
+	it("takes the highest notehead across all members and uses each measure's own clef", () => {
+		// A treble-clef LH measure: bass C5's step (17) would differ under treble,
+		// so the per-measure clef must drive the scan.
+		const members = [
+			memberWithLeft([{ step: "C", octave: 3 }]), // bass C3 → below top line
+			memberWithLeft([{ step: "G", octave: 5 }]), // bass G5 → 6.5 sp, the max
+		];
+		expect(lhAboveTopExtent(members)).toBeCloseTo(6.5, 6);
 	});
 });

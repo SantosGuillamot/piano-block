@@ -2175,6 +2175,25 @@ function ledgerBottomExtent(members) {
 	return Math.max(0, -minBelow * 0.5);
 }
 
+/**
+ * The highest LH notehead position (largest `sFromBottom`) above the LH staff
+ * top line across a system's measures, converted to an extent in sp above
+ * `leftStaffTopY`. The LH staff top line is `sFromBottom = 8` (in its own
+ * frame). Mirrors `ledgerTopExtent` over the LH/bass staff in the up direction.
+ */
+export function lhAboveTopExtent(members) {
+	let maxAbove = 8; // LH top line
+	for (const m of members) {
+		for (const s of handStepsFor(m.measure?.leftHand, m.ctx.leftHand.clef)) {
+			if (s > maxAbove) {
+				maxAbove = s;
+			}
+		}
+	}
+	// Each staff-step above the top line is 0.5 sp; clamp to a non-negative extent.
+	return Math.max(0, (maxAbove - 8) * 0.5);
+}
+
 /** The RH chord notehead positions in a measure (for the top-extent scan). */
 function measureMaxRightSteps(measure) {
 	return handStepsFor(measure?.rightHand, "treble");
