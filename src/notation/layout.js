@@ -1863,7 +1863,7 @@ export function buildLayoutModel(song, availableWidthInSp) {
 		const aboveLHStack = stackDepth(occ.aboveLH, NOTE_GAP_STAFF);
 
 		// The top margin flexes to only the text lanes actually present above the staff
-		// (the above-RH note stack, an above-staff ottava, the tempo) stacked over the
+		// (an above-staff ottava, the tempo, the above-RH note stack) stacked over the
 		// ledger zone, so the staff and tempo drop close to the staff when there is
 		// nothing above it. Each present lane's baseline Y comes back in system
 		// coordinates; the above-RH lane reserves the full stack height.
@@ -2847,9 +2847,9 @@ function systemHandHasHairpin(members, hand) {
 
 /**
  * The flexible top-margin layout for a system. Only the lanes actually
- * present are stacked above the high-note/ledger zone — the above-RH note lane
- * nearest the staff, then an above-staff ottava, then the tempo at the very top — so
- * when there is nothing above the staff the margin (and the tempo) drop close to it.
+ * present are stacked above the high-note/ledger zone — an above-staff ottava
+ * nearest the staff, then the tempo, then the above-RH note lane at the very top — so
+ * when there is nothing above the staff the margin drops close to it.
  * The above-RH lane reserves height for the WHOLE stack (every same-anchor note),
  * not just one line, so a deep above-RH stack lifts the lanes (and the margin) above
  * it. Returns the staff's top margin plus each present lane's baseline Y in
@@ -2882,13 +2882,6 @@ function topMarginLayout(members, ledgerTop, aboveRHCount) {
 	let annotationAboveRHD = null;
 	let ottavaD = null;
 	let tempoD = null;
-	if (aboveRHCount > 0) {
-		annotationAboveRHD = d;
-		// The lane's baseline is note #0; the stack grows UP, so the topmost note's
-		// glyph reaches `(n − 1)` steps higher plus its own ascent.
-		topExtent = d + (aboveRHCount - 1) * stackStep + NOTE_SIZE;
-		d = topExtent + TEXT_LANE_GAP;
-	}
 	if (systemHasRightOttavaAbove(members)) {
 		ottavaD = d;
 		topExtent = d + OTTAVA_SIZE;
@@ -2897,6 +2890,13 @@ function topMarginLayout(members, ledgerTop, aboveRHCount) {
 	if (systemHasTempo(members)) {
 		tempoD = d;
 		topExtent = d + TEMPO_SIZE;
+		d = topExtent + TEXT_LANE_GAP;
+	}
+	if (aboveRHCount > 0) {
+		annotationAboveRHD = d;
+		// The lane's baseline is note #0; the stack grows UP, so the topmost note's
+		// glyph reaches `(n − 1)` steps higher plus its own ascent.
+		topExtent = d + (aboveRHCount - 1) * stackStep + NOTE_SIZE;
 		d = topExtent + TEXT_LANE_GAP;
 	}
 	const topMargin = Math.max(SYSTEM_TOP_MARGIN, topExtent + ABOVE_STAFF_PAD);
@@ -2944,7 +2944,7 @@ function buildSystemTexts(members, measureModels, band) {
 					// The tempo prints at its measure's left edge (the score-start one
 					// over the first measure, just past the leading reserve).
 					x: measureModels[i].x,
-					// Topmost lane, above the note zone.
+					// Middle lane: above the ottava, below the above-RH annotation lane.
 					y: band.tempoLaneY,
 				});
 			}

@@ -2061,12 +2061,10 @@ describe("layout-polish fixes", () => {
 		const above = sys.texts.ottavas.filter((o) => o.placement === "above");
 		expect(sys.texts.tempos.length).toBeGreaterThan(0);
 		expect(above.length).toBeGreaterThan(0);
-		// Stacked top→bottom: tempo above the ottava above the above-RH note lane, all
-		// above the staff top (smaller Y is higher).
+		// Stacked top→bottom: the above-RH note/annotation lane above the tempo above
+		// the ottava, all above the staff top (smaller Y is higher).
+		expect(sys.band.annotationAboveRHLaneY).toBeLessThan(sys.band.tempoLaneY);
 		expect(sys.band.tempoLaneY).toBeLessThan(sys.band.ottavaAboveLaneY);
-		expect(sys.band.ottavaAboveLaneY).toBeLessThan(
-			sys.band.annotationAboveRHLaneY,
-		);
 		expect(sys.band.annotationAboveRHLaneY).toBeLessThan(
 			sys.band.rightStaffTopY,
 		);
@@ -2076,6 +2074,114 @@ describe("layout-polish fixes", () => {
 		for (const o of above) {
 			expect(o.y).toBeCloseTo(sys.band.ottavaAboveLaneY, 10);
 		}
+	});
+
+	it("a deep above-RH stack reserves itself as the topmost lane (whole stack clears the tempo) and grows the top margin", () => {
+		// A system carrying a tempo + a right-hand note with TWO same-anchor above-RH
+		// annotations: the multi-line stack must own the topmost lane so its lowest
+		// line (the lane baseline) sits strictly above the tempo, and the extra depth
+		// must grow the system top margin. The only above-RH fixture (COMPREHENSIVE_SONG)
+		// carries exactly one such annotation, so this deep-stack invariant is otherwise
+		// untested.
+		const songWithAboveStack = (annotations) => ({
+			defaults: { tempo: { bpm: 120, beatUnit: "quarter" } },
+			sections: [
+				{
+					measures: [
+						{
+							rightHand: [
+								{
+									type: "note",
+									duration: "quarter",
+									annotations,
+									pitches: [{ step: "G", octave: 4 }],
+								},
+							],
+							leftHand: [
+								{
+									type: "note",
+									duration: "quarter",
+									pitches: [{ step: "C", octave: 3 }],
+								},
+							],
+						},
+					],
+				},
+			],
+		});
+		const deep = buildLayoutModel(
+			songWithAboveStack([
+				{ text: "C", placement: "above" },
+				{ text: "rit.", placement: "above" },
+			]),
+			200,
+		).systems[0];
+		const single = buildLayoutModel(
+			songWithAboveStack([{ text: "C", placement: "above" }]),
+			200,
+		).systems[0];
+		// Sanity-guard the fixtures: the tempo and the above-RH lane are present on the
+		// deep system, so the lane-order assertion below is meaningful.
+		expect(deep.texts.tempos.length).toBeGreaterThan(0);
+		expect(deep.band.tempoLaneY).not.toBeNull();
+		expect(deep.band.annotationAboveRHLaneY).not.toBeNull();
+		// (a) The whole stack clears the tempo: its lowest line (annotationAboveRHLaneY,
+		// the lane baseline = note #0) sits strictly above the tempo lane (smaller Y is
+		// higher). Today annotations hug the staff and the tempo is the topmost lane, so
+		// this fails until the reservation order is flipped.
+		expect(deep.band.annotationAboveRHLaneY).toBeLessThan(deep.band.tempoLaneY);
+		// (b) Margin grows with stack depth (holds regardless of lane order).
+		expect(deep.band.topMargin).toBeGreaterThan(single.band.topMargin);
+	});
+
+	it("with annotations + tempo but no ottava, the annotations sit above the tempo and the tempo hugs the staff (AC4 subset)", () => {
+		// A system carrying a tempo + one above-RH annotation and NO above ottava (the
+		// COMPREHENSIVE_SONG case always carries an ottava, so the n=0-ottava subset is
+		// otherwise only exercised by the deep two-annotation stack). With the ottava
+		// lane absent, the tempo must be the innermost present lane (hugging the staff)
+		// and the single annotation must sit above it.
+		const song = {
+			defaults: { tempo: { bpm: 120, beatUnit: "quarter" } },
+			sections: [
+				{
+					measures: [
+						{
+							rightHand: [
+								{
+									type: "note",
+									duration: "quarter",
+									annotations: [{ text: "C", placement: "above" }],
+									pitches: [{ step: "G", octave: 4 }],
+								},
+							],
+							leftHand: [
+								{
+									type: "note",
+									duration: "quarter",
+									pitches: [{ step: "C", octave: 3 }],
+								},
+							],
+						},
+					],
+				},
+			],
+		};
+		const sys = buildLayoutModel(song, 200).systems[0];
+		// Fixture guard: a tempo + an above-RH annotation are present, but no ottava sits
+		// above the staff on either hand (systemHasRightOttavaAbove is false here).
+		expect(sys.texts.tempos.length).toBeGreaterThan(0);
+		expect(
+			sys.texts.ottavas.filter((o) => o.placement === "above"),
+		).toHaveLength(0);
+		expect(sys.band.tempoLaneY).not.toBeNull();
+		expect(sys.band.annotationAboveRHLaneY).not.toBeNull();
+		// The annotation sits above the tempo (smaller Y is higher).
+		expect(sys.band.annotationAboveRHLaneY).toBeLessThan(sys.band.tempoLaneY);
+		// The tempo hugs the staff: no ottava lane (neither hand), and the tempo is the
+		// innermost present lane — above the staff top yet below the annotation lane.
+		expect(sys.band.ottavaAboveLaneY).toBeNull();
+		expect(sys.band.ottavaLeftAboveLaneY).toBeNull();
+		expect(sys.band.tempoLaneY).toBeLessThan(sys.band.rightStaffTopY);
 	});
 
 	it("the top margin flexes: no note/ottava → a shallower margin than with them", () => {
