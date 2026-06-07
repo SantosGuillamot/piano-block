@@ -2944,7 +2944,7 @@ function buildSystemTexts(members, measureModels, band) {
 					// The tempo prints at its measure's left edge (the score-start one
 					// over the first measure, just past the leading reserve).
 					x: measureModels[i].x,
-					// Topmost lane, above the note zone.
+					// Middle lane: above the ottava, below the above-RH annotation lane.
 					y: band.tempoLaneY,
 				});
 			}
