@@ -2847,9 +2847,9 @@ function systemHandHasHairpin(members, hand) {
 
 /**
  * The flexible top-margin layout for a system. Only the lanes actually
- * present are stacked above the high-note/ledger zone — the above-RH note lane
- * nearest the staff, then an above-staff ottava, then the tempo at the very top — so
- * when there is nothing above the staff the margin (and the tempo) drop close to it.
+ * present are stacked above the high-note/ledger zone — an above-staff ottava
+ * nearest the staff, then the tempo, then the above-RH note lane at the very top — so
+ * when there is nothing above the staff the margin drops close to it.
  * The above-RH lane reserves height for the WHOLE stack (every same-anchor note),
  * not just one line, so a deep above-RH stack lifts the lanes (and the margin) above
  * it. Returns the staff's top margin plus each present lane's baseline Y in
