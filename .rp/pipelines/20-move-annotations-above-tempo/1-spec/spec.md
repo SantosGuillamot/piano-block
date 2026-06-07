@@ -43,6 +43,9 @@ Everything outside the above-the-top-staff stack must be unchanged for the same 
 ### R8 — Top margin stays tight
 When nothing sits above the staff, the top margin still collapses to its base value, exactly as today. The reorder must not introduce extra vertical padding for absent markings.
 
+### R9 — Keep documentation in sync
+Any documentation that describes the above-the-top-staff marking order (for example, code comments documenting how the lanes stack) must be updated to reflect the new top-to-bottom order (annotations → tempo → octaveShift). No documentation may continue to describe the old order.
+
 ## Out of Scope
 
 - Moving, restyling, or reordering annotations that are not in the above-the-top-staff stack (i.e. annotations below the top staff, in the inter-staff gap, or below the bottom staff).
@@ -65,3 +68,4 @@ When nothing sits above the staff, the top margin still collapses to its base va
 - **AC7 — No horizontal change (R6).** For the same input, all horizontal positions (measure positions, the tempo's horizontal position, and annotation horizontal positions) are unchanged.
 - **AC8 — Top margin tight (R8).** When nothing sits above the staff, the top margin collapses to its base value, as today.
 - **AC9 — Test suite green.** The existing test suite passes after updating the single test that asserts the old top-to-bottom order to the new order. No other existing test requires changes; in particular the presence/content, horizontal-position, and above-vs-below checks remain valid.
+- **AC10 — Documentation matches (R9).** No documentation describing the above-the-top-staff marking order still references the old order; all such documentation describes the new top-to-bottom order (annotations → tempo → octaveShift).
