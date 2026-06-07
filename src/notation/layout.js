@@ -1870,9 +1870,33 @@ export function buildLayoutModel(song, availableWidthInSp) {
 		// mid-gap between them only when both are present), collapsing to the base gap
 		// when neither is present.
 		const bothInterStaff = occ.belowRH > 0 && occ.aboveLH > 0;
+
+		// LH-above ottava lane reservation (R1.3): when a LH positive shift is present,
+		// the gap must also fit a lane above the LH content and clear of the RH
+		// below-staff region. Inert (0) when no LH-above shift is on this system.
+		const hasLHOttavaAbove = systemHasLeftOttavaAbove(members);
+		const lhAboveExtent = lhAboveTopExtent(members);
+
+		// The RH below-staff region's downward reach. Independent of occ.belowRH so a
+		// dynamics-only / hairpin-only RH (occ.belowRH === 0, belowRHStack === 0) still
+		// reserves its row — stackDepth returns 0 when the note count is 0.
+		const rhBelowRegionReach = Math.max(
+			belowRHStack,
+			rhHasDynamics || rhHasHairpin ? DYNAMICS_LANE_RESERVE : 0,
+		);
+
+		// The LH-above column rising from lhTopY: clear the taller of the raw LH highs
+		// and the above-LH note annotations, a pad (NOTE_GAP_STAFF), then the
+		// OTTAVA_SIZE glyph band.
+		const lhAboveColumn = hasLHOttavaAbove
+			? Math.max(lhAboveExtent, aboveLHStack) + NOTE_GAP_STAFF + OTTAVA_SIZE
+			: 0;
+
+		const bothRegions = rhBelowRegionReach > 0 && lhAboveColumn > 0;
 		const effectiveInterStaffGap = Math.max(
 			INTRA_STAFF_GAP,
 			belowRHStack + aboveLHStack + (bothInterStaff ? MID_GAP : 0),
+			rhBelowRegionReach + (bothRegions ? MID_GAP : 0) + lhAboveColumn,
 		);
 		const lhTopY = rhBottomY + effectiveInterStaffGap;
 		const lhBottomY = lhTopY + STAFF_HEIGHT_SP;
@@ -1898,6 +1922,12 @@ export function buildLayoutModel(song, availableWidthInSp) {
 			// null when that element is absent from the system).
 			tempoLaneY: top.tempoLaneY,
 			ottavaAboveLaneY: top.ottavaAboveLaneY,
+			// LH "above" ottava lane: low edge of the OTTAVA_SIZE band, sitting in the
+			// inter-staff gap above the LH content. Null when no LH-above shift is present
+			// on this system (and never read in that case — see buildSystemTexts).
+			ottavaLeftAboveLaneY: hasLHOttavaAbove
+				? lhTopY - Math.max(lhAboveExtent, aboveLHStack) - NOTE_GAP_STAFF
+				: null,
 			annotationAboveRHLaneY: top.annotationAboveRHLaneY,
 			// The four placement bands. Each carries the note #0 baseline (`baseY`,
 			// hugging its staff at the band's base offset), the per-note `step`, and the
@@ -2187,6 +2217,25 @@ function ledgerBottomExtent(members) {
 		}
 	}
 	return Math.max(0, -minBelow * 0.5);
+}
+
+/**
+ * The highest LH notehead position (largest `sFromBottom`) above the LH staff
+ * top line across a system's measures, converted to an extent in sp above
+ * `leftStaffTopY`. The LH staff top line is `sFromBottom = 8` (in its own
+ * frame). Mirrors `ledgerTopExtent` over the LH/bass staff in the up direction.
+ */
+export function lhAboveTopExtent(members) {
+	let maxAbove = 8; // LH top line
+	for (const m of members) {
+		for (const s of handStepsFor(m.measure?.leftHand, m.ctx.leftHand.clef)) {
+			if (s > maxAbove) {
+				maxAbove = s;
+			}
+		}
+	}
+	// Each staff-step above the top line is 0.5 sp; clamp to a non-negative extent.
+	return Math.max(0, (maxAbove - 8) * 0.5);
 }
 
 /** The RH chord notehead positions in a measure (for the top-extent scan). */
@@ -2659,11 +2708,13 @@ function systemHasTempo(members) {
 	);
 }
 
-/** Whether any measure in this system carries an above-staff (positive) octave shift. */
-function systemHasOttavaAbove(members) {
-	return members.some(
-		(m) => m.ctx.rightHand.octaveShift > 0 || m.ctx.leftHand.octaveShift > 0,
-	);
+/** Whether any measure in this system carries a RIGHT-hand positive octave shift. */
+function systemHasRightOttavaAbove(members) {
+	return members.some((m) => m.ctx.rightHand.octaveShift > 0);
+}
+/** Whether any measure in this system carries a LEFT-hand positive octave shift. */
+function systemHasLeftOttavaAbove(members) {
+	return members.some((m) => m.ctx.leftHand.octaveShift > 0);
 }
 
 /** Whether a `notes` element carries drawable text (a non-empty string). */
@@ -2832,7 +2883,7 @@ function topMarginLayout(members, ledgerTop, aboveRHCount) {
 		topExtent = d + (aboveRHCount - 1) * stackStep + NOTE_SIZE;
 		d = topExtent + TEXT_LANE_GAP;
 	}
-	if (systemHasOttavaAbove(members)) {
+	if (systemHasRightOttavaAbove(members)) {
 		ottavaD = d;
 		topExtent = d + OTTAVA_SIZE;
 		d = topExtent + TEXT_LANE_GAP;
@@ -2915,21 +2966,36 @@ function buildSystemTexts(members, measureModels, band) {
 				return;
 			}
 			const ott = ottavaFor(run.shift);
-			if (ott && run.xs.length > 0) {
+			if (ott && run.firstModel) {
 				const staffBottomY =
 					hand === "rightHand" ? band.rightStaffBottomY : band.leftStaffBottomY;
+				const aboveY =
+					hand === "rightHand"
+						? band.ottavaAboveLaneY
+						: band.ottavaLeftAboveLaneY;
+				// Span this system's run-portion's full measure extent: from the first
+				// run-measure's left edge (refined left to its earliest note when it has
+				// any) to the last run-measure's right barline. Keying the left-start
+				// refinement to the FIRST run-measure's own notes (not a global min over
+				// the run) avoids under-spanning a rest-leading sparse run; x2 is monotone
+				// and always reaches the true barline (the last note sits inside it).
+				const x2 = run.lastModel.x + run.lastModel.width;
+				const firstNotesX = run.firstHandNotes.map(
+					(n) => run.firstModel.x + n.x,
+				);
+				const x1 =
+					firstNotesX.length > 0
+						? Math.min(...firstNotesX) - NOTEHEAD_RX
+						: run.firstModel.x;
 				ottavas.push({
 					hand,
 					label: ott.label,
 					placement: ott.placement,
-					x1: Math.min(...run.xs) - NOTEHEAD_RX,
-					x2: Math.max(...run.xs) + NOTEHEAD_RX,
-					// Above: its own lane below the tempo and above the notes.
-					// Below: in the bottom margin, clear of low ledgers.
-					y:
-						ott.placement === "above"
-							? band.ottavaAboveLaneY
-							: staffBottomY + 2,
+					x1,
+					x2,
+					// Above: RH in the top-margin lane, LH in the inter-staff-gap lane.
+					// Below: in the bottom margin, clear of low ledgers (unchanged).
+					y: ott.placement === "above" ? aboveY : staffBottomY + 2,
 				});
 			}
 			run = null;
@@ -2942,13 +3008,15 @@ function buildSystemTexts(members, measureModels, band) {
 			}
 			if (!run || run.shift !== shift) {
 				flush();
-				run = { shift, xs: [] };
+				run = { shift, firstModel: null, lastModel: null, firstHandNotes: null };
 			}
 			const laid =
 				hand === "rightHand" ? measureModels[i].right : measureModels[i].left;
-			for (const n of laid.notes) {
-				run.xs.push(measureModels[i].x + n.x);
+			if (!run.firstModel) {
+				run.firstModel = measureModels[i];
+				run.firstHandNotes = laid.notes; // the first run-measure's own notes
 			}
+			run.lastModel = measureModels[i];
 		});
 		flush();
 	}

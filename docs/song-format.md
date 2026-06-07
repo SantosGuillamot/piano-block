@@ -133,6 +133,8 @@ handConfig := {
   - `+2` = 15ma (two octaves up), `−2` = 15mb (two octaves down)
   - `0` or absent = no shift
 
+  **Placement.** A **positive** shift (8va/15ma) draws its dashed bracket **above the staff of the hand it is set on** — above the right-hand (treble) staff for a right-hand shift, above the left-hand (bass) staff for a left-hand shift — while a **negative** shift (8vb/15mb) draws its bracket **below that hand's staff**. The bracket is restated on every line the shifted passage spans.
+
 ### Inheritance and override rules
 
 - **Each field inherits independently.** A section that sets only `clef` keeps the inherited `alters` and `octaveShift`. Each of `clef`, `alters`, and `octaveShift` resolves to the section value if present, otherwise the `defaults` value, otherwise the documented fallback below.
