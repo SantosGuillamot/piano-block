@@ -2061,12 +2061,10 @@ describe("layout-polish fixes", () => {
 		const above = sys.texts.ottavas.filter((o) => o.placement === "above");
 		expect(sys.texts.tempos.length).toBeGreaterThan(0);
 		expect(above.length).toBeGreaterThan(0);
-		// Stacked top→bottom: tempo above the ottava above the above-RH note lane, all
-		// above the staff top (smaller Y is higher).
+		// Stacked top→bottom: the above-RH note/annotation lane above the tempo above
+		// the ottava, all above the staff top (smaller Y is higher).
+		expect(sys.band.annotationAboveRHLaneY).toBeLessThan(sys.band.tempoLaneY);
 		expect(sys.band.tempoLaneY).toBeLessThan(sys.band.ottavaAboveLaneY);
-		expect(sys.band.ottavaAboveLaneY).toBeLessThan(
-			sys.band.annotationAboveRHLaneY,
-		);
 		expect(sys.band.annotationAboveRHLaneY).toBeLessThan(
 			sys.band.rightStaffTopY,
 		);
