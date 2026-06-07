@@ -4104,3 +4104,121 @@ describe("ottava placement — per-hand 'above' lanes and per-system measure-ext
 		expect(perSystem.reduce((a, b) => a + b, 0)).toBe(model.systems.length);
 	});
 });
+
+/**
+ * Issue #21 — duration-ordered horizontal spacing.
+ *
+ * This block locks the accepted, already-shipped behavior: a shorter note takes
+ * strictly LESS horizontal space than a longer one. The spacing is already
+ * implemented and wired end-to-end, so this is a pure regression lock — NO
+ * source change is made here. Assertions are ordinal (shorter < longer) or
+ * stated against the live `advanceFor(Δ)` formula; never against raw pixel
+ * literals, so a future spacing-constant tune keeps these green as long as the
+ * duration ordering holds.
+ */
+describe("duration-ordered horizontal spacing (issue #21)", () => {
+	// Four eighths + two quarters, single-pitch (single-pitch ⇒ cx === note.x;
+	// pitches present ⇒ notes are not skipped in layoutHand). The SAME array
+	// feeds measureLayout (which ignores pitches) and buildLayoutModel/renderSvg.
+	const AC1_EVENTS = [
+		...Array.from({ length: 4 }, () => ({
+			type: "note",
+			duration: "eighth",
+			pitches: [{ step: "C", octave: 5 }],
+		})),
+		...Array.from({ length: 2 }, () => ({
+			type: "note",
+			duration: "quarter",
+			pitches: [{ step: "C", octave: 5 }],
+		})),
+	];
+	// Wrap an event array into a one-measure song (mirrors songWithNotes).
+	const songOf = (events) => ({
+		metadata: {},
+		sections: [{ measures: [{ rightHand: events }] }],
+	});
+
+	it("spaces equal eighth columns equally and tighter than the quarter column (AC1)", () => {
+		const layout = measureLayout(AC1_EVENTS, []);
+		// Onsets: four eighths at 0,0.5,1,1.5 then two quarters at 2,3.
+		expect(layout.grid).toEqual([0, 0.5, 1, 1.5, 2, 3]);
+		// The four eighth-led columns are mutually equal (sqrt-irrational ⇒ close).
+		expect(layout.columns[1].advance).toBeCloseTo(layout.columns[0].advance, 10);
+		expect(layout.columns[2].advance).toBeCloseTo(layout.columns[0].advance, 10);
+		expect(layout.columns[3].advance).toBeCloseTo(layout.columns[0].advance, 10);
+		// Each eighth column is tighter than the genuine q→q gap at col 4 (onsets
+		// 2→3). NOT col 3: the last-eighth→first-quarter boundary (onset 1.5→2) is
+		// governed by the eighth's Δ=0.5, so it is itself an eighth gap (trap R-B).
+		expect(layout.columns[0].advance).toBeLessThan(layout.columns[4].advance);
+		expect(layout.columns[1].advance).toBeLessThan(layout.columns[4].advance);
+		expect(layout.columns[2].advance).toBeLessThan(layout.columns[4].advance);
+		expect(layout.columns[3].advance).toBeLessThan(layout.columns[4].advance);
+		// Tie the columns to the live formula (assert against the import, not a
+		// copied 4.3213 / 5.2 literal).
+		expect(layout.columns[0].advance).toBeCloseTo(advanceFor(0.5), 10);
+		expect(layout.columns[4].advance).toBeCloseTo(advanceFor(1), 10);
+	});
+
+	it("orders advances strictly by duration across the whole range (AC2)", () => {
+		// Δ-indexed chain (immune to the inter-note-gap trap R-B): 32nd < 16th <
+		// eighth < quarter < half < whole. The first link is also edge F — the
+		// MIN_ADV floor never ties two distinct durations (0.25 > 0.125).
+		expect(advanceFor(0.125)).toBeLessThan(advanceFor(0.25));
+		expect(advanceFor(0.25)).toBeLessThan(advanceFor(0.5));
+		expect(advanceFor(0.5)).toBeLessThan(advanceFor(1));
+		expect(advanceFor(1)).toBeLessThan(advanceFor(2));
+		expect(advanceFor(2)).toBeLessThan(advanceFor(4));
+	});
+
+	it("places a dotted quarter strictly between a quarter and a half (AC3)", () => {
+		// eventDuration self-documents BASE_DUR × DOT_MUL → 1.5 quarter-beats.
+		const dq = advanceFor(eventDuration({ duration: "quarter", dots: 1 }));
+		expect(dq).toBeGreaterThan(advanceFor(1));
+		expect(dq).toBeLessThan(advanceFor(2));
+	});
+
+	it("gives a chord the same column footprint as a single note of the same duration (AC5)", () => {
+		// Prove AC5 at the measureLayout onset-grid level, NOT at cx — a chord's
+		// back head is displaced by dx*2, so cx would skew (trap R-C).
+		const chord = measureLayout(
+			[
+				{
+					type: "note",
+					duration: "quarter",
+					pitches: [
+						{ step: "C", octave: 5 },
+						{ step: "E", octave: 5 },
+						{ step: "G", octave: 5 },
+					],
+				},
+				{ type: "note", duration: "quarter", pitches: [{ step: "C", octave: 5 }] },
+			],
+			[],
+		);
+		const single = measureLayout(
+			[
+				{ type: "note", duration: "quarter", pitches: [{ step: "C", octave: 5 }] },
+				{ type: "note", duration: "quarter", pitches: [{ step: "C", octave: 5 }] },
+			],
+			[],
+		);
+		// Head count never enters handOnsets / unionGrid / advanceFor.
+		expect(chord.columns[0].advance).toBeCloseTo(single.columns[0].advance, 10);
+		expect(chord.grid).toEqual(single.grid);
+	});
+
+	it("spaces a single-duration measure uniformly (AC6)", () => {
+		const layout = measureLayout(
+			Array.from({ length: 4 }, () => ({
+				type: "note",
+				duration: "quarter",
+				pitches: [{ step: "C", octave: 5 }],
+			})),
+			[],
+		);
+		// N notes → N−1 equal consecutive internal gaps (cols 0..N−2). Column 3 is
+		// the gap to measureEnd and is excluded from the uniformity check.
+		expect(layout.columns[1].advance).toBeCloseTo(layout.columns[0].advance, 10);
+		expect(layout.columns[2].advance).toBeCloseTo(layout.columns[0].advance, 10);
+	});
+});
