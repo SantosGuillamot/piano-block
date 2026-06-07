@@ -4221,4 +4221,65 @@ describe("duration-ordered horizontal spacing (issue #21)", () => {
 		expect(layout.columns[1].advance).toBeCloseTo(layout.columns[0].advance, 10);
 		expect(layout.columns[2].advance).toBeCloseTo(layout.columns[0].advance, 10);
 	});
+
+	it("spaces rests by duration as full grid citizens (AC4)", () => {
+		// A half rest takes strictly more horizontal space than an eighth rest.
+		expect(advanceFor(2)).toBeGreaterThan(advanceFor(0.5));
+		// Rests carry their duration into the onset grid like notes — they need no
+		// pitches and still drive the per-column advance.
+		const layout = measureLayout(
+			[
+				{ type: "rest", duration: "half" },
+				{ type: "rest", duration: "eighth" },
+			],
+			[],
+		);
+		expect(layout.columns[0].advance).toBeGreaterThan(layout.columns[1].advance);
+	});
+
+	it("gives a quarter the same intrinsic advance regardless of its measure or neighbours (AC8)", () => {
+		// Intrinsic (pre-justify) layer only — assert never across systems (trap R-D).
+		const isolated = measureLayout(
+			[
+				{ type: "note", duration: "quarter", pitches: [{ step: "C", octave: 5 }] },
+				{ type: "note", duration: "quarter", pitches: [{ step: "C", octave: 5 }] },
+			],
+			[],
+		);
+		const mixed = measureLayout(AC1_EVENTS, []);
+		// mixed.columns[4] is the genuine q→q column (onsets 2→3); its advance equals
+		// the isolated quarter's, independent of the eighth neighbours (trap R-B).
+		expect(mixed.columns[4].advance).toBeCloseTo(isolated.columns[0].advance, 10);
+	});
+
+	it("lays out an over-full measure blind to the time signature (AC9)", () => {
+		const rh = Array.from({ length: 20 }, () => ({
+			type: "note",
+			duration: "eighth",
+			pitches: [{ step: "C", octave: 5 }],
+		}));
+		const layout = measureLayout(rh, []);
+		expect(layout.columns).toHaveLength(20);
+		// Every column carries the eighth advance — no time-signature clamping.
+		layout.columns.forEach((c) =>
+			expect(c.advance).toBeCloseTo(advanceFor(0.5), 10),
+		);
+		// Strictly monotonic X across all columns.
+		for (let i = 1; i < 20; i++) {
+			expect(layout.columns[i].x).toBeGreaterThan(layout.columns[i - 1].x);
+		}
+		// Everything stays finite even past a nominal bar capacity.
+		expect(
+			layout.columns.every(
+				(c) => Number.isFinite(c.x) && Number.isFinite(c.advance),
+			),
+		).toBe(true);
+		// Time-signature-blind: identical output across wildly different meters and
+		// with no time signature at all (repo { beats, beatType } shape).
+		const a = measureLayout(rh, [], { timeSignature: { beats: 2, beatType: 4 } });
+		const b = measureLayout(rh, [], { timeSignature: { beats: 12, beatType: 8 } });
+		const bare = measureLayout(rh, []);
+		expect(a).toEqual(b);
+		expect(a).toEqual(bare);
+	});
 });
