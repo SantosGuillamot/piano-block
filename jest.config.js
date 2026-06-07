@@ -17,5 +17,9 @@ module.exports = {
 	moduleNameMapper: {
 		...baseConfig.moduleNameMapper,
 		"^@wordpress/i18n$": path.join(__dirname, "test/mocks/wordpress-i18n.js"),
+		"^@wordpress/components$": path.join(
+			__dirname,
+			"test/mocks/wordpress-components.js",
+		),
 	},
 };
