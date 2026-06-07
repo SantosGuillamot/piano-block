@@ -317,9 +317,12 @@ describe("eventDuration / beatGroupLength", () => {
 		expect(eventDuration({ duration: "quarter", dots: 2 })).toBe(1.75);
 	});
 
-	it("derives a simple beat length (one beatType unit)", () => {
-		expect(beatGroupLength({ beats: 4, beatType: 4 })).toBe(1);
-		expect(beatGroupLength({ beats: 3, beatType: 4 })).toBe(1);
+	it("derives the simple grouping unit (half-bar, floored at one beat / whole bar for small metres)", () => {
+		// 4/4: half-bar = 2 quarter-beats → a chained run beams in fours.
+		expect(beatGroupLength({ beats: 4, beatType: 4 })).toBe(2);
+		// 3/4: small simple metre whose half-bar (1.5) is under a half-note, so it
+		// groups by the whole bar (3) — the six eighths beam as one.
+		expect(beatGroupLength({ beats: 3, beatType: 4 })).toBe(3);
 	});
 
 	it("derives a compound beat length (three beatType units)", () => {
@@ -328,28 +331,32 @@ describe("eventDuration / beatGroupLength", () => {
 		expect(beatGroupLength({ beats: 12, beatType: 8 })).toBe(1.5);
 	});
 
-	it("treats 3/8 as simple (beats not divisible by 3 → no compound)", () => {
+	it("treats 3/8 as compound but 2/8 as a small simple metre", () => {
 		// 3/8: beats=3 is divisible by 3, but the classic compound test is meant
 		// for 6/9/12; 3/8 conventionally groups its three eighths together, which
 		// the beats%3==0 rule yields too (beatLen 1.5 covers all three).
 		expect(beatGroupLength({ beats: 3, beatType: 8 })).toBe(1.5);
-		// 2/8 is simple.
-		expect(beatGroupLength({ beats: 2, beatType: 8 })).toBe(0.5);
+		// 2/8 is simple, and its half-bar (0.5) would re-introduce pairs, so it
+		// groups by the WHOLE BAR (1) — both eighths beam together.
+		expect(beatGroupLength({ beats: 2, beatType: 8 })).toBe(1);
+	});
+
+	it("defaults an absent time signature to 4/4 grouping (NaN guard)", () => {
+		expect(beatGroupLength(null)).toBe(2);
+		expect(beatGroupLength(undefined)).toBe(2);
 	});
 });
 
 describe("beamGroups", () => {
-	it("beams 4/4 eighths in twos", () => {
+	it("beams 4/4 eighths in fours", () => {
 		const events = Array.from({ length: 8 }, () => ({
 			type: "note",
 			duration: "eighth",
 		}));
 		const groups = beamGroups(events, { beats: 4, beatType: 4 });
 		expect(groups.map((g) => g.indices)).toEqual([
-			[0, 1],
-			[2, 3],
-			[4, 5],
-			[6, 7],
+			[0, 1, 2, 3],
+			[4, 5, 6, 7],
 		]);
 		expect(groups.every((g) => g.isBeam)).toBe(true);
 	});
@@ -406,9 +413,9 @@ describe("beamGroups", () => {
 		}));
 		expect(() => beamGroups(events, { beats: 4, beatType: 4 })).not.toThrow();
 		const groups = beamGroups(events, { beats: 4, beatType: 4 });
-		// 20 eighths → 10 pairs.
-		expect(groups).toHaveLength(10);
-		expect(groups.every((g) => g.indices.length === 2)).toBe(true);
+		// 20 eighths → 5 groups of four.
+		expect(groups).toHaveLength(5);
+		expect(groups.every((g) => g.indices.length === 4)).toBe(true);
 	});
 
 	it("carries the per-member beam counts (mixed 8th/16th)", () => {
@@ -418,6 +425,81 @@ describe("beamGroups", () => {
 		];
 		const groups = beamGroups(events, { beats: 4, beatType: 4 });
 		expect(groups[0].beamCounts).toEqual([1, 2]);
+	});
+
+	it("beams a whole bar of 2/4 eighths as one group (whole-bar unit)", () => {
+		const events = Array.from({ length: 4 }, () => ({
+			type: "note",
+			duration: "eighth",
+		}));
+		const groups = beamGroups(events, { beats: 2, beatType: 4 });
+		expect(groups.map((g) => g.indices)).toEqual([[0, 1, 2, 3]]);
+		expect(groups.every((g) => g.isBeam)).toBe(true);
+	});
+
+	it("beams a whole bar of 3/4 eighths as one group of six (whole-bar unit)", () => {
+		const events = Array.from({ length: 6 }, () => ({
+			type: "note",
+			duration: "eighth",
+		}));
+		const groups = beamGroups(events, { beats: 3, beatType: 4 });
+		expect(groups.map((g) => g.indices)).toEqual([[0, 1, 2, 3, 4, 5]]);
+		expect(groups.every((g) => g.isBeam)).toBe(true);
+	});
+
+	it("beams 2/2 eighths in fours (half-bar unit)", () => {
+		const events = Array.from({ length: 8 }, () => ({
+			type: "note",
+			duration: "eighth",
+		}));
+		const groups = beamGroups(events, { beats: 2, beatType: 2 });
+		expect(groups.map((g) => g.indices)).toEqual([
+			[0, 1, 2, 3],
+			[4, 5, 6, 7],
+		]);
+		expect(groups.every((g) => g.isBeam)).toBe(true);
+	});
+
+	it("beams three eighths on beats 1-2 of 4/4 as one group (no leftover flag)", () => {
+		// Three eighths sit inside the first half-bar (unit 2), so they join one
+		// beam — the old per-beat unit fragmented this into a [0,1] beam + a [2]
+		// flag.
+		const events = Array.from({ length: 3 }, () => ({
+			type: "note",
+			duration: "eighth",
+		}));
+		const groups = beamGroups(events, { beats: 4, beatType: 4 });
+		expect(groups.map((g) => g.indices)).toEqual([[0, 1, 2]]);
+		expect(groups.every((g) => g.isBeam)).toBe(true);
+	});
+
+	it("groups absent-ts eighths as 4/4 (4+4), not one collapsed run", () => {
+		// An absent time signature must default to 4/4 grouping (half-bar 2), never
+		// collapse the whole run into a single beam (the NaN-guard regression).
+		const events = Array.from({ length: 8 }, () => ({
+			type: "note",
+			duration: "eighth",
+		}));
+		const expected = [
+			[0, 1, 2, 3],
+			[4, 5, 6, 7],
+		];
+		expect(beamGroups(events, undefined).map((g) => g.indices)).toEqual(
+			expected,
+		);
+		expect(beamGroups(events, null).map((g) => g.indices)).toEqual(expected);
+	});
+
+	it("never throws on an over-full 2/8 measure (whole-bar tiling)", () => {
+		// 2/8 groups by the whole bar (unit 1); eight eighths overflow it but still
+		// tile into 2+2+2+2 without throwing.
+		const events = Array.from({ length: 8 }, () => ({
+			type: "note",
+			duration: "eighth",
+		}));
+		expect(() => beamGroups(events, { beats: 2, beatType: 8 })).not.toThrow();
+		const groups = beamGroups(events, { beats: 2, beatType: 8 });
+		expect(groups).toHaveLength(4);
 	});
 });
 

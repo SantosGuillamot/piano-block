@@ -364,34 +364,48 @@ export function eventDuration(event) {
 }
 
 /**
- * The grouping beat length, in quarter-beats, derived from the time signature FOR
- * GROUPING ONLY. Compound (`beatType ∈ {8,16}` AND `beats % 3 == 0`,
- * e.g. 6/8, 9/8, 12/8) groups in dotted beats (three `beatType` units); simple
- * (everything else) is one `beatType` unit per beat (4/4 eighths beam in 2s).
+ * The grouping unit length, in quarter-beats, derived from the time signature FOR
+ * GROUPING ONLY. Compound (`beatType ∈ {8,16}` AND `beats % 3 == 0`, e.g. 6/8,
+ * 9/8, 12/8) groups in dotted beats (three `beatType` units). Simple metres group
+ * by the HALF-BAR, so a chained run joins under one beam (4/4 → fours, 2/2 →
+ * 4+4); small simple metres whose half-bar is under a half-note (2/4, 3/4, 2/8)
+ * group by the WHOLE BAR instead, since a half-bar there would re-introduce pairs.
+ * The unit is floored at one notated beat (binds only in 1/1), and an absent time
+ * signature defaults to 4/4 grouping.
  *
  * @param {{ beats?: number, beatType?: number }} [timeSignature] The active time
  *   signature; defaults to 4/4-like grouping when absent.
- * @return {number} The beat length in quarter-beats (always > 0).
+ * @return {number} The grouping unit in quarter-beats (always > 0).
  */
 export function beatGroupLength(timeSignature) {
 	const beats = timeSignature?.beats;
 	const beatType = timeSignature?.beatType;
-	// One `beatType` unit in quarter-beats (a quarter = 1): 4 / beatType.
-	const unit = beatType ? 4 / beatType : 1;
+	const beat = beatType ? 4 / beatType : 1; // one notated beat (quarter-beats)
 	const isCompound =
 		(beatType === 8 || beatType === 16) &&
 		typeof beats === "number" &&
 		beats % 3 === 0;
-	return isCompound ? unit * 3 : unit;
+	if (isCompound) return beat * 3; // dotted beat — UNCHANGED
+	// SIMPLE: group by the HALF-BAR so a chained run joins under one beam
+	// (4/4 -> 4, 2/2 -> 4+4). For small simple metres whose half-bar is under a
+	// half-note (2 quarter-beats) — 2/4, 3/4, 2/8 — the half-bar would re-introduce
+	// pairs, so group by the WHOLE BAR. Absent ts defaults to 4/4 (beats -> 4).
+	const b = typeof beats === "number" ? beats : 4; // NaN guard (absent ts)
+	const barLength = b * beat;
+	const halfBar = barLength / 2;
+	const unit = halfBar >= 2 ? halfBar : barLength;
+	// Never finer than one beat; this floor binds only in 1/1 (whole-note beat).
+	return Math.max(unit, beat);
 }
 
 /**
  * Best-effort beaming of one hand's events in one measure. Walks
  * events tracking a running `pos` in quarter-beats (`eventDuration`), accumulating
  * consecutive beamable notes and breaking at a rest, a non-beamable note, the
- * measure end, or a beat-boundary crossing (`floor(pos / beatLen)` changes). The
- * time signature is consulted ONLY for the beat length (grouping); `pos` is purely
- * a grouping aid — it never clamps or crashes on overflow.
+ * measure end, or a crossing into a new grouping unit (`floor(pos / beatLen)`
+ * changes — `beatLen` is the metric group's span, which may be wider than one
+ * notated beat). The time signature is consulted ONLY for that grouping unit; `pos`
+ * is purely a grouping aid — it never clamps or crashes on overflow.
  *
  * A group of length 1 is returned as a single FLAGGED note (`isBeam: false`), not
  * a one-note beam. Groups of two or more are beams (`isBeam: true`). The result
@@ -438,7 +452,7 @@ export function beamGroups(events, timeSignature) {
 			continue;
 		}
 
-		// A beamable note that starts past a beat boundary opens a new group; a
+		// A beamable note that starts in a new grouping unit opens a new group; a
 		// note straddling a boundary still starts a fresh group (never split).
 		if (current && startBeat !== current.startBeat) {
 			flush();
@@ -449,13 +463,13 @@ export function beamGroups(events, timeSignature) {
 		current.indices.push(i);
 		current.beamCounts.push(beamCountFor(event.duration));
 
-		// If this note crosses into the next beat, the next note must start a new
-		// group; record the crossing so the boundary check above fires.
+		// If this note crosses into the next grouping unit, the next note must start
+		// a new group; record the crossing so the boundary check above fires.
 		if (endBeat !== startBeat) {
 			// Keep the note in THIS group but mark the run so the following note
-			// breaks: advance the group's notion of its beat to the end beat is
-			// wrong (it would let the next note join); instead flush now so the
-			// next beamable note opens fresh. We flush AFTER appending so a single
+			// breaks: advancing the group's notion of its grouping unit to the end
+			// unit is wrong (it would let the next note join); instead flush now so
+			// the next beamable note opens fresh. We flush AFTER appending so a single
 			// straddling note becomes its own (flagged) group if nothing follows.
 			flush();
 		}
