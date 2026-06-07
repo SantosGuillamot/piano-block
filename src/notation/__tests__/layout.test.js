@@ -10,6 +10,7 @@
  */
 import {
 	ACCIDENTAL_GAP,
+	BARLINE_POST_PAD,
 	DYNAMIC_ADVANCE_EM,
 	DYNAMIC_SIZE,
 	DYNAMICS_LANE_RESERVE,
@@ -20,6 +21,7 @@ import {
 	HAIRPIN_LANE_DY,
 	INTRA_STAFF_GAP,
 	MAX_STRETCH,
+	MEASURE_START_PAD,
 	MIN_ADV,
 	NOTE_CLAMP_INSET,
 	NOTE_GAP_STAFF,
@@ -2112,15 +2114,20 @@ describe("layout-polish fixes", () => {
 		expect(plain.band.annotationAboveRHLaneY).toBeNull();
 	});
 
-	it("every barline leaves a gap wider than a notehead before the next measure", () => {
+	it("every barline leaves at least a notehead-width gap before the next measure's first note", () => {
 		const measures = buildLayoutModel(COMPREHENSIVE_SONG, 200).systems[0]
 			.measures;
 		expect(measures.length).toBeGreaterThan(1);
 		for (let i = 1; i < measures.length; i++) {
-			// The bar sits at the previous measure's content end; the next measure starts
-			// far enough past it that its opening notehead clears the line.
-			const barX = measures[i - 1].x + measures[i - 1].width;
-			expect(measures[i].x - barX).toBeGreaterThan(NOTEHEAD_RX);
+			// The ending bar stroke sits at the previous measure's content end; the next
+			// measure's first note starts past it by the opening lead-in, so the opening
+			// notehead clears the line with room to breathe.
+			const endBar = measures[i - 1].barlines.find((b) => b.side === "end");
+			const barStrokeX = endBar.strokes[0].x;
+			const firstNoteX = measures[i].x + measures[i].right.notes[0].x;
+			expect(firstNoteX - barStrokeX).toBeGreaterThanOrEqual(
+				MEASURE_START_PAD + BARLINE_POST_PAD - NOTEHEAD_RX,
+			);
 		}
 	});
 
@@ -2174,7 +2181,7 @@ describe("layout-polish fixes", () => {
 		}
 	});
 
-	it("a whole-measure note is left-aligned (not centered) near the bar", () => {
+	it("a whole-measure note sits at the opening lead-in, left of center (not centered)", () => {
 		const song = {
 			sections: [
 				{
@@ -2200,9 +2207,11 @@ describe("layout-polish fixes", () => {
 			],
 		};
 		const m = buildLayoutModel(song, 200).systems[0].measures[0];
-		// The whole note hugs the measure's left edge (no accidental → no inset), well
-		// left of the measure center, rather than being centered.
-		expect(m.right.notes[0].x).toBeLessThan(NOTEHEAD_RX);
+		// The whole note sits at the uniform opening lead-in (MEASURE_START_PAD, no
+		// accidental), well left of the measure center, rather than being centered. The
+		// lead-in is applied identically on both staves.
+		expect(m.right.notes[0].x).toBeCloseTo(MEASURE_START_PAD);
+		expect(m.left.notes[0].x).toBeCloseTo(MEASURE_START_PAD);
 		expect(m.right.notes[0].x).toBeLessThan(m.width / 2);
 	});
 
@@ -2220,7 +2229,7 @@ describe("layout-polish fixes", () => {
 		expect(Number(later[0].text)).toBeGreaterThanOrEqual(2);
 	});
 
-	it("an opening note hugs the measure start, but reserves room when it has an accidental", () => {
+	it("an opening note lands at the uniform lead-in; an opening accidental occupies that lead-in and draws left of the head", () => {
 		const q = (step, octave, alter) => ({
 			type: "note",
 			duration: "quarter",
@@ -2239,10 +2248,55 @@ describe("layout-polish fixes", () => {
 		});
 		const plain = buildLayoutModel(song(), 200).systems[0].measures[1];
 		const sharp = buildLayoutModel(song(1), 200).systems[0].measures[1];
-		// No accidental → the first note hugs the measure's left edge (no leading inset);
-		// with the sharp it is pushed right to make room for the accidental glyph.
-		expect(plain.right.notes[0].x).toBeLessThan(NOTEHEAD_RX);
-		expect(sharp.right.notes[0].x).toBeGreaterThan(plain.right.notes[0].x);
+		// Both notes land at the same uniform lead-in: the accidental's lead shares the
+		// pre-column slot with MEASURE_START_PAD (composed by max(), not stacked), so the
+		// sharp does NOT push the head further right; the glyph simply draws to its left.
+		expect(plain.right.notes[0].x).toBeCloseTo(MEASURE_START_PAD);
+		expect(sharp.right.notes[0].x).toBeCloseTo(plain.right.notes[0].x);
+		expect(sharp.right.notes[0].accidentals[0].dx).toBeGreaterThan(0);
+	});
+
+	it("the opening lead-in does not stretch under justification", () => {
+		const q = (step, octave) => ({
+			type: "note",
+			duration: "quarter",
+			pitches: [{ step, octave }],
+		});
+		// A long single-section run of plain notes: wide → one (unjustified, last)
+		// system; narrow → several systems, of which the non-last ones are justified
+		// (the last system is never justified — see layout.js justify gating).
+		const measure = { rightHand: [q("C", 5), q("D", 5), q("E", 5), q("F", 5)] };
+		const song = {
+			sections: [{ measures: Array.from({ length: 12 }, () => measure) }],
+		};
+		// Wide: everything on one system, no justify; an interior measure's first note
+		// sits exactly at the uniform lead-in.
+		const wide = buildLayoutModel(song, 400).systems;
+		expect(wide.length).toBe(1);
+		const wideMeasure = wide[0].measures[1]; // interior (localIdx > 0), plain opening
+		expect(wideMeasure.right.notes[0].x).toBeCloseTo(MEASURE_START_PAD);
+		// Narrow: wraps to several systems; the first system is justified (whitespace
+		// stretched) yet the lead-in — outside the advance-scale factor — is unchanged.
+		const narrow = buildLayoutModel(song, 60).systems;
+		expect(narrow.length).toBeGreaterThan(1);
+		const justified = narrow[0];
+		const interior = justified.measures[justified.measures.length - 1];
+		expect(interior.right.notes[0].x).toBeCloseTo(MEASURE_START_PAD);
+	});
+
+	it("an empty measure has a finite width grown by the opening clearance (no NaN)", () => {
+		const song = {
+			sections: [{ measures: [{ rightHand: [], leftHand: [] }] }],
+		};
+		const m = buildLayoutModel(song, 200).systems[0].measures[0];
+		expect(m.right.notes.length).toBe(0);
+		expect(m.left.notes.length).toBe(0);
+		expect(Number.isFinite(m.width)).toBe(true);
+		expect(Number.isNaN(m.width)).toBe(false);
+		// The empty floor width grows by the uniform opening clearance: it now exceeds the
+		// no-pad baseline and lands at EMPTY_MEASURE_WIDTH + MEASURE_START_PAD.
+		expect(m.width).toBeGreaterThan(EMPTY_MEASURE_WIDTH);
+		expect(m.width).toBeCloseTo(EMPTY_MEASURE_WIDTH + MEASURE_START_PAD);
 	});
 });
 

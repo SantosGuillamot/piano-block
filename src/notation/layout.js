@@ -47,6 +47,7 @@ import {
 	LEDGER_WIDTH,
 	MAX_STRETCH,
 	MEASURE_NUMBER_SIZE,
+	MEASURE_START_PAD,
 	MID_GAP,
 	MIN_ADV,
 	NOTE_CLAMP_INSET,
@@ -1759,13 +1760,17 @@ export function buildLayoutModel(song, availableWidthInSp) {
 		// Two independent leading insets, both folded into the intrinsic width:
 		// - sectionReserve: a mid-system section change's cautionary glyphs (clef/key/
 		//   time), so the section's notes start after them;
-		// - noteAccidentalLead: room for the opening note's accidental, when it has one,
-		//   so the note can otherwise hug the measure's left edge.
+		// - openingClearance: the uniform per-measure lead-in before the first column,
+		//   so the opening note has room to breathe instead of hugging the measure's
+		//   left edge. It composes the fixed MEASURE_START_PAD with the opening note's
+		//   accidental lead (when it has one) by max(): they share the same pre-column
+		//   slot, so the wider of the two governs rather than stacking.
 		const sectionReserve =
 			!m.isFirstOfScore && m.diff ? inlineReserveWidth(m) : 0;
 		const noteAccidentalLead = firstColumnHasAccidental(m)
 			? ACCIDENTAL_LEAD_EXTRA
 			: 0;
+		const openingClearance = Math.max(MEASURE_START_PAD, noteAccidentalLead);
 		// A time signature prints at the very first system and wherever it changes.
 		const withTimeSig = idx === 0 || (m.diff ? m.diff.timeSignature : false);
 		const reserve = leadingReserveFor(
@@ -1774,11 +1779,11 @@ export function buildLayoutModel(song, availableWidthInSp) {
 			withTimeSig,
 		);
 		m.sectionReserve = sectionReserve;
-		m.noteAccidentalLead = noteAccidentalLead;
+		m.openingClearance = openingClearance;
 		m.layout = ml;
 		// The full intrinsic width: the grid + trailing bar room (in ml.width) plus both
 		// leading insets, which the system walk turns into real left-edge space.
-		m.contentWidth = ml.width + sectionReserve + noteAccidentalLead;
+		m.contentWidth = ml.width + sectionReserve + openingClearance;
 		return { contentWidth: m.contentWidth, reserve };
 	});
 
@@ -2014,10 +2019,11 @@ export function buildLayoutModel(song, availableWidthInSp) {
 
 			// The leading inset before the first column: a mid-system section change's
 			// cautionary glyphs (at a system head the leading reserve restates
-			// them, so none there) plus room for the opening note's accidental.
+			// them, so none there) plus the uniform opening clearance (MEASURE_START_PAD,
+			// or the opening note's accidental lead when wider) applied on every measure.
 			const leadInset =
 				(localIdx > 0 ? (m.sectionReserve ?? 0) : 0) +
-				(m.noteAccidentalLead ?? 0);
+				(m.openingClearance ?? 0);
 
 			// The scaled grid width (advances stretched by justify) and the measure's
 			// scaled content (the fixed leading inset, unscaled, plus the grid).

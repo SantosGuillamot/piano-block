@@ -69,6 +69,15 @@ export const ADV_K = 3.0;
 /** Floor width for an empty measure (no events on either hand). */
 export const EMPTY_MEASURE_WIDTH = 3.3;
 
+/**
+ * Opening clearance, in sp, reserved at the start of EVERY measure before its first
+ * note column, so the opening note has room to breathe instead of hugging the
+ * barline / measure boundary. Applied uniformly on both staves and unscaled by
+ * justify. Composes with the opening accidental's lead by max() (they share the
+ * same pre-column slot), not by stacking.
+ */
+export const MEASURE_START_PAD = 1.0;
+
 // ── System wrapping / justify / vertical gaps ──────────────────────────────────
 
 /** Maximum justify stretch applied to internal grid advances (whitespace only). */
@@ -116,8 +125,9 @@ export const BARLINE_THICK = 0.5;
 
 /**
  * Whitespace after a barline before the next measure's first note CENTER, in sp. Kept
- * small so the opening note sits close to the bar, but more than the notehead radius
- * so the head still clears the line.
+ * small — more than the notehead radius so the head still clears the line — while the
+ * measure's own lead-in (`MEASURE_START_PAD`) supplies the breathing room before the
+ * opening note.
  */
 export const BARLINE_POST_PAD = 0.7;
 
@@ -137,10 +147,12 @@ export const ACCIDENTAL_GAP = 1.2;
 export const ACCIDENTAL_COL_STEP = 1.3;
 
 /**
- * Extra leading room, in sp, reserved at a measure's start when its first note draws an
- * accidental — enough for the accidental glyph to sit between the measure boundary and
- * the notehead. With no accidental the opening note hugs the boundary; with one, the
- * note shifts right by this much so the accidental occupies the freed space.
+ * The accidental's claim on a measure's opening slot, in sp: when the opening note draws
+ * an accidental, this is the leading room that note needs so the glyph fits between the
+ * measure boundary and the notehead. It does not stack on top of the uniform opening
+ * lead-in (`MEASURE_START_PAD`) — the two compose by max(), so they share one opening
+ * slot and a plain opening note and an accidental one land at the SAME opening position.
+ * The accidental glyph simply occupies that slot, drawn to the left of the notehead.
  */
 export const ACCIDENTAL_LEAD_EXTRA = 1;
 
