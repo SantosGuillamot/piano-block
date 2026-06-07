@@ -184,10 +184,9 @@ The one transformation PHP does make is a **script-breakout escape**: it replace
 
 ## Forthcoming
 
-Song *storage* and front-end **notation rendering** have landed, but the audible and richer interactive piano experience has not. The rendered notation already covers a broad spread of markings, including **gradual dynamics** — crescendo and decrescendo hairpins drawn as `<` / `>` wedges (see the [song format reference](docs/song-format.md) for the fields and their v1 limits). The following are planned for future tasks and are **not** part of v1 (the "out of scope" set):
+Song *storage*, **visual authoring**, and front-end **notation rendering** have landed, but the audible and richer interactive piano experience has not. Authoring now happens in a visual editor with a live preview (raw-JSON editing stays available as an alternative — see [Using the Piano block](#using-the-piano-block)). The rendered notation already covers a broad spread of markings, including **gradual dynamics** — crescendo and decrescendo hairpins drawn as `<` / `>` wedges (see the [song format reference](docs/song-format.md) for the fields and their v1 limits). The following are planned for future tasks and are **not** part of v1 (the "out of scope" set):
 
 - **Audio playback** — the format retains the pitch, octave, duration, and tempo precision needed for future sound, but nothing plays yet. Every marking the block draws — dynamics and the new gradual-dynamic hairpins included — is **notation only** and has **no sonic effect**; there is no audio engine.
-- **A visual authoring UI** — anything beyond the single raw-JSON field; in v1 you write the song JSON by hand.
 - **Richer notation elements** — articulations, ornaments, pedal, fingering, tuplets, voltas, multiple voices per hand, lyrics, and similar (the format grows by adding optional fields, with no `version` field).
 
 This README will be updated as each capability lands.
