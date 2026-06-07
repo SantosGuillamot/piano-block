@@ -125,8 +125,9 @@ export const BARLINE_THICK = 0.5;
 
 /**
  * Whitespace after a barline before the next measure's first note CENTER, in sp. Kept
- * small so the opening note sits close to the bar, but more than the notehead radius
- * so the head still clears the line.
+ * small — more than the notehead radius so the head still clears the line — while the
+ * measure's own lead-in (`MEASURE_START_PAD`) supplies the breathing room before the
+ * opening note.
  */
 export const BARLINE_POST_PAD = 0.7;
 
