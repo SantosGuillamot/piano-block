@@ -69,6 +69,15 @@ export const ADV_K = 3.0;
 /** Floor width for an empty measure (no events on either hand). */
 export const EMPTY_MEASURE_WIDTH = 3.3;
 
+/**
+ * Opening clearance, in sp, reserved at the start of EVERY measure before its first
+ * note column, so the opening note has room to breathe instead of hugging the
+ * barline / measure boundary. Applied uniformly on both staves and unscaled by
+ * justify. Composes with the opening accidental's lead by max() (they share the
+ * same pre-column slot), not by stacking.
+ */
+export const MEASURE_START_PAD = 1.0;
+
 // ── System wrapping / justify / vertical gaps ──────────────────────────────────
 
 /** Maximum justify stretch applied to internal grid advances (whitespace only). */
