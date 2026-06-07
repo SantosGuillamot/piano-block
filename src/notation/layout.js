@@ -2882,13 +2882,6 @@ function topMarginLayout(members, ledgerTop, aboveRHCount) {
 	let annotationAboveRHD = null;
 	let ottavaD = null;
 	let tempoD = null;
-	if (aboveRHCount > 0) {
-		annotationAboveRHD = d;
-		// The lane's baseline is note #0; the stack grows UP, so the topmost note's
-		// glyph reaches `(n − 1)` steps higher plus its own ascent.
-		topExtent = d + (aboveRHCount - 1) * stackStep + NOTE_SIZE;
-		d = topExtent + TEXT_LANE_GAP;
-	}
 	if (systemHasRightOttavaAbove(members)) {
 		ottavaD = d;
 		topExtent = d + OTTAVA_SIZE;
@@ -2897,6 +2890,13 @@ function topMarginLayout(members, ledgerTop, aboveRHCount) {
 	if (systemHasTempo(members)) {
 		tempoD = d;
 		topExtent = d + TEMPO_SIZE;
+		d = topExtent + TEXT_LANE_GAP;
+	}
+	if (aboveRHCount > 0) {
+		annotationAboveRHD = d;
+		// The lane's baseline is note #0; the stack grows UP, so the topmost note's
+		// glyph reaches `(n − 1)` steps higher plus its own ascent.
+		topExtent = d + (aboveRHCount - 1) * stackStep + NOTE_SIZE;
 		d = topExtent + TEXT_LANE_GAP;
 	}
 	const topMargin = Math.max(SYSTEM_TOP_MARGIN, topExtent + ABOVE_STAFF_PAD);
