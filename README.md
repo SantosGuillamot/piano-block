@@ -16,31 +16,48 @@ There is no playable keyboard or audio yet, but a published page now shows the s
 
 ## Using the Piano block
 
-The Piano block stores one **song** — a JSON document in the plugin's own [song format](docs/song-format.md). In v1 you author that song **by hand**, by typing or pasting the JSON into the block. Here is the end-to-end workflow.
+The Piano block stores one **song** — a JSON document in the plugin's own [song format](docs/song-format.md). You author that song with a **visual editor** (the default surface), watching a **live preview** of the notation as you work; if you prefer, you can switch to editing the **raw JSON** of the same song as text. Here is the end-to-end workflow.
 
 ### 1. Insert the block
 
 In the editor, open the inserter and add the **Piano** block — it lives under the **Media** category (search for "Piano").
 
-### 2. Enter a song
+### 2. Build the song in the visual editor
 
-The block's editor shows a single multi-line text field on the block canvas for the raw song JSON:
+The block opens to a **visual editor by default** — no JSON required. A **freshly inserted (empty) block** lets you **start a new song from scratch**: a single button seeds an empty song, and from there you build it up with structured controls.
+
+Those controls cover the whole model:
+
+- **Song metadata** — title and composer.
+- **Musical context** — tempo, time signature, clef, accidentals (per-note alterations), and octave shift, set as song-wide **defaults** and overridable **per section**.
+- **Structure and content** — sections, measures, events, and pitches, plus per-event **dynamics, ties, slurs, crescendo/decrescendo**, measure **barlines**, and free-text **annotations**.
+
+You move through the song with **drill-down navigation** — song → section → measure → event — using a breadcrumb to step back up, and you add, remove, and reorder items with **add / remove / move-up / move-down buttons** (there is no drag-and-drop). The controls only let you produce a **valid song**: every field offers the format's allowed values, so the visual editor can't put the song into a non-conformant state. It does **not**, however, check musical *timing* — a bar's note durations need not add up to its time signature.
+
+Alongside the editor sits a **live, read-only sheet-music preview**. It updates as you edit and draws the song with the **same notation the published page uses** (it is a preview, not a second editor — you can't edit the score directly in it).
+
+**Note names** can be written in **English** (`C D E F G A B`) or **Spanish** (`do re mi fa sol la si`). A song keeps the system it was written in — a Spanish song stays Spanish — and the editor's controls follow that system. The [song format reference](docs/song-format.md) covers the full vocabulary. (This README does not repeat the field-level detail; that document is the canonical source.)
+
+**When a song can't be edited visually.** The visual editor needs a conformant song to work with:
+
+- An **empty or whitespace-only** song is treated as "no song", so a brand-new block simply starts fresh.
+- A **non-empty but invalid** song (bad JSON, or valid JSON that doesn't conform to the format) **can't** be edited visually. The editor surfaces the problem and directs you to **fix it in raw JSON** (see the next step); once the song is valid again, visual editing resumes automatically.
+
+### 3. Edit the raw JSON instead
+
+A **mode switch** in the block toolbar flips the block to a **raw-JSON** field editing the **same song** — switching reflects whatever the song currently is. The field is a single multi-line text area on the block canvas:
 
 - **Label:** *Song (JSON)*
 - **Help text:** *The raw song document as JSON. Validation is informational and never blocks saving.*
 
-Type or paste your song's JSON into this field. For the full structure — every field, the allowed values, the two note-name systems, and a complete annotated example — see the [song format reference](docs/song-format.md). (This README does not repeat the field-level detail; that document is the canonical source.)
+Type or paste your song's JSON here. As you type, the editor **checks your input against the song format** and shows a clear error notice beneath the field when the content is not valid JSON or does not conform.
 
-A **freshly inserted block has no song**: the field starts blank and nothing is stored until you enter something.
-
-### 3. What the validation does
-
-As you type, the editor **checks your input against the song format** and shows a clear error notice beneath the field when the content is not valid JSON or does not conform to the format.
-
-This validation is **informational only — it never blocks saving**. The raw text you typed is **always stored**, whether or not it conforms; the error notice is guidance, not a gate. A couple of details to keep in mind:
+That validation is **informational only — it never blocks saving**. The raw text you typed is **always stored**, whether or not it conforms; the error notice is guidance, not a gate. A couple of details to keep in mind:
 
 - **Empty input shows no error.** Validation runs only on non-empty input; a blank field is the "no song" state and is not validated.
 - **It is structural / field checking only.** The validator checks the document's shape and field values, **not** musical timing. A bar whose events do not "add up" to its time signature still saves with no timing error.
+
+For the full structure — every field, the allowed values, the two note-name systems, and a complete annotated example — see the [song format reference](docs/song-format.md).
 
 ### 4. What the front end shows
 
@@ -50,11 +67,11 @@ What appears depends on what you stored — there are three cases:
 
 - **A conformant song renders as sheet music.** If the stored song matches the [song format](docs/song-format.md), the front end parses it and draws the grand staff.
 - **No song renders nothing.** A block with an empty (or whitespace-only) song outputs nothing at all.
-- **A non-renderable song renders nothing.** If the stored content is not valid JSON, or is valid JSON that does not conform to the song format, the front end draws **nothing** — there is **no raw-JSON echo and no error message** shown on the page. (The editor's validation notice in step 3 is where you catch and fix such problems while authoring.)
+- **A non-renderable song renders nothing.** If the stored content is not valid JSON, or is valid JSON that does not conform to the song format, the front end draws **nothing** — there is **no raw-JSON echo and no error message** shown on the page. (You catch and fix such problems while authoring: the visual editor surfaces them and routes you to raw JSON, where the validation notice points at what's wrong.)
 
 The notation is drawn entirely in the browser by the block's own code, so it is the **front end** that decides whether to render or stay empty; the server does no validation. The score itself shows only the music — there is no visible title or composer heading (the song's `metadata` is used only to label the notation for assistive technology).
 
-> **Tip:** The [annotated example song](docs/song-format.md#annotated-example-song) in the format reference is a ready-made starting template. Copy it into the field, view the published post, and you will see it rendered as a grand staff.
+> **Tip:** The [annotated example song](docs/song-format.md#annotated-example-song) in the format reference is a ready-made starting template. Switch to raw-JSON mode, paste it into the field, view the published post, and you will see it rendered as a grand staff.
 
 ## Requirements
 
