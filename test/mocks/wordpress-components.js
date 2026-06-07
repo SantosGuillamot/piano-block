@@ -182,6 +182,48 @@ const Notice = ({
 		children,
 	);
 
+/**
+ * Minimal `ToolbarGroup` stand-in. The real component groups toolbar buttons;
+ * here it just renders its children so the buttons are present in the DOM.
+ *
+ * @param {Object} props          ToolbarGroup props.
+ * @param {Object} props.children The grouped controls.
+ * @return {Object} A React element wrapping the children.
+ */
+const ToolbarGroup = ({ children }) => createElement("div", null, children);
+
+/**
+ * Minimal `ToolbarButton` stand-in. Renders a real `<button>`; the accessible
+ * name comes from `label` (mapped to `aria-label`) or the button's text
+ * children, mirroring the `Button` mock. `isActive`/`icon` are accepted and
+ * ignored (they carry no behavior the tests assert).
+ *
+ * @param {Object} props ToolbarButton props.
+ * @return {Object} A React `<button>` element.
+ */
+const ToolbarButton = ({
+	onClick,
+	disabled,
+	label,
+	"aria-label": ariaLabel,
+	children,
+	// Swallow props with no DOM meaning in the mock.
+	icon: _icon,
+	isActive: _isActive,
+	...rest
+}) =>
+	createElement(
+		"button",
+		{
+			type: "button",
+			onClick,
+			disabled,
+			"aria-label": ariaLabel ?? label,
+			...rest,
+		},
+		children,
+	);
+
 module.exports = {
 	Button,
 	SelectControl,
@@ -189,5 +231,7 @@ module.exports = {
 	TextControl,
 	TextareaControl,
 	Notice,
+	ToolbarGroup,
+	ToolbarButton,
 	__experimentalNumberControl: NumberControl,
 };

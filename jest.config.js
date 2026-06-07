@@ -21,5 +21,9 @@ module.exports = {
 			__dirname,
 			"test/mocks/wordpress-components.js",
 		),
+		"^@wordpress/block-editor$": path.join(
+			__dirname,
+			"test/mocks/wordpress-block-editor.js",
+		),
 	},
 };
