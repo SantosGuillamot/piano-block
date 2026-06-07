@@ -87,6 +87,8 @@ Interpretation adopted: "must apply to both hands" means annotations render abov
 - Edge 3 (tempo + ottava, no annotations): annotations block skipped; tempo stays above ottava — pair relationship intact (identical to today for this pair).
 - Edge 4 (deep annotation stack): the annotation block runs LAST, computing `topExtent = d + (aboveRHCount−1)*stackStep + NOTE_SIZE` from the post-ottava-and-tempo `d`, so the WHOLE stack reserves above the tempo; `topMargin = max(SYSTEM_TOP_MARGIN, topExtent + ABOVE_STAFF_PAD)` still grows to fit the deepest case. The `topExtent` accounting is cumulative from the running `d`, so it stays correct under reorder with no extra care needed — the tempo cannot poke into the annotation stack because the annotation baseline sits at `d`, already one `TEXT_LANE_GAP` past the tempo's `topExtent`.
 
+Researcher's independent A4 trace fully agreed: each present lane block does the same three steps relative to the running `d`/`topExtent`, an absent block is skipped (no advance, no empty slot), so the blocks are order-agnostic — the implementation is literally moving the `aboveRHCount` block to run after the ottava and tempo blocks. Added requirement R10: the `topMarginLayout` doc-comment (~2849-2856) currently describes the OLD order and must be rewritten to the new one.
+
 ---
 
 ## Terminology bridge
@@ -117,6 +119,7 @@ Interpretation adopted: "must apply to both hands" means annotations render abov
 - **R7 — No horizontal change.** Horizontal spacing and layout (measure layout / advance scaling, tempo's and annotations' X positions) must not change. This is a vertical reorder only. (Horizontal geometry is independent of `topMarginLayout`.)
 - **R8 — No regression in unaffected regions.** The other three annotation bands (belowRH, aboveLH, belowLH), the LH "above" ottava (inter-staff gap), and any "below" ottava (negative shift, either hand, drawn below its own staff) must be unchanged.
 - **R9 — Top margin remains tight.** When nothing sits above the staff, the top margin still collapses to its base (`SYSTEM_TOP_MARGIN`), exactly as today.
+- **R10 — Update the stale doc-comment.** The `topMarginLayout` doc-comment (`src/notation/layout.js` ~2849-2856) describes the OLD order ("the above-RH note lane nearest the staff, then an above-staff ottava, then the tempo at the very top"). It must be rewritten to the new order: the ottava nearest the staff, then the tempo, then the annotations at the very top.
 
 ### Out of scope (explicit)
 
@@ -141,6 +144,6 @@ Interpretation adopted: "must apply to both hands" means annotations render abov
 
 ### Files in play (for later phases)
 
-- Change: `src/notation/layout.js` — `topMarginLayout` (~2865-2910), reorder the three reservation if-blocks.
+- Change: `src/notation/layout.js` — `topMarginLayout` (~2865-2910), reorder the three reservation if-blocks; also update its doc-comment (~2849-2856) which describes the old order (R10).
 - Update test: `src/notation/__tests__/layout.test.js` — the "tempo, ottava, and note lanes stack above the staff" block (~2059-2078).
 - No change expected: `src/notation/svg.js`, `buildSystemTexts`, `src/notation/constants.js`, `specs/render.spec.js`, song format / validation.
