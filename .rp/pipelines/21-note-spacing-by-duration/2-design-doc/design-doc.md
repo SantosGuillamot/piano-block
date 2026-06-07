@@ -225,30 +225,40 @@ never raw pixel literals (see §5).
   columns 0–2 `.advance` all equal (5.2): N notes yield N−1 equal consecutive
   gaps.
 - **AC7 — ordering survives justification.** `buildLayoutModel(8×[8,8,q,q], 140)`
-  → 2 systems. `systems[0].advanceScale > 1` and `≤ MAX_STRETCH`; the **last**
-  system `advanceScale === 1` (ragged); within system 0 the eighth `note.x` gap <
-  quarter `note.x` gap; the **ratio** (quarterGap / eighthGap) of system 0 equals
-  that of the ragged last system and equals `advanceFor(1) / advanceFor(0.5)`
-  (1.2033359220); the first column X is equal in both systems (= `MEASURE_START_PAD`,
-  lead-in unscaled). The `systemScale` policy (cap / ragged-last / downscale) is
-  **reused** from existing unit cases — see §5. Fixture is `[8,8,q,q]` so a genuine
+  → 2 systems (width 140 gives a clean 6+2 split, with both eighths *and* both
+  quarters of a measure landing in the same measure so they share that measure's
+  scale). Assert the **shape**, not the exact scale value (for resilience to
+  constant tweaks): `systems[0].advanceScale` is `> 1` and `≤ MAX_STRETCH` (live
+  ≈ 1.0237); the **last** system `advanceScale === 1` (ragged); within system 0
+  measure 0 the eighth `note.x` gap < quarter `note.x` gap (live 4.4236 < 5.3231);
+  the **ratio** (quarterGap / eighthGap) of system 0 equals `advanceFor(1) /
+  advanceFor(0.5)` (= 1.2033359220 — proving the ratio is preserved under stretch);
+  and the lead-in is unscaled — `systems[0].measures[0].right.notes[0].x` `toBe`
+  `MEASURE_START_PAD` (1.0 even at scale 1.0237). The `systemScale` policy (cap /
+  ragged-last / downscale) is **reused** from existing unit cases — see §5; #21
+  adds only this end-to-end ordering+ratio case. Fixture is `[8,8,q,q]` so a genuine
   q→q inter-note gap exists (trap R-B).
 - **AC8 — equal intrinsic advance across measures.** At the intrinsic
-  (`measureLayout`, pre-justify) layer: an eighth's `.advance` in `[8,8]` equals an
-  eighth's `.advance` in `[q,8,half]` (both 4.3213) — equal across measures with
-  different neighbours. **Do NOT** assert cross-system absolute gaps (spec
-  Out-of-Scope; trap R-D).
+  (`measureLayout`, pre-justify) layer, a one-liner:
+  `measureLayout([q,q], []).columns[0].advance` ≈
+  `measureLayout([8,8,8,8,q,q], []).columns[4].advance` (both 5.2,
+  `toBeCloseTo(_, 10)`) — a quarter's intrinsic advance is the same regardless of
+  its measure or neighbours. (Equivalent alternative: an eighth in `[8,8]` vs in
+  `[q,8,half]`, both 4.3213.) **Do NOT** assert cross-system absolute gaps (live:
+  system 0 eighthGap 4.4236 ≠ system 1 eighthGap 4.3213 — correctly unequal under
+  independent justify; spec Out-of-Scope + trap R-D).
 - **AC9 — over-full, time-signature-blind layout.** `measureLayout(20×eighth, [])`
   → 20 columns; every `.advance` ≈ `advanceFor(0.5)` (4.3213); X strictly
   monotonic (each `c.x` > previous); all finite (no NaN/Infinity). **Ts-blind:**
   the result with `{timeSignature:{2,4}}` deep-equals the result with
   `{timeSignature:{12,8}}` deep-equals the bare result.
 - **AC10 — render-level confirmation.** *Model:*
-  `buildLayoutModel(songFrom([8,8,q,q]), 1000).systems[0].measures[0].right.notes`
-  → `(notes[1].x − notes[0].x) < (notes[3].x − notes[2].x)`. *DOM smoke
-  (`svg.test.js`):* `cx` via the `#rightHand-note-${i}` → `[data-notehead]`
-  selector → eighth `cx` gap < quarter `cx` gap. Single-pitch fixture so
-  `cx === note.x`.
+  `buildLayoutModel(songOf(AC1_EVENTS), 1000).systems[0].measures[0].right.notes`
+  → `(notes[1].x − notes[0].x) < (notes[len-1].x − notes[len-2].x)` — the leading
+  eighth gap < the trailing q→q gap (the `[8,8,8,8,q,q]` array makes the *last* gap
+  a genuine q→q, per trap R-B). *DOM smoke (`svg.test.js`):* `cx` via the
+  `#rightHand-note-${i}` → `[data-notehead]` selector → eighth `cx` gap < quarter
+  `cx` gap. Single-pitch fixture so `cx === note.x`.
 
 ## 5. Key decisions and rationale
 
@@ -299,33 +309,44 @@ never raw pixel literals (see §5).
 
 - **D-Files & structure.**
   - `src/notation/__tests__/layout.test.js`: one new feature-grouped
-    `describe("duration-ordered spacing (issue #21)")` with a leading block
-    comment stating the intent (lock the accepted ordinal duration spacing; no
-    source change). It holds the layout/model ACs (AC1, AC2+F, AC3, AC4, AC5, AC6,
-    AC7-model, AC8, AC9, AC10-model). This mirrors the repo's feature-grouped AC
-    blocks (e.g. the hairpin-wedge block in `svg.test.js`).
+    `describe("duration-ordered horizontal spacing (issue #21)")` with a leading
+    block comment stating the intent (lock the accepted ordinal duration spacing;
+    no source change). It holds the layout/model ACs (AC1, AC2+F, AC3, AC4, AC5,
+    AC6, AC7-model, AC8, AC9, AC10-model). This mirrors the repo's feature-grouped
+    AC blocks (e.g. the hairpin-wedge block in `svg.test.js`).
   - `src/notation/__tests__/svg.test.js`: the single AC10 DOM smoke test, in its
-    own small describe or appended to an existing render describe, reusing the
-    `buildLayoutModel → renderSvg → cx` idiom.
+    own small describe (e.g.
+    `describe("renderSvg — duration-ordered spacing reaches the SVG (issue #21)")`,
+    matching the repo's `renderSvg — X` naming) or appended to an existing render
+    describe, reusing the `buildLayoutModel → renderSvg → cx` idiom.
   - All needed imports already exist in both files (`advanceFor`, `eventDuration`,
     `measureLayout`, `systemScale`, `buildLayoutModel`, `MAX_STRETCH`,
     `MEASURE_START_PAD`, `EMPTY_MEASURE_WIDTH`; `renderSvg`).
 
 - **D-Naming.** Behavior-first `it()` titles with a **trailing `(ACn)`** suffix,
   e.g. `it("spaces equal eighth columns equally and tighter than the quarter
-  column (AC1)")`. Issue #21 is named in the describe title and the leading block
-  comment, **never** in an `it()` title — matching the repo's convention (issue
-  numbers appear only in commits/comments, `(ACn)` suffixes appear in test
-  titles).
+  column (AC1)")`. The issue number lives in the describe title and the leading
+  block comment, **never** in an `it()` title — matching the repo's convention
+  (`(ACn)` suffixes in test titles; issue numbers in describe/section comments,
+  e.g. `layout.test.js:3656` "(#13: …)"), so an issue-number-in-describe is
+  in-style.
 
-- **D-Fixtures: one canonical source of truth.** Add a small local `songFrom(events)`
-  helper (mirroring the existing `songWithNotes`) that wraps an arbitrary event
-  array into a one-measure song, and define the canonical event array
-  (`[8,8,8,8,q,q]`, or `[8,8,q,q]` where a q→q inter-note gap is needed) once as a
-  const at the top of the describe. The *same* array feeds both
-  `measureLayout(events, [])` (AC1) and
-  `buildLayoutModel(songFrom(events), wide) → renderSvg` (AC10). *Rationale:* no
-  divergence between the layout and render assertions.
+- **D-Fixtures: one canonical source of truth.** Define the canonical event array
+  once as a const `AC1_EVENTS` (four eighths + two quarters, single-pitch) at the
+  top of the describe, plus a small local `songOf(events)` helper (mirroring the
+  existing `songWithNotes`) that wraps an event array into a one-measure song
+  (`{ metadata: {}, sections: [{ measures: [{ rightHand: events }] }] }`). The
+  *same* array feeds both `measureLayout(AC1_EVENTS, [])` (AC1, and shared by
+  AC8/AC9/AC10-model) and `buildLayoutModel(songOf(AC1_EVENTS), wide) → renderSvg`
+  (AC10). *Rationale:* one source of truth, no divergence between the layout and
+  render assertions. Note the `svg.test.js` AC10-DOM test inlines the same
+  six-event array — the two test files do not share fixture imports, so `svg.test.js`
+  defines its own song. **Critical fixture trap (R-G):** fixture events **must
+  carry `pitches`**. A pitch-less note is *skipped* in `layoutHand`
+  (`layout.js:1471`), so it would never render and AC10's `cx` assertion would
+  break. `measureLayout` ignores pitches, so a single pitch-bearing array works
+  correctly at *both* layers — which is precisely why one shared pitch-carrying
+  const is the right canonical fixture.
 
 - **D-Scope (NEW vs REUSE).**
   - **NEW** (in the #21 describe): AC1, AC2 (+edge F), AC3, AC4, AC5, AC6, AC7
@@ -377,6 +398,13 @@ accidentally assert something other than the intended duration relationship.
 
 - **R-F — Float ULP drift.** Deterministic in V8, but `toBeCloseTo(_, 10)` (not
   `toBe`) immunizes the equality assertions per the repo idiom.
+
+- **R-G — Pitch-less fixture trap.** A pitch-less note is *skipped* in `layoutHand`
+  (`layout.js:1471`), so it never renders — silently breaking AC10's `cx`
+  assertion (the model would emit fewer notes than expected). **Mitigation:** the
+  canonical `AC1_EVENTS` fixture carries `pitches` on every event; the same
+  pitch-bearing array works at the layout layer too (`measureLayout` ignores
+  pitches), so one shared const is correct everywhere.
 
 - **Runner constraint — no `console.*` in tests.** The `@wordpress/jest-console`
   preset auto-fails any test that logs. New tests must not log.
