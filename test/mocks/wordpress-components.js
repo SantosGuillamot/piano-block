@@ -139,10 +139,32 @@ const TextControl = ({
 		...rest,
 	});
 
+/**
+ * Minimal `TextareaControl` stand-in. Renders a real `<textarea>`; `onChange`
+ * receives the field's string value, mirroring the real control.
+ *
+ * @param {Object} props TextareaControl props.
+ * @return {Object} A React `<textarea>` element.
+ */
+const TextareaControl = ({
+	label,
+	value,
+	onChange,
+	__nextHasNoMarginBottom: _margin,
+	...rest
+}) =>
+	createElement("textarea", {
+		"aria-label": label,
+		value: value === undefined || value === null ? "" : String(value),
+		onChange: (event) => onChange?.(event.target.value),
+		...rest,
+	});
+
 module.exports = {
 	Button,
 	SelectControl,
 	NumberControl,
 	TextControl,
+	TextareaControl,
 	__experimentalNumberControl: NumberControl,
 };
