@@ -2078,6 +2078,64 @@ describe("layout-polish fixes", () => {
 		}
 	});
 
+	it("a deep above-RH stack reserves itself as the topmost lane (whole stack clears the tempo) and grows the top margin", () => {
+		// A system carrying a tempo + a right-hand note with TWO same-anchor above-RH
+		// annotations: the multi-line stack must own the topmost lane so its lowest
+		// line (the lane baseline) sits strictly above the tempo, and the extra depth
+		// must grow the system top margin. The only above-RH fixture (COMPREHENSIVE_SONG)
+		// carries exactly one such annotation, so this deep-stack invariant is otherwise
+		// untested.
+		const songWithAboveStack = (annotations) => ({
+			defaults: { tempo: { bpm: 120, beatUnit: "quarter" } },
+			sections: [
+				{
+					measures: [
+						{
+							rightHand: [
+								{
+									type: "note",
+									duration: "quarter",
+									annotations,
+									pitches: [{ step: "G", octave: 4 }],
+								},
+							],
+							leftHand: [
+								{
+									type: "note",
+									duration: "quarter",
+									pitches: [{ step: "C", octave: 3 }],
+								},
+							],
+						},
+					],
+				},
+			],
+		});
+		const deep = buildLayoutModel(
+			songWithAboveStack([
+				{ text: "C", placement: "above" },
+				{ text: "rit.", placement: "above" },
+			]),
+			200,
+		).systems[0];
+		const single = buildLayoutModel(
+			songWithAboveStack([{ text: "C", placement: "above" }]),
+			200,
+		).systems[0];
+		// Sanity-guard the fixtures: the tempo and the above-RH lane are present on the
+		// deep system, so the lane-order assertion below is meaningful.
+		expect(deep.texts.tempos.length).toBeGreaterThan(0);
+		expect(deep.band.tempoLaneY).not.toBeNull();
+		expect(deep.band.annotationAboveRHLaneY).not.toBeNull();
+		// (a) The whole stack clears the tempo: its lowest line (annotationAboveRHLaneY,
+		// the lane baseline = note #0) sits strictly above the tempo lane (smaller Y is
+		// higher). Today annotations hug the staff and the tempo is the topmost lane, so
+		// this fails until the reservation order is flipped.
+		expect(deep.band.annotationAboveRHLaneY).toBeLessThan(deep.band.tempoLaneY);
+		// (b) Margin grows with stack depth (holds regardless of lane order).
+		expect(deep.band.topMargin).toBeGreaterThan(single.band.topMargin);
+	});
+
 	it("the top margin flexes: no note/ottava → a shallower margin than with them", () => {
 		// The comprehensive song's first system carries a note lane + ottava + tempo.
 		const rich = buildLayoutModel(COMPREHENSIVE_SONG, 200).systems[0];
