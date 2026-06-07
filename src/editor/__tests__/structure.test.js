@@ -429,7 +429,8 @@ describe("SectionList", () => {
 		const { container, calls } = renderList([{ measures: [{}] }]);
 		click(buttonByName(container, "Remove section"));
 		expect(calls.at(-1)).toEqual([]);
-		// The schema permits an empty sections array; the empty state is T9's job.
+		// The schema permits an empty sections array; the empty state is the
+		// SongEditor's job.
 		expectSongConformant({ sections: calls.at(-1) });
 	});
 });

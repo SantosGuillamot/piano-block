@@ -7,8 +7,8 @@
  * and this trail is how the author walks back up it. It is deliberately
  * pure/presentational: it owns no navigation state and does not know how deep the
  * stack is — it simply renders one button per `trail` entry and calls
- * `onNavigate(level)` with the entry's index when clicked. The SongEditor (T9)
- * owns the navigation stack: it builds the `trail` labels and, on `onNavigate`,
+ * `onNavigate(level)` with the entry's index when clicked. The SongEditor owns
+ * the navigation stack: it builds the `trail` labels and, on `onNavigate`,
  * truncates the stack to that level.
  *
  * The last entry is the current view, so it is rendered non-interactive (a plain
