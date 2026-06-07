@@ -160,11 +160,34 @@ const TextareaControl = ({
 		...rest,
 	});
 
+/**
+ * Minimal `Notice` stand-in. Renders its children inside a `role="alert"`
+ * element tagged with `data-status`, so tests can find the notice and assert its
+ * status without the full component library. `isDismissible` is accepted and
+ * ignored (it carries no behavior the tests assert).
+ *
+ * @param {Object} props Notice props.
+ * @return {Object} A React `<div role="alert">` element.
+ */
+const Notice = ({
+	status,
+	children,
+	// Swallow props with no behavior the tests assert.
+	isDismissible: _isDismissible,
+	...rest
+}) =>
+	createElement(
+		"div",
+		{ role: "alert", "data-status": status, ...rest },
+		children,
+	);
+
 module.exports = {
 	Button,
 	SelectControl,
 	NumberControl,
 	TextControl,
 	TextareaControl,
+	Notice,
 	__experimentalNumberControl: NumberControl,
 };
