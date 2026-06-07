@@ -147,10 +147,12 @@ export const ACCIDENTAL_GAP = 1.2;
 export const ACCIDENTAL_COL_STEP = 1.3;
 
 /**
- * Extra leading room, in sp, reserved at a measure's start when its first note draws an
- * accidental — enough for the accidental glyph to sit between the measure boundary and
- * the notehead. With no accidental the opening note hugs the boundary; with one, the
- * note shifts right by this much so the accidental occupies the freed space.
+ * The accidental's claim on a measure's opening slot, in sp: when the opening note draws
+ * an accidental, this is the leading room that note needs so the glyph fits between the
+ * measure boundary and the notehead. It does not stack on top of the uniform opening
+ * lead-in (`MEASURE_START_PAD`) — the two compose by max(), so they share one opening
+ * slot and a plain opening note and an accidental one land at the SAME opening position.
+ * The accidental glyph simply occupies that slot, drawn to the left of the notehead.
  */
 export const ACCIDENTAL_LEAD_EXTRA = 1;
 
