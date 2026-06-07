@@ -2134,6 +2134,56 @@ describe("layout-polish fixes", () => {
 		expect(deep.band.topMargin).toBeGreaterThan(single.band.topMargin);
 	});
 
+	it("with annotations + tempo but no ottava, the annotations sit above the tempo and the tempo hugs the staff (AC4 subset)", () => {
+		// A system carrying a tempo + one above-RH annotation and NO above ottava (the
+		// COMPREHENSIVE_SONG case always carries an ottava, so the n=0-ottava subset is
+		// otherwise only exercised by the deep two-annotation stack). With the ottava
+		// lane absent, the tempo must be the innermost present lane (hugging the staff)
+		// and the single annotation must sit above it.
+		const song = {
+			defaults: { tempo: { bpm: 120, beatUnit: "quarter" } },
+			sections: [
+				{
+					measures: [
+						{
+							rightHand: [
+								{
+									type: "note",
+									duration: "quarter",
+									annotations: [{ text: "C", placement: "above" }],
+									pitches: [{ step: "G", octave: 4 }],
+								},
+							],
+							leftHand: [
+								{
+									type: "note",
+									duration: "quarter",
+									pitches: [{ step: "C", octave: 3 }],
+								},
+							],
+						},
+					],
+				},
+			],
+		};
+		const sys = buildLayoutModel(song, 200).systems[0];
+		// Fixture guard: a tempo + an above-RH annotation are present, but no ottava sits
+		// above the staff on either hand (systemHasRightOttavaAbove is false here).
+		expect(sys.texts.tempos.length).toBeGreaterThan(0);
+		expect(
+			sys.texts.ottavas.filter((o) => o.placement === "above"),
+		).toHaveLength(0);
+		expect(sys.band.tempoLaneY).not.toBeNull();
+		expect(sys.band.annotationAboveRHLaneY).not.toBeNull();
+		// The annotation sits above the tempo (smaller Y is higher).
+		expect(sys.band.annotationAboveRHLaneY).toBeLessThan(sys.band.tempoLaneY);
+		// The tempo hugs the staff: no ottava lane (neither hand), and the tempo is the
+		// innermost present lane — above the staff top yet below the annotation lane.
+		expect(sys.band.ottavaAboveLaneY).toBeNull();
+		expect(sys.band.ottavaLeftAboveLaneY).toBeNull();
+		expect(sys.band.tempoLaneY).toBeLessThan(sys.band.rightStaffTopY);
+	});
+
 	it("the top margin flexes: no note/ottava → a shallower margin than with them", () => {
 		// The comprehensive song's first system carries a note lane + ottava + tempo.
 		const rich = buildLayoutModel(COMPREHENSIVE_SONG, 200).systems[0];
