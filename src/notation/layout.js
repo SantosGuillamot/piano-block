@@ -1863,7 +1863,7 @@ export function buildLayoutModel(song, availableWidthInSp) {
 		const aboveLHStack = stackDepth(occ.aboveLH, NOTE_GAP_STAFF);
 
 		// The top margin flexes to only the text lanes actually present above the staff
-		// (the above-RH note stack, an above-staff ottava, the tempo) stacked over the
+		// (an above-staff ottava, the tempo, the above-RH note stack) stacked over the
 		// ledger zone, so the staff and tempo drop close to the staff when there is
 		// nothing above it. Each present lane's baseline Y comes back in system
 		// coordinates; the above-RH lane reserves the full stack height.
