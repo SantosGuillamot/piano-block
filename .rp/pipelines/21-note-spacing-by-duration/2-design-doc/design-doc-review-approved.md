@@ -2,6 +2,13 @@
 
 **Issue:** #21 — Space notes horizontally according to their duration
 **Target:** `.rp/pipelines/21-note-spacing-by-duration/2-design-doc/design-doc.md`
+**Reviewed version:** commit `8f452cb` ("Sync design doc with amended research") — the
+FINAL on-disk version. (My initial Read returned the earlier `a3bd623` text; on the
+team-lead's heads-up I re-read the on-disk `8f452cb` version and re-verified the
+items that changed in the sync — AC7 shape-assert, AC8 one-liner, AC10 via
+`songOf(AC1_EVENTS)`, the `AC1_EVENTS`/`songOf` fixture, R-G, and the describe
+titles — all confirmed below. The verdict is unchanged and, if anything, more
+strongly supported by the synced version.)
 **Verdict:** APPROVED (singleton terminator). Non-blocking nits noted below; none block.
 
 ## Verdict summary
@@ -111,9 +118,45 @@ deep-equal.
 - Per-AC matrix, NEW-vs-REUSE split, file/naming conventions, and Out-of-Scope all
   align with `spec.md` and the codebase.
 
+## Re-verification of the synced (8f452cb) changes
+
+After the team-lead's heads-up that the on-disk doc is `8f452cb` (not the `a3bd623`
+text my initial Read returned), I re-read the on-disk file and re-ran the live path
+for every item that changed in the sync. All confirmed:
+
+- **AC7 now shape-asserts (lines 227-240).** Live `buildLayoutModel(8×[8,8,q,q],
+  140)`: 2 systems; `systems[0].advanceScale` ≈ 1.0237 (> 1 and ≤ MAX_STRETCH);
+  last system `advanceScale === 1`; system-0 eighth gap 4.4236 < quarter gap
+  5.3231; ratio = `advanceFor(1)/advanceFor(0.5)` = 1.2033359220; lead-in
+  `systems[0].measures[0].right.notes[0].x === MEASURE_START_PAD` (1.0) even at
+  scale 1.0237. The "assert the shape, not the exact scale" wording is a strict
+  improvement and is exactly testable.
+- **AC8 is now the one-liner (lines 241-249).** Verified live:
+  `measureLayout([q,q]).columns[0].advance` = 5.2 equals
+  `measureLayout([8,8,8,8,q,q]).columns[4].advance` = 5.2 (Δ < 1e-10) — correct,
+  and it correctly stays at the intrinsic layer (no cross-system absolute gaps).
+- **AC10 via `songOf(AC1_EVENTS)` (lines 255-261).** Verified live with the EXACT
+  doc fixture shape — `songOf = { metadata:{}, sections:[{ measures:[{ rightHand:
+  events }] }] }` with NO `defaults` block: `buildLayoutModel(songOf(AC1_EVENTS),
+  1000)` still places all 6 notes at x = [1, 5.3213, 9.6426, 13.964, 18.2853,
+  23.4853] (buildLayoutModel falls back to default clefs), and `renderSvg` DOM
+  `cx` is byte-identical. `notes[1].x − notes[0].x` (eighth, 4.3213) <
+  `notes[len-1].x − notes[len-2].x` (q→q, 5.2). Both layers correct.
+- **`AC1_EVENTS` + `songOf` fixture and the R-G pitch-less trap (lines 334-349,
+  402-407).** Matches my own finding: a pitch-less / unresolvable-pitch note
+  returns early at `layout.js:1471` without pushing to `notes[]`, so AC10 fixtures
+  must carry pitch objects; `measureLayout` ignores pitches so one shared
+  pitch-bearing const works at both layers. Correctly captured.
+- **Describe titles (lines 312, 319):** `"duration-ordered horizontal spacing
+  (issue #21)"` and `"renderSvg — duration-ordered spacing reaches the SVG (issue
+  #21)"` — in-style and matching the repo's `renderSvg — X` naming.
+
+The verdict is unchanged: APPROVED. The synced version is, if anything, more
+robust (shape-assert AC7, R-G added explicitly).
+
 ## Non-blocking nits (do NOT block; for the plan/code phase to consider)
 
-1. **ts-blind fixture notation.** §4 AC9 and §FINAL write the ignored time
+1. **ts-blind fixture notation.** §4 AC9 (line 253) writes the ignored time
    signature as `{timeSignature:{2,4}}` / `{12,8}` shorthand, whereas the repo's
    convention is `{ beats, beatType }` (e.g. `{ beats: 2, beatType: 4 }`,
    layout.test.js:874). Because `timeSignature` is fully ignored, the deep-equal
@@ -121,16 +164,17 @@ deep-equal.
    shorthand, not a correctness issue. The plan/code phase should use the repo's
    `{ beats, beatType }` shape for consistency.
 
-2. **AC7 width is wrap-dependent (already flagged as R-E).** Width 140 yielding a
-   clean 6+2 split with a mid-range scale (1.0237) was confirmed live, and R-E
-   already mitigates by locking the `systemScale` policy separately. No action
-   needed; just noting the assertion should follow the doc's guidance to assert
-   the SHAPE (non-last>1 & ≤MAX_STRETCH, last===1, ratio preserved) rather than the
-   exact 1.0237 scale, which the doc already prescribes.
+2. **AC7 width is wrap-dependent (R-E).** ADDRESSED in the synced version: AC7 now
+   explicitly says "Assert the shape, not the exact scale value" (lines 230-237),
+   and R-E locks the `systemScale` policy separately. The width-140 6+2 split with
+   scale ≈ 1.0237 was confirmed live. No action needed.
 
-3. **Fixtures must carry `{ step, octave }` pitch objects** (not string pitches) or
-   `buildLayoutModel`/`renderSvg` skip the notes. The doc's D-Fixtures already
-   states "fixture events MUST carry pitches"; the plan should make the concrete
-   shape explicit so the code phase doesn't trip on it (I did, empirically).
+3. **Pitch-bearing fixtures.** ADDRESSED in the synced version: now an explicit
+   risk R-G (lines 402-407) plus the `AC1_EVENTS` single-pitch const, both naming
+   the `layout.js:1471` skip. The plan/code phase should use the repo's
+   `{ step, octave }` pitch-object shape (string pitches like `'C4'` do NOT resolve
+   and the note is silently skipped — confirmed empirically).
 
-None of these affect the design's correctness or its definition of done. Approved.
+Only nit 1 remains open (a harmless doc shorthand). Nits 2 and 3 were resolved by
+the 8f452cb sync. None affect the design's correctness or its definition of done.
+Approved.
