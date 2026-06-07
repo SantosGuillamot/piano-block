@@ -4282,4 +4282,58 @@ describe("duration-ordered horizontal spacing (issue #21)", () => {
 		expect(a).toEqual(b);
 		expect(a).toEqual(bare);
 	});
+
+	it("preserves eighth-vs-quarter ordering and ratio under justification (AC7)", () => {
+		// Width 140 yields a clean 6+2 measure split, so both eighths and both
+		// quarters of measure 0 share that measure's system scale. The measure is
+		// [8,8,q,q] (NOT [8,8,8,8,q,q]) so a genuine q→q inter-note gap exists at
+		// cols 2→3 (trap R-B). The systemScale policy (cap / ragged-last / downscale)
+		// is locked separately by the reused unit cases (layout.test.js:1789); this
+		// is the one end-to-end ordering+ratio confirmation (design D-Justify, R-E).
+		const measure = {
+			rightHand: [
+				{ type: "note", duration: "eighth", pitches: [{ step: "C", octave: 5 }] },
+				{ type: "note", duration: "eighth", pitches: [{ step: "C", octave: 5 }] },
+				{ type: "note", duration: "quarter", pitches: [{ step: "C", octave: 5 }] },
+				{ type: "note", duration: "quarter", pitches: [{ step: "C", octave: 5 }] },
+			],
+		};
+		const song = {
+			metadata: {},
+			sections: [{ measures: Array.from({ length: 8 }, () => ({ ...measure })) }],
+		};
+		const model = buildLayoutModel(song, 140);
+		// Assert the SHAPE, not the exact scale (live ≈ 1.0237; resilient to a
+		// deferred constant tune). Interior system stretches up to the cap; the last
+		// system is ragged (scale 1).
+		expect(model.systems).toHaveLength(2);
+		expect(model.systems[0].advanceScale).toBeGreaterThan(1);
+		expect(model.systems[0].advanceScale).toBeLessThanOrEqual(MAX_STRETCH);
+		expect(model.systems[model.systems.length - 1].advanceScale).toBe(1);
+		// Post-justify on-screen X gaps in system 0, measure 0.
+		const n = model.systems[0].measures[0].right.notes;
+		const eighthGap = n[1].x - n[0].x;
+		const quarterGap = n[3].x - n[2].x; // genuine q→q gap (trap R-B)
+		expect(eighthGap).toBeLessThan(quarterGap);
+		// Ratio preserved under stretch — the uniform scalar cancels, leaving the
+		// intrinsic advanceFor ratio.
+		expect(quarterGap / eighthGap).toBeCloseTo(advanceFor(1) / advanceFor(0.5), 10);
+		// The measure-start lead-in is added unscaled, so the first note sits at
+		// MEASURE_START_PAD even when the system is stretched (exactly 1.0).
+		expect(model.systems[0].measures[0].right.notes[0].x).toBe(MEASURE_START_PAD);
+	});
+
+	it("keeps the eighth note.x gaps tighter than the q→q gap end-to-end (AC10)", () => {
+		// Wide width ⇒ a single ragged system at scale 1 over the canonical
+		// six-event fixture.
+		const model = buildLayoutModel(songOf(AC1_EVENTS), 1000);
+		const notes = model.systems[0].measures[0].right.notes;
+		// All six notes survive layoutHand (guards the pitch-less skip trap R-G).
+		expect(notes).toHaveLength(6);
+		// The [8,8,8,8,q,q] array makes the LAST gap a genuine q→q (trap R-B): the
+		// leading eighth gap is tighter than that trailing quarter gap.
+		expect(notes[1].x - notes[0].x).toBeLessThan(
+			notes[notes.length - 1].x - notes[notes.length - 2].x,
+		);
+	});
 });
