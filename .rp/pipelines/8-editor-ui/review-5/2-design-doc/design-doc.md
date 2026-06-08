@@ -39,10 +39,12 @@ Three independent, small changes, each traceable to a single spec requirement:
 
 - **Small note highlight (Req 3 / AC3).** Replace the magnified `outline` rule in
   `style.scss` with a **CSS-only** `.is-selected` rule that is thin at the
-  displayed scale: an enclosing **hairline** `outline` whose width is review-4's
-  `1px` divided by the notation's 8× scale, plus a scale-invariant **color
-  recolor** of the selected glyphs as a cross-engine floor. No JS, no `svg.js`,
-  no `render.php`, no schema change.
+  displayed scale. The primary, cross-engine signal is a scale-invariant **color
+  recolor** of the selected glyphs (the always-visible floor, including Safari,
+  where `outline` on a `<g>` no-ops); an enclosing **hairline** `outline` whose
+  width is review-4's `1px` divided by the notation's 8× scale rides on top as
+  reinforcement where it paints (Chrome/Firefox). No JS, no `svg.js`, no
+  `render.php`, no schema change.
 
 The selection-highlight class (`.is-selected`) is added only by the editor
 (`SongCanvas.decorateSelection`) after each render; the front-end `view.js` path
@@ -141,46 +143,71 @@ carried through the viewBox transform, so "1px" is interpreted as ~1 sp and
 renders at **~8 CSS px**, with the offset adding ~8 px of gap on each side — a
 thick ring around the whole `<g>` bbox. That is the reported "large, thick box."
 
-**Fix — a CSS-only combined rule** that replaces `style.scss:92-95`:
+**Fix — a CSS-only combined rule** that replaces `style.scss:92-95`. The **color
+recolor is the primary/floor** (the always-visible, cross-engine signal); the
+enclosing **hairline `outline` is the reinforcement** layered on top where it
+paints (Chrome/Firefox):
 
 ```scss
 .is-selected {
-  /* Enclosing hairline: outline lengths resolve in the staff-space user system,
+  /* Cross-engine FLOOR: recolor the selected event's ink. Fill wherever fill is
+     the paint (filled heads, dots, text glyphs, rest bodies); :not([fill="none"])
+     preserves an OPEN notehead's hole. Stroke ONLY already-stroked geometry —
+     stems/ledgers <line> and the open-notehead ring — NEVER <text> (default
+     stroke:none; a forced stroke would render a fat ~8x-scaled outline around the
+     glyph). Color-only => no layout shift; editor-only (class added by SongCanvas
+     post-render; view.js never sets it) => front-end SVG byte-identical (AC4). */
+  *:not([fill="none"]) { fill: #007cba; }   /* filled heads, dots, text, rest bodies */
+  line { stroke: #007cba; }                  /* stems + ledger lines */
+  ellipse[fill="none"] { stroke: #007cba; }  /* open-notehead ring (keeps its hole) */
+
+  /* Enclosing hairline (Chrome/Firefox; may no-op on Safari for a <g>, hence the
+     recolor floor above). Outline lengths resolve in the staff-space user system,
      which the root viewBox scales 1 sp -> SP_PX (8) CSS px, so divide by 8:
      0.125 sp x 8 = ~1 CSS px line, 0.25 sp x 8 = ~2 CSS px gap. COUPLED to
-     SP_PX=8 by design (one commented line). May no-op on Safari for a <g>; the
-     recolor below is the cross-engine floor. */
+     SP_PX=8 by design (this one commented line must be re-divided if SP_PX is
+     retuned). */
   outline: 0.125px solid #007cba;
   outline-offset: 0.25px;
-
-  /* Cross-engine floor + reinforcing signal: recolor the selected event's ink.
-     Stroke everywhere (stems/ledgers/rings); fill only where fill is the paint —
-     :not([fill="none"]) preserves an OPEN notehead's hole. Color-only => no
-     layout shift; editor-only (class added by SongCanvas post-render; view.js
-     never sets it) => front-end SVG byte-identical (AC4). */
-  * { stroke: #007cba; }
-  *:not([fill="none"]) { fill: #007cba; }
 }
 ```
 
-- **(a) Enclosing hairline `outline`** is the primary, conventional "selected box"
-  signal and a one-line minimal diff from review-4 (`1px` → `0.125px`). `outline`
-  already hugs the `<g>`'s bbox (that is exactly why review-4 looked like a box);
-  the only defect was thickness, fixed by dividing the user-unit length by the 8×
-  scale. Thin at displayed scale, CSS-only, no JS, no layout shift, editor-only.
+- **(a) Color recolor — the primary/floor.** Color has no length, so it is
+  scale-invariant by construction and renders on **every** engine, including
+  Safari, where `outline` on a `<g>` is reported to no-op and is not provably
+  fixed. Safari is **in target**: WordPress's default browserslist
+  (`@wordpress/browserslist-config`) lists `last 2 Safari versions` + `last 2 iOS
+  versions`, and the project's Playwright e2e is chromium-only, so a Safari-only
+  outline no-op would ship uncaught. The recolor is therefore the load-bearing,
+  always-visible mechanism, not optional.
 
-- **(b) Color recolor** is a reinforcing floor. Color has no length, so it is
-  scale-invariant by construction and renders on every engine — including Safari,
-  where `outline` on a `<g>` is reported to no-op. The fill recolor is guarded by
-  `:not([fill="none"])` so an **open** notehead's transparent center
-  (`<ellipse fill="none">`, `svg.js:205-213`) is not filled into a solid blob.
+  The recolor is **scoped carefully** so it neither destroys glyph identity nor
+  re-introduces a magnified stroke:
+  - **Fill broadly**, guarded by `:not([fill="none"])`, so filled heads, dots,
+    text glyphs, and rest bodies recolor while an **open** notehead's transparent
+    center (`<ellipse fill="none">`, `svg.js:205-213`) is not filled into a solid
+    blob.
+  - **Stroke only already-stroked geometry** — `line` (stems / ledger lines) and
+    `ellipse[fill="none"]` (the open-notehead ring). A blanket `* { stroke }` is
+    **wrong**: the font glyphs (clefs/rests/accidentals/flags via `fontGlyph`,
+    `svg.js:154-163`) are `<text fill=INK>` with default `stroke: none`; forcing a
+    stroke on them would, at the 8× scale, paint a fat ~8 px blue outline around
+    the letterforms — the exact magnified-stroke failure this review removes.
+    `<text>` is never stroked.
+
   Within a note/rest `<g>` the only `fill="none"` child is the open notehead
   (ties/slurs/hairpins are system/measure-level spans, never children of a note
   `<g>`), and every paint is a real DOM attribute (`el()` → `setAttribute`), so
   `fill="none"` is attribute-selectable.
 
-The two mechanisms are combined so no engine shows nothing: the hairline is the
-enhanced read where supported; the recolor is the guaranteed floor everywhere.
+- **(b) Enclosing hairline `outline` — the reinforcement.** This is the
+  conventional "selected box" mark and a one-line minimal diff from review-4
+  (`1px` → `0.125px`). `outline` already hugs the `<g>`'s bbox (that is exactly
+  why review-4 looked like a box); the only defect was thickness, fixed by
+  dividing the user-unit length by the 8× scale. Thin at displayed scale,
+  CSS-only, no JS, no layout shift, editor-only. It rides on top as the nicer
+  enclosing read on engines that paint `outline` on a `<g>` (Chrome/Firefox); on
+  Safari it may no-op, which is why the recolor floor carries the selection there.
 
 ## Key Decisions
 
@@ -222,13 +249,20 @@ sidebar, both calling the same append — confusing); *make SectionPanel
 always-present* (a larger panel-gating change when SongPanel is already the
 always-present panel).
 
-### KD3 — CSS-only thin highlight: hairline outline + recolor floor (Req 3 / AC3) — the crux
+### KD3 — CSS-only thin highlight: recolor floor (primary) + hairline outline (reinforcement) (Req 3 / AC3) — the crux
 
 Root cause is the **8× viewBox magnification** of a user-unit `outline` on the
 selected `<g>` (see Interfaces and Data Flow). The fix is a single CSS-only
-`.is-selected` rule combining the enclosing `outline: 0.125px` hairline (review-4's
-rule ÷ the 8× scale) and a Safari-safe color recolor of the selected glyphs. No
-JS change (`decorateSelection`/`SongCanvas` keep only adding the class), no
+`.is-selected` rule built around a **scale-invariant color recolor of the selected
+glyphs as the primary/floor** (the always-visible signal on every engine,
+**including Safari** — which is in target and where `outline` on a `<g>` no-ops),
+with the enclosing `outline: 0.125px` hairline (review-4's rule ÷ the 8× scale)
+layered on top as **reinforcement** on engines that paint it (Chrome/Firefox).
+The recolor is scoped so it neither fills an open notehead's hole
+(`:not([fill="none"])`) nor strokes `<text>` (a blanket `* { stroke }` would
+re-magnify ~8× around the font glyphs); stroke is limited to `line`
+(stems/ledgers) and `ellipse[fill="none"]` (the open-notehead ring). No JS change
+(`decorateSelection`/`SongCanvas` keep only adding the class), no
 `svg.js`/`render.php`/schema change → front-end SVG byte-identical (AC4). Thin at
 the displayed scale, no layout shift (AC3); `outline` + `fill`/`stroke` are plain
 CSS/SVG (AC5).
@@ -272,11 +306,19 @@ dependency.
   tree each draw (`renderInto` → `replaceChildren`), and `.is-selected` is a CSS
   class, so the highlight re-applies cleanly with no stale buildup. A stale
   selection that matches nothing decorates nothing — unchanged.
-- **Open-notehead recolor.** Guarded by `:not([fill="none"])` so a half/whole
-  note's open head keeps its hole; the only `fill="none"` child of a note `<g>`
-  is the open notehead.
-- **Safari `<g>` outline no-op.** Covered by the recolor floor, so the selection
-  is still visible; the enclosing hairline is the enhanced read where supported.
+- **Open-notehead recolor.** Fill is guarded by `:not([fill="none"])` so a
+  half/whole note's open head keeps its hole; the only `fill="none"` child of a
+  note `<g>` is the open notehead.
+- **Magnified stroke on font glyphs.** The recolor strokes only `line` and
+  `ellipse[fill="none"]`, never `<text>` (clefs/rests/accidentals/flags via
+  `fontGlyph`, default `stroke: none`). A blanket `* { stroke }` would, at the 8×
+  scale, paint a fat ~8 px blue outline around the letterforms — the same
+  magnified-stroke failure this review removes — so the stroke scope is
+  load-bearing, not cosmetic.
+- **Safari `<g>` outline no-op.** Safari is in target (WP browserslist) and the
+  e2e is chromium-only, so the recolor floor — not the outline — is the primary,
+  always-visible signal; the enclosing hairline is the enhanced read where
+  supported (Chrome/Firefox).
 - **Add-section reachable in every state.** SongPanel is always mounted, so
   add-section works with nothing selected — closing the gap the selection-gated
   SectionPanel left.
@@ -332,8 +374,10 @@ The hairline's correctness at the displayed scale (and the
   removed; the always-present `SongPanel` gains an Add-section control wired to
   `onAddSection`.
 - **Req 3 / AC3** — KD3: root cause is the 8× viewBox magnification of a user-unit
-  `outline` on the `<g>`; fix is the enclosing `outline: 0.125px` hairline plus a
-  scale-invariant recolor; thin, no layout shift.
+  `outline` on the `<g>`; fix is a scale-invariant recolor floor (primary,
+  cross-engine incl. Safari; stroke scoped to `line`/`ellipse[fill="none"]`, never
+  `<text>`) plus the enclosing `outline: 0.125px` hairline reinforcement; thin, no
+  layout shift.
 - **Req 4 / AC4** — KD4: `svg.js`/`render.php`/`view.js`/schema unchanged;
   `.is-selected` is editor-only; front-end SVG byte-identical.
 - **Req 5 / AC5** — KD4: `@wordpress/*`/stock CSS/SVG only; no outside dependency.
