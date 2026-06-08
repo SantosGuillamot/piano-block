@@ -18,11 +18,12 @@
  * the simplest recognised vocabulary.
  */
 import {
+	Button,
 	__experimentalNumberControl as NumberControl,
 	SelectControl,
 } from "@wordpress/components";
 import { __ } from "@wordpress/i18n";
-import { AddButton, ListControls } from "./ListControls.js";
+import { AddButton } from "./ListControls.js";
 import {
 	ALTER_MAX,
 	ALTER_MIN,
@@ -165,17 +166,10 @@ export function HandConfigEditor({ handConfig = {}, onChange, label }) {
 						}
 						__nextHasNoMarginBottom
 					/>
-					<ListControls
-						index={index}
-						count={rows.length}
-						onMoveUp={() => emitRows(moveRow(rows, index, index - 1))}
-						onMoveDown={() => emitRows(moveRow(rows, index, index + 1))}
-						onRemove={() => emitRows(rows.filter((_, i) => i !== index))}
-						moveUpLabel={fieldLabel(__("move alteration up", "piano-block"))}
-						moveDownLabel={fieldLabel(
-							__("move alteration down", "piano-block"),
-						)}
-						removeLabel={fieldLabel(__("remove alteration", "piano-block"))}
+					<Button
+						icon="trash"
+						label={fieldLabel(__("remove alteration", "piano-block"))}
+						onClick={() => emitRows(rows.filter((_, i) => i !== index))}
 					/>
 				</div>
 			))}
@@ -211,16 +205,5 @@ function clampInt(raw, min, max) {
 function replaceRow(rows, index, row) {
 	const next = rows.slice();
 	next[index] = row;
-	return next;
-}
-
-/** Return a new rows array with the row at `from` moved to `to` (in-range). */
-function moveRow(rows, from, to) {
-	if (to < 0 || to >= rows.length) {
-		return rows;
-	}
-	const next = rows.slice();
-	const [row] = next.splice(from, 1);
-	next.splice(to, 0, row);
 	return next;
 }

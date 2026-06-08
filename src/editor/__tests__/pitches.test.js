@@ -9,7 +9,8 @@
  * still read as `do` until the author edits it — because nothing rewrites a
  * `step` until its `onChange` fires. Third, the numeric fields clamp to the
  * format's bounds, `alter: 0` is omitted from the emission, and a note keeps at
- * least one pitch (the last pitch's remove is disabled). Each emitted pitch,
+ * least one pitch (the last pitch's remove is disabled). Reordering is omitted
+ * in this version, so the list offers only add/remove/edit. Each emitted pitch,
  * wrapped into a note in a song, is accepted by the real `validateSong` — the
  * conformant-by-construction guarantee checked at the pitch level, including a
  * Spanish round-trip.
@@ -302,22 +303,6 @@ describe("PitchList", () => {
 		);
 		click(buttonByName(container, "Remove pitch"));
 		expect(calls.at(-1)).toEqual([{ step: "E", octave: 4 }]);
-		expectPitchesConformant(calls.at(-1));
-	});
-
-	it("reorders pitches when a row is moved", () => {
-		const { container, calls } = renderList(
-			[
-				{ step: "C", octave: 4 },
-				{ step: "E", octave: 4 },
-			],
-			"english",
-		);
-		click(buttonByName(container, "Move pitch down"));
-		expect(calls.at(-1)).toEqual([
-			{ step: "E", octave: 4 },
-			{ step: "C", octave: 4 },
-		]);
 		expectPitchesConformant(calls.at(-1));
 	});
 

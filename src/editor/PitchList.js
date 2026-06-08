@@ -3,26 +3,20 @@
  * invariant enforced.
  *
  * A note's `pitches` is an ordered array; a chord is just more than one entry.
- * Each row is a `PitchEditor` with the per-row `ListControls` (move/remove) and a
- * single `AddButton` that appends a fresh pitch in the per-song system (its first
- * note name, octave 4). The one rule beyond ordering is the note invariant — a
- * note must carry at least one pitch — so the last remaining pitch's remove is
- * disabled (`canRemove` is false once the list is down to one). Every
- * add/remove/reorder/edit runs through the shared array helpers, so the list
- * never mutates its input, and an untouched pitch is passed straight through to
- * its editor, preserving its spelling verbatim.
+ * Each row is a `PitchEditor` with a per-row remove button and a single
+ * `AddButton` that appends a fresh pitch in the per-song system (its first note
+ * name, octave 4). The one rule is the note invariant — a note must carry at
+ * least one pitch — so the last remaining pitch's remove is disabled (`disabled`
+ * once the list is down to one). Every add/remove/edit runs through the shared
+ * array helpers, so the list never mutates its input, and an untouched pitch is
+ * passed straight through to its editor, preserving its spelling verbatim.
  */
+import { Button } from "@wordpress/components";
 import { __ } from "@wordpress/i18n";
-import { AddButton, ListControls } from "./ListControls.js";
+import { AddButton } from "./ListControls.js";
 import { noteNameOptions } from "./noteNames.js";
 import { PitchEditor } from "./PitchEditor.js";
-import {
-	insertAt,
-	moveItem,
-	newPitch,
-	removeAt,
-	replaceAt,
-} from "./songModel.js";
+import { insertAt, newPitch, removeAt, replaceAt } from "./songModel.js";
 
 /**
  * Edit a note's ordered list of pitches.
@@ -49,17 +43,12 @@ export function PitchList({ pitches = [], system, onChange }) {
 						system={system}
 						onChange={(next) => onChange(replaceAt(pitches, index, next))}
 					/>
-					<ListControls
-						index={index}
-						count={pitches.length}
-						onMoveUp={() => onChange(moveItem(pitches, index, index - 1))}
-						onMoveDown={() => onChange(moveItem(pitches, index, index + 1))}
-						onRemove={() => onChange(removeAt(pitches, index))}
+					<Button
+						icon="trash"
+						label={__("Remove pitch", "piano-block")}
+						onClick={() => onChange(removeAt(pitches, index))}
 						// The note invariant: never let the last pitch be removed.
-						canRemove={pitches.length > 1}
-						moveUpLabel={__("Move pitch up", "piano-block")}
-						moveDownLabel={__("Move pitch down", "piano-block")}
-						removeLabel={__("Remove pitch", "piano-block")}
+						disabled={pitches.length <= 1}
 					/>
 				</div>
 			))}

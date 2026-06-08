@@ -6,10 +6,11 @@
  * `staff`). Every field these kinds carry is required by the schema, so the
  * editor must always keep them present — an empty `text` is a conformant empty
  * string, not an absent field. The tests pin that always-present shape per kind,
- * pin the add/remove/reorder behavior of the list (including that emptying the
- * list signals removal so an empty `annotations` array is never serialized),
- * and — the conformant-by-construction guarantee — wrap each emitted annotation
- * into a host event/measure and assert the real `validateSong` accepts it.
+ * pin the add/remove behavior of the list (including that emptying the list
+ * signals removal so an empty `annotations` array is never serialized), and —
+ * the conformant-by-construction guarantee — wrap each emitted annotation into a
+ * host event/measure and assert the real `validateSong` accepts it. Reordering
+ * is omitted in this version, so the list offers only add/remove/edit.
  *
  * The editors are presentational React components, so the tests render them into
  * jsdom and drive the mocked `@wordpress/components` inputs directly — setting a
@@ -295,20 +296,6 @@ describe("AnnotationList", () => {
 		// parent drops the key rather than serializing `annotations: []`.
 		click(buttonByName(container, "Remove annotation"));
 		expect(calls.at(-1)).toBeUndefined();
-	});
-
-	it("reorders annotations when a row is moved", () => {
-		const { container, calls } = renderList("event", [
-			{ text: "first", placement: "above" },
-			{ text: "second", placement: "above" },
-		]);
-
-		const moveDown = buttonByName(container, "Move annotation down");
-		click(moveDown);
-		expect(calls.at(-1)).toEqual([
-			{ text: "second", placement: "above" },
-			{ text: "first", placement: "above" },
-		]);
 	});
 
 	it("edits a single row in place, leaving its siblings untouched", () => {

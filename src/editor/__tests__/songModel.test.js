@@ -27,7 +27,6 @@ import {
 	DYNAMICS,
 	EVENT_TYPES,
 	insertAt,
-	moveItem,
 	newEventAnnotation,
 	newMeasure,
 	newNote,
@@ -285,28 +284,6 @@ describe("immutable array helpers", () => {
 		const list = ["a", "b"];
 		const result = removeAt(list, 5);
 		expect(result).toEqual(["a", "b"]);
-		expect(result).not.toBe(list);
-	});
-
-	it("moveItem reorders into a new array", () => {
-		const list = ["a", "b", "c", "d"];
-		const result = moveItem(list, 0, 2);
-		expect(result).toEqual(["b", "c", "a", "d"]);
-		expect(list).toEqual(["a", "b", "c", "d"]);
-		expect(result).not.toBe(list);
-	});
-
-	it("moveItem to the same index is a no-op copy", () => {
-		const list = ["a", "b", "c"];
-		const result = moveItem(list, 1, 1);
-		expect(result).toEqual(["a", "b", "c"]);
-		expect(result).not.toBe(list);
-	});
-
-	it("moveItem out of range returns a copy", () => {
-		const list = ["a", "b", "c"];
-		const result = moveItem(list, 5, 0);
-		expect(result).toEqual(["a", "b", "c"]);
 		expect(result).not.toBe(list);
 	});
 

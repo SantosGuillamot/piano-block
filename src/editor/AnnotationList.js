@@ -3,22 +3,22 @@
  *
  * Both an event's `annotations` and a measure's `annotations` are ordered arrays
  * of free-text annotations, so they share this one list: each row is an
- * `AnnotationEditor`, with the per-row `ListControls` (move/remove) and a single
- * `AddButton` that appends the right new item for the list's `kind`.
+ * `AnnotationEditor`, with a per-row remove button and a single `AddButton` that
+ * appends the right new item for the list's `kind`.
  *
  * The schema permits the `annotations` array to be absent but, being permissive,
  * also accepts an empty one — yet an empty `annotations: []` is noise the
  * round-trip should not persist. So this list never emits an empty array: when
  * the author removes the last row it signals removal by emitting `undefined`, and
- * the parent drops the `annotations` key entirely. Every add/remove/reorder runs
- * through the shared array helpers, so the list never mutates its input.
+ * the parent drops the `annotations` key entirely. Every add/remove runs through
+ * the shared array helpers, so the list never mutates its input.
  */
+import { Button } from "@wordpress/components";
 import { __ } from "@wordpress/i18n";
 import { AnnotationEditor } from "./AnnotationEditor.js";
-import { AddButton, ListControls } from "./ListControls.js";
+import { AddButton } from "./ListControls.js";
 import {
 	insertAt,
-	moveItem,
 	newEventAnnotation,
 	newStandaloneAnnotation,
 	removeAt,
@@ -57,15 +57,10 @@ export function AnnotationList({ annotations = [], kind, onChange }) {
 						kind={kind}
 						onChange={(next) => emit(replaceAt(annotations, index, next))}
 					/>
-					<ListControls
-						index={index}
-						count={annotations.length}
-						onMoveUp={() => emit(moveItem(annotations, index, index - 1))}
-						onMoveDown={() => emit(moveItem(annotations, index, index + 1))}
-						onRemove={() => emit(removeAt(annotations, index))}
-						moveUpLabel={__("Move annotation up", "piano-block")}
-						moveDownLabel={__("Move annotation down", "piano-block")}
-						removeLabel={__("Remove annotation", "piano-block")}
+					<Button
+						icon="trash"
+						label={__("Remove annotation", "piano-block")}
+						onClick={() => emit(removeAt(annotations, index))}
 					/>
 				</div>
 			))}

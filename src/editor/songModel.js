@@ -230,31 +230,6 @@ export function removeAt(list, index) {
 }
 
 /**
- * Return a new array with the element at `from` moved to `to`. A no-op move (same
- * index) or an out-of-range index yields a plain copy. Never mutates `list`.
- *
- * @param {Array}  list The source array.
- * @param {number} from The current index of the element to move.
- * @param {number} to   The target index.
- * @return {Array} A new array with the element repositioned.
- */
-export function moveItem(list, from, to) {
-	const next = list.slice();
-	if (
-		from === to ||
-		from < 0 ||
-		from >= next.length ||
-		to < 0 ||
-		to >= next.length
-	) {
-		return next;
-	}
-	const [item] = next.splice(from, 1);
-	next.splice(to, 0, item);
-	return next;
-}
-
-/**
  * Return a new array with the element at `index` replaced by `item`. An
  * out-of-range index yields a plain copy. Never mutates `list`.
  *
