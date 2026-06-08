@@ -2,15 +2,16 @@
  * Smoke tests for the sheet-music canvas.
  *
  * `SongCanvas` reuses the notation core's render path (as the old preview did) but
- * renders from a PARSED working object and layers on post-render
- * `is-selected`/`is-active-*` decoration only — it is selection-decoration only, it
- * does NOT hit-test or set selection (selection is driven by the structure tree).
- * These tests pin the load-bearing contracts: an `<svg role="img">` mounts for a
- * valid working object AND for the seeded empty song; the `is-selected`/`is-active-*`
- * classes land on exactly the selected group and on nothing for a stale selection;
- * and the canvas renders NO add affordances (those live in the structure tree and the
- * Note panel now). The full panel/integration coverage is owned by the later
- * inspector/Edit suites; this is the component-level smoke.
+ * renders from a PARSED working object and layers on post-render `is-selected`
+ * decoration only — it is selection-decoration only, it does NOT hit-test or set
+ * selection (selection is driven by the structure tree). These tests pin the
+ * load-bearing contracts: an `<svg role="img">` mounts for a valid working object
+ * AND for the seeded empty song; the `is-selected` class lands on exactly the
+ * selected event group, on nothing for a stale selection, and on nothing for a
+ * section/measure selection (those kinds are surfaced through the tree/panels, not
+ * the canvas); and the canvas renders NO add affordances (those live in the
+ * structure tree and the Note panel now). The full panel/integration coverage is
+ * owned by the later inspector/Edit suites; this is the component-level smoke.
  *
  * Like `SongPreview.test.js`, these render into jsdom (no `@testing-library/react`)
  * and rely on the 0-width tolerance and the no-Font-Loading-API fallback
@@ -123,6 +124,7 @@ describe("SongCanvas", () => {
 			createElement(SongCanvas, {
 				song: SONG,
 				selection: {
+					kind: "event",
 					sectionIndex: 1,
 					measureIndex: 0,
 					hand: "rightHand",
@@ -147,6 +149,7 @@ describe("SongCanvas", () => {
 				song: SONG,
 				// eventIndex 9 does not exist in that measure/hand.
 				selection: {
+					kind: "event",
 					sectionIndex: 0,
 					measureIndex: 0,
 					hand: "rightHand",
@@ -177,120 +180,25 @@ describe("SongCanvas", () => {
 		cleanup(container, root);
 	});
 
-	it("decorates the one measure group with is-active-measure for a measure selection", () => {
-		const { container, root } = render(
+	it("decorates nothing for a section or measure selection", () => {
+		// Section/measure selections are surfaced through the structure tree and the
+		// inspector panels, not the canvas — neither kind adds any class to the SVG.
+		const section = render(
 			createElement(SongCanvas, {
 				song: SONG,
-				// Section 0, measure 1 → global measure 2.
-				selection: { kind: "measure", sectionIndex: 0, measureIndex: 1 },
-			}),
-		);
-		const active = container.querySelectorAll(".is-active-measure");
-		expect(active).toHaveLength(1);
-		expect(active[0].getAttribute("data-measure")).toBe("2");
-		// A measure highlight is distinct from the event outline — nothing is
-		// `is-selected` and no section box is drawn.
-		expect(container.querySelectorAll(".is-selected")).toHaveLength(0);
-		expect(container.querySelectorAll(".is-active-section")).toHaveLength(0);
-		cleanup(container, root);
-	});
-
-	it("decorates every measure group of a section with is-active-section", () => {
-		const { container, root } = render(
-			createElement(SongCanvas, {
-				song: SONG,
-				// Section 0 spans global measures 1 and 2.
 				selection: { kind: "section", sectionIndex: 0 },
 			}),
 		);
-		const active = container.querySelectorAll(".is-active-section");
-		expect(active).toHaveLength(2);
-		const numbers = [...active]
-			.map((group) => group.getAttribute("data-measure"))
-			.sort();
-		expect(numbers).toEqual(["1", "2"]);
-		// No event outline and no single-measure box for a section highlight.
-		expect(container.querySelectorAll(".is-selected")).toHaveLength(0);
-		expect(container.querySelectorAll(".is-active-measure")).toHaveLength(0);
-		cleanup(container, root);
-	});
+		expect(section.container.querySelectorAll(".is-selected")).toHaveLength(0);
+		cleanup(section.container, section.root);
 
-	it("decorates a later section's lone measure with is-active-section", () => {
-		const { container, root } = render(
+		const measure = render(
 			createElement(SongCanvas, {
 				song: SONG,
-				// Section 1 is just global measure 3.
-				selection: { kind: "section", sectionIndex: 1 },
+				selection: { kind: "measure", sectionIndex: 0, measureIndex: 1 },
 			}),
 		);
-		const active = container.querySelectorAll(".is-active-section");
-		expect(active).toHaveLength(1);
-		expect(active[0].getAttribute("data-measure")).toBe("3");
-		cleanup(container, root);
-	});
-
-	it("decorates nothing for a stale measure or section selection", () => {
-		// A measure index past the section's end (and a section index out of range)
-		// resolves to no group, so the highlight simply disappears.
-		const stale = render(
-			createElement(SongCanvas, {
-				song: SONG,
-				selection: { kind: "measure", sectionIndex: 0, measureIndex: 9 },
-			}),
-		);
-		expect(stale.container.querySelectorAll(".is-active-measure")).toHaveLength(
-			0,
-		);
-		cleanup(stale.container, stale.root);
-
-		const staleSection = render(
-			createElement(SongCanvas, {
-				song: SONG,
-				selection: { kind: "section", sectionIndex: 9 },
-			}),
-		);
-		expect(
-			staleSection.container.querySelectorAll(".is-active-section"),
-		).toHaveLength(0);
-		cleanup(staleSection.container, staleSection.root);
-	});
-
-	it("scrolls the highlighted measure group into view when scrollIntoView exists", () => {
-		// jsdom has no scrollIntoView on SVG groups; install a spy on the prototype so
-		// the guarded call is exercised, then assert it ran for a measure selection.
-		const proto = window.SVGElement.prototype;
-		const had = Object.hasOwn(proto, "scrollIntoView");
-		const original = proto.scrollIntoView;
-		const spy = jest.fn();
-		proto.scrollIntoView = spy;
-		try {
-			const { container, root } = render(
-				createElement(SongCanvas, {
-					song: SONG,
-					selection: { kind: "measure", sectionIndex: 0, measureIndex: 0 },
-				}),
-			);
-			expect(spy).toHaveBeenCalled();
-			cleanup(container, root);
-		} finally {
-			if (had) {
-				proto.scrollIntoView = original;
-			} else {
-				delete proto.scrollIntoView;
-			}
-		}
-	});
-
-	it("does not throw when scrollIntoView is absent (jsdom)", () => {
-		// With no scrollIntoView on the group, a measure selection must still draw the
-		// highlight and not throw — the guard tolerates the missing API.
-		const { container, root } = render(
-			createElement(SongCanvas, {
-				song: SONG,
-				selection: { kind: "measure", sectionIndex: 0, measureIndex: 0 },
-			}),
-		);
-		expect(container.querySelectorAll(".is-active-measure")).toHaveLength(1);
-		cleanup(container, root);
+		expect(measure.container.querySelectorAll(".is-selected")).toHaveLength(0);
+		cleanup(measure.container, measure.root);
 	});
 });

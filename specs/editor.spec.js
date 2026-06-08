@@ -562,7 +562,7 @@ test.describe("Piano block — editor authoring, persistence and validation", ()
 			.toBe(2);
 	});
 
-	test("selecting structure-tree rows reveals the right panels and highlights the canvas", async ({
+	test("selecting structure-tree rows reveals the right panels", async ({
 		editor,
 		page,
 	}) => {
@@ -575,27 +575,21 @@ test.describe("Piano block — editor authoring, persistence and validation", ()
 		await assertStructureTreeOpen(editor);
 
 		// Selecting the SECTION row reveals the Section panel only (every kind has a
-		// section), not the Measure/Note panels, and highlights the section's
-		// measure group(s) on the canvas with `is-active-section`. (Clicking it also
-		// expands the section, surfacing its measure row.)
+		// section), not the Measure/Note panels. (Clicking it also expands the
+		// section, surfacing its measure row.) A section selection decorates nothing
+		// on the canvas — section/measure are surfaced through the tree and panels.
 		await treeRow(editor, "Section 1").click();
 		await expect(inspectorPanel(sidebar, "Section")).toBeVisible();
 		await expect(inspectorPanel(sidebar, "Measure")).toHaveCount(0);
 		await expect(inspectorPanel(sidebar, "Note")).toHaveCount(0);
-		await expect(
-			editor.canvas.locator('[data-measure].is-active-section'),
-		).not.toHaveCount(0);
 
 		// Selecting the MEASURE row reveals Measure + Section (a measure has both),
-		// still not the Note panel, and highlights exactly that measure group with
-		// `is-active-measure`.
+		// still not the Note panel. A measure selection likewise decorates nothing on
+		// the canvas.
 		await treeRow(editor, "Measure 1").click();
 		await expect(inspectorPanel(sidebar, "Measure")).toBeVisible();
 		await expect(inspectorPanel(sidebar, "Section")).toBeVisible();
 		await expect(inspectorPanel(sidebar, "Note")).toHaveCount(0);
-		await expect(
-			editor.canvas.locator('[data-measure].is-active-measure'),
-		).toHaveCount(1);
 	});
 
 	test("renaming a section through its panel relabels its structure-tree row", async ({

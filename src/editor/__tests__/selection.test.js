@@ -21,7 +21,6 @@ import { renderSvg } from '../../notation/svg.js';
 import {
 	globalMeasureNumber,
 	measureCoords,
-	measureNumbersForSection,
 	resolveSelection,
 	selectionQuery,
 } from '../selection.js';
@@ -342,19 +341,6 @@ describe( 'resolveSelection — kind-tagged', () => {
 				eventIndex: 9,
 			} )
 		).toBeNull();
-	} );
-} );
-
-describe( 'measureNumbersForSection', () => {
-	it( "returns the 1-based global numbers of a section's measures", () => {
-		// Section 0 owns global measures 1 and 2; section 1 owns global measure 3.
-		expect( measureNumbersForSection( SONG, 0 ) ).toEqual( [ 1, 2 ] );
-		expect( measureNumbersForSection( SONG, 1 ) ).toEqual( [ 3 ] );
-	} );
-
-	it( 'returns [] for an out-of-range or missing section', () => {
-		expect( measureNumbersForSection( SONG, 5 ) ).toEqual( [] );
-		expect( measureNumbersForSection( undefined, 0 ) ).toEqual( [] );
 	} );
 } );
 

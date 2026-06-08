@@ -171,29 +171,6 @@ export function resolveSelection( song, selection ) {
 }
 
 /**
- * The 1-based global measure numbers of every measure in one section — the derived
- * inverse the canvas uses to highlight a whole section (the emit carries no
- * `data-section`, so a section highlight is the set of its measures' `data-measure`
- * groups). Filters `measureCoords(song)` to the target `sectionIndex` and maps each
- * to its 1-based global position.
- *
- * @param {?Object} song         The working song object.
- * @param {number}  sectionIndex The section's index.
- * @return {number[]} The section's measures' 1-based global numbers (empty when the
- *   section is out of range or absent).
- */
-export function measureNumbersForSection( song, sectionIndex ) {
-	const coords = measureCoords( song );
-	const numbers = [];
-	coords.forEach( ( coord, position ) => {
-		if ( coord.sectionIndex === sectionIndex ) {
-			numbers.push( position + 1 );
-		}
-	} );
-	return numbers;
-}
-
-/**
  * Build the scoped attribute selector that locates a selected note/rest group in
  * the rendered SVG. The emitted `id` (`{hand}-{kind}-{eventIndex}`) is NOT
  * globally unique — `eventIndex` resets per measure — so the highlight must scope

@@ -86,25 +86,12 @@
 		overflow-x: auto;
 
 		/* The selected note/rest group, decorated after each draw. The outline is
-		 * drawn on the SVG `<g>` so it tracks the glyph without changing layout. */
+		 * drawn on the SVG `<g>` so it tracks the glyph without changing layout. A
+		 * section/measure selection adds no canvas class — those kinds are surfaced
+		 * through the structure tree and the inspector panels. */
 		.is-selected {
 			outline: 2px solid #007cba;
 			outline-offset: 2px;
-		}
-
-		/* The measure/section highlight for a Structure-list selection. Unlike the
-		 * crisp event outline, a whole measure/section gets a subtle translucent
-		 * box-fill behind its `[data-measure]` group so a wide highlight reads as a
-		 * region without competing with the event outline. A section is the set of
-		 * its measures' groups (the emit carries no `data-section`). */
-		.is-active-measure,
-		.is-active-section {
-			outline: 2px dashed #007cba;
-			outline-offset: 4px;
-		}
-
-		.is-active-section {
-			outline-color: #757595;
 		}
 	}
 }

@@ -7,20 +7,19 @@
  * working object — so the seeded empty song shows an empty grand staff — and layers
  * one editor behavior on top:
  *
- *   SELECTION decoration — after each draw, the current selection is marked,
- *   branched by its `kind`: an event group is `is-selected` (located by the
- *   scoped `selectionQuery`, since the emitted `id` is not globally unique); a
- *   measure group is `is-active-measure`; a section's measure groups are each
- *   `is-active-section` (derived from `measureNumbersForSection` — the emit
- *   carries no `data-section`). A measure/section highlight `scrollIntoView`s its
- *   group; re-applied on every redraw, and a stale selection (query matches
- *   nothing) decorates nothing.
+ *   SELECTION decoration — after each draw, an `"event"` selection's note/rest
+ *   group is marked `is-selected` (located by the scoped `selectionQuery`, since
+ *   the emitted `id` is not globally unique); re-applied on every redraw, and a
+ *   stale selection (query matches nothing) decorates nothing. A section or
+ *   measure selection decorates nothing on the canvas — those kinds are surfaced
+ *   only through the structure tree and the inspector panels (a dedicated
+ *   section/measure canvas indication is a later follow-up).
  *
  * The canvas is display + highlight only — it does NOT hit-test or set selection.
  * Selection is driven by the left structure tree (`StructureTree`); the contextual
  * add/remove note lives in the `NotePanel` and the section/measure/first-note
  * add-remove lives in the tree. The canvas renders the front-end-identical SVG
- * (no `interactive` hit-rect) and only adds the `is-selected`/`is-active-*` classes.
+ * (no `interactive` hit-rect) and only adds the `is-selected` class.
  *
  * Like the old preview, the thin DOM glue here MIRRORS `view.js` rather than
  * importing it, so the editor stays decoupled from the front-end entry. This
@@ -33,11 +32,7 @@ import { SP_PX } from "../notation/constants.js";
 import { MUSIC_FONT_FAMILY } from "../notation/glyphs.js";
 import { buildLayoutModel } from "../notation/layout.js";
 import { renderInto } from "../notation/svg.js";
-import {
-	globalMeasureNumber,
-	measureNumbersForSection,
-	selectionQuery,
-} from "./selection.js";
+import { globalMeasureNumber, selectionQuery } from "./selection.js";
 
 /** Below this container width (px) the staff space steps down a notch. */
 const NARROW_CONTAINER_PX = 480;
@@ -82,26 +77,13 @@ function drawWhenFontReady(draw) {
 }
 
 /**
- * Scroll a located group into view, guarding the call so jsdom (which has no
- * `scrollIntoView` on SVG children) and a stale/empty match never throw.
- *
- * @param {?Element} group The group to reveal, or a falsy value to skip.
- */
-function scrollGroupIntoView(group) {
-	if (group && typeof group.scrollIntoView === "function") {
-		group.scrollIntoView({ inline: "nearest", block: "nearest" });
-	}
-}
-
-/**
- * Decorate (and scroll to) the current selection after a draw, branched by its
- * `kind` — the emit carries no `data-section`, so a section highlight is *derived*
- * as the set of its measures' `data-measure` groups (no emit change, front end
- * byte-identical):
- *   - `"event"`   → the measure-scoped `selectionQuery` group, class `is-selected`.
- *   - `"measure"` → the one `[data-measure="N"]` group, class `is-active-measure`.
- *   - `"section"` → every `[data-measure="K"]` group of the section, class
- *     `is-active-section` (the section scrolls its *first* measure into view).
+ * Decorate the current selection after a draw. Only an `"event"` selection
+ * decorates: its note/rest group is marked `is-selected`, located by the
+ * measure-scoped `selectionQuery` (the emitted `id` is not globally unique, since
+ * `eventIndex` resets per measure). A section or measure selection decorates
+ * nothing on the canvas — those kinds are surfaced through the structure tree and
+ * the inspector panels (a dedicated section/measure canvas indication is a later
+ * follow-up).
  *
  * A stale selection (its global number is `null`, or the query matches nothing —
  * the node was removed or the song changed) decorates nothing, so the highlight
@@ -112,23 +94,7 @@ function scrollGroupIntoView(group) {
  * @param {Object}   song      The working song object (for the global numbers).
  */
 function decorateSelection(container, selection, song) {
-	if (!selection) {
-		return;
-	}
-
-	if (selection.kind === "section") {
-		const numbers = measureNumbersForSection(song, selection.sectionIndex);
-		let firstGroup = null;
-		numbers.forEach((measureNumber) => {
-			const group = container.querySelector(
-				`[data-measure="${measureNumber}"]`,
-			);
-			if (group) {
-				group.classList.add("is-active-section");
-				firstGroup = firstGroup ?? group;
-			}
-		});
-		scrollGroupIntoView(firstGroup);
+	if (selection?.kind !== "event") {
 		return;
 	}
 
@@ -138,15 +104,6 @@ function decorateSelection(container, selection, song) {
 		selection.measureIndex,
 	);
 	if (measureNumber === null) {
-		return;
-	}
-
-	if (selection.kind === "measure") {
-		const group = container.querySelector(`[data-measure="${measureNumber}"]`);
-		if (group) {
-			group.classList.add("is-active-measure");
-			scrollGroupIntoView(group);
-		}
 		return;
 	}
 
@@ -247,8 +204,8 @@ export default function SongCanvas({
 		<div className="wp-block-piano-block-piano__canvas">
 			{/* The SVG host. The notation core renders into this node; the host is a
 			    display-only render container — the selectable controls live in the
-			    structure tree, not here. After each draw the current selection's group
-			    is decorated with the `is-selected`/`is-active-*` classes. */}
+			    structure tree, not here. After each draw an `"event"` selection's
+			    note/rest group is decorated with the `is-selected` class. */}
 			<div
 				ref={containerRef}
 				className="wp-block-piano-block-piano__canvas-svg"
