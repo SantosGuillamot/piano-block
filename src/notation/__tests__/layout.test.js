@@ -10,6 +10,7 @@
  */
 import {
 	ACCIDENTAL_GAP,
+	ADV_K,
 	BARLINE_POST_PAD,
 	DYNAMIC_ADVANCE_EM,
 	DYNAMIC_SIZE,
@@ -747,16 +748,19 @@ describe("unionGrid", () => {
 
 describe("advanceFor (compressive spacing)", () => {
 	it("is MIN_ADV + ADV_K·sqrt(Δ)", () => {
-		// Δ = 4 → sqrt 2 → MIN_ADV + 3·2 = MIN_ADV + 6.
-		expect(advanceFor(4)).toBeCloseTo(MIN_ADV + 6, 10);
+		// Δ = 4 → sqrt 2 → MIN_ADV + ADV_K·2 (asserted against the live constants,
+		// not a hard-coded slope, so a re-tune of ADV_K keeps this green).
+		expect(advanceFor(4)).toBeCloseTo(MIN_ADV + ADV_K * 2, 10);
 		// Δ = 0 → the floor advance MIN_ADV.
 		expect(advanceFor(0)).toBeCloseTo(MIN_ADV, 10);
 	});
 
-	it("is compressive: whole-vs-32nd advance ratio is ~2.5:1, not 32:1", () => {
+	it("is compressive: whole-vs-32nd advance ratio is ~4.6:1, not 32:1", () => {
+		// Far below the 32:1 of strict proportional spacing, so the model stays
+		// compressive; the band brackets the current tuning's ~4.6:1.
 		const ratio = advanceFor(4) / advanceFor(0.125);
-		expect(ratio).toBeGreaterThan(2);
-		expect(ratio).toBeLessThan(3);
+		expect(ratio).toBeGreaterThan(4);
+		expect(ratio).toBeLessThan(5);
 	});
 
 	it("is NaN-safe for a negative Δ (clamps via sqrt(max(Δ,0)))", () => {
@@ -4261,9 +4265,9 @@ describe("duration-ordered horizontal spacing (issue #21)", () => {
 		const layout = measureLayout(rh, []);
 		expect(layout.columns).toHaveLength(20);
 		// Every column carries the eighth advance — no time-signature clamping.
-		layout.columns.forEach((c) =>
-			expect(c.advance).toBeCloseTo(advanceFor(0.5), 10),
-		);
+		for (const c of layout.columns) {
+			expect(c.advance).toBeCloseTo(advanceFor(0.5), 10);
+		}
 		// Strictly monotonic X across all columns.
 		for (let i = 1; i < 20; i++) {
 			expect(layout.columns[i].x).toBeGreaterThan(layout.columns[i - 1].x);
