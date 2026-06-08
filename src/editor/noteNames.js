@@ -1,9 +1,9 @@
 /**
  * The editor's per-song note-name system: which of the two recognised spellings
  * a song is written in, the seven-name option list for that system's
- * `SelectControl`, the rewrite of a single `step` into that system, and the
- * song-wide conversion that rewrites every pitch and stamps the stored
- * `language`.
+ * `SelectControl`, the rewrite of a single `step` into that system, the
+ * tree-label for an event in that system, and the song-wide conversion that
+ * rewrites every pitch and stamps the stored `language`.
  *
  * The format accepts two equivalent spelling systems for the same seven pitches
  * — English letters (`C D E F G A B`) and Spanish solfège (`do re mi fa sol la
@@ -22,6 +22,7 @@
  * source. This module only adds the *display* ordering each system stores into
  * `step`, mapped to the same canonical letters `normalizeStep` yields.
  */
+import { __ } from "@wordpress/i18n";
 import { isNoteName, normalizeStep } from "../song/normalizeStep.js";
 
 /**
@@ -133,6 +134,31 @@ export function stepInSystem(step, system) {
 	const letter = isNoteName(step) ? normalizeStep(step) : null;
 	const index = letter ? CANONICAL_LETTERS.indexOf(letter) : -1;
 	return index === -1 ? names[0] : names[index];
+}
+
+/**
+ * The structure tree's display label for an event: `"rest"` for a rest, else the
+ * event's pitch name(s) in the song's note-name system. Each `pitch.step` is
+ * mapped through `stepInSystem` so a stored spelling is shown canonicalized into
+ * `system` (an English `C` reads `do` in a Spanish song); a chord's names are
+ * space-joined. Pitch name(s) only — octave is intentionally omitted (the
+ * C4/C5 ambiguity is deferred).
+ *
+ * Throw-free: only an explicit rest yields the `"rest"` string; a malformed note
+ * with no pitches yields an empty string rather than throwing, since the tree
+ * only ever feeds it conformant working-object events.
+ *
+ * @param {*}                    event  The event (note or rest) to label.
+ * @param {"english"|"spanish"} system The song's note-name system.
+ * @return {string} The event's tree label.
+ */
+export function noteLabel(event, system) {
+	if (event?.type === "rest") {
+		return __("rest", "piano-block");
+	}
+	return (event?.pitches ?? [])
+		.map((pitch) => stepInSystem(pitch?.step, system))
+		.join(" ");
 }
 
 /**

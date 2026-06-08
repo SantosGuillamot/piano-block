@@ -12,12 +12,15 @@
  * vocabulary's `isNoteName`. Fourth, `mapSong` rewrites every `pitch.step` of a
  * whole song into a target system, stamps `language`, leaves `handConfig.alters`
  * keys English-canonical, tolerates a malformed song, and stays conformant.
+ * Fifth, `noteLabel` turns an event into its tree label — `"rest"` for a rest,
+ * else its pitch name(s) in the song's system, space-joined, with no octave.
  */
 import { isNoteName } from "../../song/normalizeStep.js";
 import validateSong from "../../song/validate.js";
 import {
 	inferNoteNameSystem,
 	mapSong,
+	noteLabel,
 	noteNameOptions,
 	stepInSystem,
 } from "../noteNames.js";
@@ -160,6 +163,71 @@ describe("stepInSystem", () => {
 				expect(stepInSystem(once, system)).toBe(once);
 			}
 		}
+	});
+});
+
+describe("noteLabel", () => {
+	it("labels a single-pitch note by its pitch name in the system", () => {
+		const note = {
+			type: "note",
+			duration: "quarter",
+			pitches: [{ step: "C", octave: 4 }],
+		};
+		expect(noteLabel(note, "english")).toBe("C");
+	});
+
+	it("labels a Spanish-spelled note by its spelling in the Spanish system", () => {
+		const note = {
+			type: "note",
+			duration: "quarter",
+			pitches: [{ step: "do", octave: 4 }],
+		};
+		expect(noteLabel(note, "spanish")).toBe("do");
+	});
+
+	it("space-joins a chord's pitch names", () => {
+		const chord = {
+			type: "note",
+			duration: "quarter",
+			pitches: [
+				{ step: "C", octave: 4 },
+				{ step: "E", octave: 4 },
+				{ step: "G", octave: 4 },
+			],
+		};
+		expect(noteLabel(chord, "english")).toBe("C E G");
+	});
+
+	it("labels a rest as the i18n 'rest' string", () => {
+		expect(noteLabel({ type: "rest", duration: "quarter" }, "english")).toBe(
+			"rest",
+		);
+	});
+
+	it("canonicalizes the stored spelling through stepInSystem", () => {
+		const note = {
+			type: "note",
+			duration: "quarter",
+			pitches: [{ step: "C", octave: 4 }],
+		};
+		// An English-spelled note rendered in the Spanish system shows "do".
+		expect(noteLabel(note, "spanish")).toBe("do");
+	});
+
+	it("never includes an octave in the label", () => {
+		const note = {
+			type: "note",
+			duration: "quarter",
+			pitches: [{ step: "C", octave: 5 }],
+		};
+		expect(noteLabel(note, "english")).toBe("C");
+	});
+
+	it("is throw-free for a malformed note with no pitches", () => {
+		expect(() => noteLabel({ type: "note" }, "english")).not.toThrow();
+		expect(noteLabel({ type: "note" }, "english")).toBe("");
+		expect(noteLabel(undefined, "english")).toBe("");
+		expect(noteLabel(null, "english")).toBe("");
 	});
 });
 
