@@ -86,4 +86,41 @@
 		align-items: flex-end;
 		margin-bottom: 0.5em;
 	}
+
+	/**
+	 * Canvas-first editor styles. The interactive sheet-music canvas replaces the
+	 * old read-only preview: the rendered staff is the surface the author selects
+	 * notes on, with on-canvas add affordances beside it. (The drill-down rules
+	 * above are superseded and removed when the visual branch is rewritten.)
+	 */
+
+	/* The interactive canvas wrapper: the SVG host plus the add affordances. */
+	&__canvas {
+		display: flex;
+		flex-direction: column;
+		gap: 0.5em;
+	}
+
+	/* The SVG host. A min-width keeps the container's `clientWidth` non-zero so the
+	 * notation can measure a real width and lay out at that scale; overflow scrolls
+	 * a wide score rather than bleeding past the block. */
+	&__canvas-svg {
+		min-width: 280px;
+		overflow-x: auto;
+
+		/* The selected note/rest group, decorated after each draw. The outline is
+		 * drawn on the SVG `<g>` so it tracks the glyph without changing layout. */
+		.is-selected {
+			outline: 2px solid #007cba;
+			outline-offset: 2px;
+		}
+	}
+
+	/* The on-canvas add affordances (per-hand add-note, end-of-score add-measure). */
+	&__canvas-actions {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5em;
+		align-items: center;
+	}
 }
