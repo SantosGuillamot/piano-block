@@ -20,7 +20,14 @@ import { SongPanel } from "./editor/inspector/SongPanel.js";
 import { inferNoteNameSystem } from "./editor/noteNames.js";
 import { resolveSelection } from "./editor/selection.js";
 import { commitSong } from "./editor/serializeSong.js";
-import { insertAt, newMeasure, newNote, newSong } from "./editor/songModel.js";
+import {
+	insertAt,
+	newMeasure,
+	newNote,
+	newSection,
+	newSong,
+	removeAt,
+} from "./editor/songModel.js";
 import SongCanvas from "./editor/SongCanvas.js";
 import validateSong from "./song/validate.js";
 
@@ -175,23 +182,75 @@ export default function Edit({ attributes, setAttributes }) {
 		setSelection({ sectionIndex, measureIndex, hand, eventIndex: insertIndex });
 	};
 
-	// Append an empty measure to the last section. The new measure is reachable via
-	// its own canvas add-note affordance, so the selection is left as-is.
-	const onAddMeasure = () => {
-		const lastIndex = working.sections.length - 1;
-		if (lastIndex < 0) {
+	// The four structural mutators, lifted here as the single owner of `working` +
+	// `commit` (the panels and, from T6, the Structure list only signal intent).
+	// Each is the same immutable splice the panels used to do locally, written once;
+	// removing the selected section/measure (or one above it) clears the now-stale
+	// selection so the sidebar falls back to Song-only.
+
+	// Append an empty-but-conformant section. The new section is reachable via the
+	// Structure list, so the current selection is left as-is.
+	const onAddSection = () => {
+		commit({
+			...working,
+			sections: insertAt(
+				working.sections,
+				working.sections.length,
+				newSection(),
+			),
+		});
+	};
+
+	// Remove a section. If the selection pointed at (or under) the removed section,
+	// it is now stale, so clear it.
+	const onRemoveSection = (sectionIndex) => {
+		commit({
+			...working,
+			sections: removeAt(working.sections, sectionIndex),
+		});
+		if (selection?.sectionIndex === sectionIndex) {
+			setSelection(null);
+		}
+	};
+
+	// Append an empty measure to a section. `sectionIndex` defaults to the last
+	// section (the canvas add-measure affordance targets the end of the score); the
+	// Structure list passes an explicit index. The new measure is reachable via the
+	// Structure list, so the selection is left as-is.
+	const onAddMeasure = (sectionIndex = working.sections.length - 1) => {
+		const section = working.sections[sectionIndex];
+		if (!section) {
 			return;
 		}
-		const section = working.sections[lastIndex];
 		const nextMeasures = insertAt(
 			section.measures,
 			section.measures.length,
 			newMeasure(),
 		);
 		const nextSections = working.sections.map((current, index) =>
-			index === lastIndex ? { ...section, measures: nextMeasures } : current,
+			index === sectionIndex ? { ...section, measures: nextMeasures } : current,
 		);
 		commit({ ...working, sections: nextSections });
+	};
+
+	// Remove a measure from a section. If the selection pointed at (or under) the
+	// removed measure, it is now stale, so clear it.
+	const onRemoveMeasure = (sectionIndex, measureIndex) => {
+		const section = working.sections[sectionIndex];
+		if (!section) {
+			return;
+		}
+		const nextMeasures = removeAt(section.measures, measureIndex);
+		const nextSections = working.sections.map((current, index) =>
+			index === sectionIndex ? { ...section, measures: nextMeasures } : current,
+		);
+		commit({ ...working, sections: nextSections });
+		if (
+			selection?.sectionIndex === sectionIndex &&
+			selection?.measureIndex === measureIndex
+		) {
+			setSelection(null);
+		}
 	};
 
 	return (
@@ -241,28 +300,37 @@ export default function Edit({ attributes, setAttributes }) {
 					/>
 					<InspectorControls>
 						<SongPanel song={working} system={system} onChange={commit} />
+						{/* Gate the per-level panels by the selection's kind: every kind
+						    has a section; a measure/event also has a measure; only an
+						    event has a note. So a section selection shows Section only, a
+						    measure selection shows Measure+Section, and an event selection
+						    shows all three (today's behavior preserved). */}
+						{resolvedSelection?.kind === "event" && (
+							<NotePanel
+								song={working}
+								selection={resolvedSelection}
+								system={system}
+								onChange={commit}
+								onRemove={() => setSelection(null)}
+							/>
+						)}
+						{(resolvedSelection?.kind === "event" ||
+							resolvedSelection?.kind === "measure") && (
+							<MeasurePanel
+								song={working}
+								selection={resolvedSelection}
+								onChange={commit}
+								onRemoveMeasure={onRemoveMeasure}
+							/>
+						)}
 						{resolvedSelection && (
-							<>
-								<NotePanel
-									song={working}
-									selection={resolvedSelection}
-									system={system}
-									onChange={commit}
-									onRemove={() => setSelection(null)}
-								/>
-								<MeasurePanel
-									song={working}
-									selection={resolvedSelection}
-									onChange={commit}
-									onRemove={() => setSelection(null)}
-								/>
-								<SectionPanel
-									song={working}
-									selection={resolvedSelection}
-									onChange={commit}
-									onRemove={() => setSelection(null)}
-								/>
-							</>
+							<SectionPanel
+								song={working}
+								selection={resolvedSelection}
+								onChange={commit}
+								onAddSection={onAddSection}
+								onRemoveSection={onRemoveSection}
+							/>
 						)}
 					</InspectorControls>
 				</>

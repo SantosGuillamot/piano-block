@@ -383,3 +383,81 @@ describe("Edit mode container", () => {
 		expect(panelByTitle(container, "Section")).toBeNull();
 	});
 });
+
+/** Click the lone rendered note group to set an event selection. */
+function selectLoneNote(container) {
+	const note = container.querySelector('[data-kind="note"]');
+	act(() => {
+		note.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+	});
+}
+
+describe("Edit — kind-tagged panel gating", () => {
+	it("shows all three per-level panels for an event-kind canvas selection", () => {
+		const { container } = renderEdit(SONG);
+		selectLoneNote(container);
+		// A canvas selection is kind:"event": every panel gates open.
+		expect(panelByTitle(container, "Section")).not.toBeNull();
+		expect(panelByTitle(container, "Measure")).not.toBeNull();
+		expect(panelByTitle(container, "Note")).not.toBeNull();
+	});
+});
+
+describe("Edit — lifted structural mutators", () => {
+	it("onAddSection appends an empty-but-conformant section through commit", () => {
+		const { container, calls } = renderEdit(SONG);
+		// The Section panel (reachable once an event is selected) drives the lifted
+		// onAddSection handler that owns the splice.
+		selectLoneNote(container);
+		click(buttonByText(container, "Add section"));
+
+		const persisted = JSON.parse(calls.at(-1));
+		expect(persisted.sections).toHaveLength(2);
+		expect(persisted.sections[1].measures).toHaveLength(1);
+		expect(validateSong(calls.at(-1))).toEqual([]);
+	});
+
+	it("onRemoveSection removes the selected section and clears the now-stale selection", () => {
+		const { container, calls } = renderEdit(SONG);
+		selectLoneNote(container);
+		expect(panelByTitle(container, "Section")).not.toBeNull();
+		click(buttonByText(container, "Remove section"));
+
+		// The only section is removed (a conformant empty sections array), and the
+		// selection that pointed under it is cleared, so the per-level panels vanish.
+		const persisted = JSON.parse(calls.at(-1));
+		expect(persisted.sections).toEqual([]);
+		expect(validateSong(calls.at(-1))).toEqual([]);
+		expect(panelByTitle(container, "Note")).toBeNull();
+		expect(panelByTitle(container, "Measure")).toBeNull();
+		expect(panelByTitle(container, "Section")).toBeNull();
+		expect(panelByTitle(container, "Song")).not.toBeNull();
+	});
+
+	it("onRemoveMeasure removes the selected measure and clears the now-stale selection", () => {
+		const { container, calls } = renderEdit(SONG);
+		selectLoneNote(container);
+		expect(panelByTitle(container, "Measure")).not.toBeNull();
+		click(buttonByText(container, "Remove measure"));
+
+		// The lone measure is removed (leaving a conformant empty measures array),
+		// and the selection under it is cleared.
+		const persisted = JSON.parse(calls.at(-1));
+		expect(persisted.sections[0].measures).toEqual([]);
+		expect(validateSong(calls.at(-1))).toEqual([]);
+		expect(panelByTitle(container, "Note")).toBeNull();
+		expect(panelByTitle(container, "Measure")).toBeNull();
+		expect(panelByTitle(container, "Section")).toBeNull();
+	});
+
+	it("onAddMeasure targets the section the canvas affordance fires for", () => {
+		const { container, calls } = renderEdit(SONG);
+		// The canvas add-measure affordance signals onAddMeasure() with no arg, which
+		// defaults to the last section — the lone section here.
+		click(buttonByText(container, "Add measure"));
+		const persisted = JSON.parse(calls.at(-1));
+		expect(persisted.sections[0].measures).toHaveLength(2);
+		expect(persisted.sections[0].measures[1]).toEqual({});
+		expect(validateSong(calls.at(-1))).toEqual([]);
+	});
+});

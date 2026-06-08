@@ -100,8 +100,9 @@ function drawWhenFontReady(draw) {
  *
  * @param {EventTarget} target The activation target (the clicked/focused node).
  * @param {Object}      song   The working song object (for the measure flatten).
- * @return {?{ sectionIndex: number, measureIndex: number, hand: string,
- *   eventIndex: number }} The selection, or `null` for an empty-area activation.
+ * @return {?{ kind: "event", sectionIndex: number, measureIndex: number,
+ *   hand: string, eventIndex: number }} The selection, or `null` for an
+ *   empty-area activation.
  */
 function selectionFromTarget(target, song) {
 	if (!target || typeof target.closest !== "function") {
@@ -122,7 +123,10 @@ function selectionFromTarget(target, song) {
 	}
 	const hand = event.getAttribute("data-hand");
 	const eventIndex = Number(event.getAttribute("data-event-index"));
+	// Canvas selections are always events; the `kind` tag lets the sidebar gate the
+	// per-level panels and the structure list share one selection shape.
 	return {
+		kind: "event",
 		sectionIndex: coords.sectionIndex,
 		measureIndex: coords.measureIndex,
 		hand,

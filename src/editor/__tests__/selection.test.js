@@ -21,6 +21,7 @@ import { renderSvg } from '../../notation/svg.js';
 import {
 	globalMeasureNumber,
 	measureCoords,
+	measureNumbersForSection,
 	resolveSelection,
 	selectionQuery,
 } from '../selection.js';
@@ -226,10 +227,11 @@ describe( 'resolveSelection', () => {
 		).toBeNull();
 	} );
 
-	it( 'returns null for a null/empty/partial selection', () => {
+	it( 'returns null for a null/empty/untagged-partial selection', () => {
 		expect( resolveSelection( SONG, null ) ).toBeNull();
 		expect( resolveSelection( SONG, undefined ) ).toBeNull();
 		expect( resolveSelection( SONG, {} ) ).toBeNull();
+		// An untagged partial (no `kind`, missing hand/eventIndex) is malformed.
 		expect(
 			resolveSelection( SONG, { sectionIndex: 0, measureIndex: 0 } )
 		).toBeNull();
@@ -244,6 +246,115 @@ describe( 'resolveSelection', () => {
 				eventIndex: 0,
 			} )
 		).toBeNull();
+	} );
+
+	it( 'tags an untagged-complete event tuple as kind:"event" (backward compat)', () => {
+		const resolved = resolveSelection( SONG, {
+			sectionIndex: 0,
+			measureIndex: 0,
+			hand: 'rightHand',
+			eventIndex: 1,
+		} );
+		expect( resolved.kind ).toBe( 'event' );
+		expect( resolved.event ).toBe(
+			SONG.sections[ 0 ].measures[ 0 ].rightHand[ 1 ]
+		);
+	} );
+} );
+
+describe( 'resolveSelection — kind-tagged', () => {
+	it( 'resolves a section-kind selection to its section, stopping at section depth', () => {
+		const resolved = resolveSelection( SONG, {
+			kind: 'section',
+			sectionIndex: 1,
+		} );
+		expect( resolved.kind ).toBe( 'section' );
+		expect( resolved.section ).toBe( SONG.sections[ 1 ] );
+		expect( resolved.sectionIndex ).toBe( 1 );
+		// No measure/event resolution at section depth.
+		expect( resolved.measure ).toBeUndefined();
+		expect( resolved.event ).toBeUndefined();
+	} );
+
+	it( 'returns null for a section-kind selection whose section is gone', () => {
+		expect(
+			resolveSelection( SONG, { kind: 'section', sectionIndex: 5 } )
+		).toBeNull();
+	} );
+
+	it( 'resolves a measure-kind selection to its measure + section, stopping at measure depth', () => {
+		const resolved = resolveSelection( SONG, {
+			kind: 'measure',
+			sectionIndex: 0,
+			measureIndex: 1,
+		} );
+		expect( resolved.kind ).toBe( 'measure' );
+		expect( resolved.section ).toBe( SONG.sections[ 0 ] );
+		expect( resolved.measure ).toBe( SONG.sections[ 0 ].measures[ 1 ] );
+		expect( resolved.sectionIndex ).toBe( 0 );
+		expect( resolved.measureIndex ).toBe( 1 );
+		// No event resolution at measure depth.
+		expect( resolved.event ).toBeUndefined();
+	} );
+
+	it( 'returns null for a measure-kind selection when section or measure is gone', () => {
+		expect(
+			resolveSelection( SONG, {
+				kind: 'measure',
+				sectionIndex: 5,
+				measureIndex: 0,
+			} )
+		).toBeNull();
+		expect(
+			resolveSelection( SONG, {
+				kind: 'measure',
+				sectionIndex: 0,
+				measureIndex: 9,
+			} )
+		).toBeNull();
+	} );
+
+	it( 'resolves an event-kind selection to event + measure + section', () => {
+		const resolved = resolveSelection( SONG, {
+			kind: 'event',
+			sectionIndex: 0,
+			measureIndex: 0,
+			hand: 'rightHand',
+			eventIndex: 1,
+		} );
+		expect( resolved.kind ).toBe( 'event' );
+		expect( resolved.event ).toBe(
+			SONG.sections[ 0 ].measures[ 0 ].rightHand[ 1 ]
+		);
+		expect( resolved.measure ).toBe( SONG.sections[ 0 ].measures[ 0 ] );
+		expect( resolved.section ).toBe( SONG.sections[ 0 ] );
+		expect( resolved.hand ).toBe( 'rightHand' );
+		expect( resolved.eventIndex ).toBe( 1 );
+	} );
+
+	it( 'returns null for an event-kind selection whose event is gone', () => {
+		expect(
+			resolveSelection( SONG, {
+				kind: 'event',
+				sectionIndex: 0,
+				measureIndex: 0,
+				hand: 'rightHand',
+				eventIndex: 9,
+			} )
+		).toBeNull();
+	} );
+} );
+
+describe( 'measureNumbersForSection', () => {
+	it( "returns the 1-based global numbers of a section's measures", () => {
+		// Section 0 owns global measures 1 and 2; section 1 owns global measure 3.
+		expect( measureNumbersForSection( SONG, 0 ) ).toEqual( [ 1, 2 ] );
+		expect( measureNumbersForSection( SONG, 1 ) ).toEqual( [ 3 ] );
+	} );
+
+	it( 'returns [] for an out-of-range or missing section', () => {
+		expect( measureNumbersForSection( SONG, 5 ) ).toEqual( [] );
+		expect( measureNumbersForSection( undefined, 0 ) ).toEqual( [] );
 	} );
 } );
 

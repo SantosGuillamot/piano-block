@@ -16,8 +16,9 @@
  * leaf editor and the `songModel` array helpers, so every emission stays
  * conformant by construction. The barline + annotation omit-when-unset rules are
  * reproduced from `MeasureEditor` (`BarlineControl` and the standalone
- * `AnnotationList` branch). Removing the measure signals up through `onRemove`,
- * which the parent pairs with clearing the now-stale selection.
+ * `AnnotationList` branch). **Remove measure** only signals intent through the
+ * lifted `onRemoveMeasure(sectionIndex, measureIndex)` prop — the splice and the
+ * selection-fallout are owned once in `edit.js`, shared with the Structure list.
  */
 import {
 	Button,
@@ -28,7 +29,7 @@ import {
 } from "@wordpress/components";
 import { __ } from "@wordpress/i18n";
 import { AnnotationList } from "../AnnotationList.js";
-import { BARLINES, removeAt, replaceAt } from "../songModel.js";
+import { BARLINES, replaceAt } from "../songModel.js";
 
 /** The empty option a barline select offers to leave the barline unset. */
 const NONE_OPTION = { label: __("None", "piano-block"), value: "" };
@@ -43,15 +44,15 @@ const BARLINE_FIELDS = [
  * The inspector panel for the selected event's measure.
  *
  * @param {Object}   props
- * @param {Object}   props.song      The current working song object.
- * @param {Object}   props.selection The resolved selection — the live `section`
- *                                   and `measure` with their `sectionIndex`/
- *                                   `measureIndex` coords.
- * @param {Function} props.onChange  Receives the next working song.
- * @param {Function} props.onRemove  Called to remove the selected measure.
+ * @param {Object}   props.song            The current working song object.
+ * @param {Object}   props.selection       The resolved selection — the live
+ *                                         `section` and `measure` with their
+ *                                         `sectionIndex`/`measureIndex` coords.
+ * @param {Function} props.onChange        Receives the next working song.
+ * @param {Function} props.onRemoveMeasure Lifted: remove the measure at the coords.
  * @return {Object} The rendered Measure panel.
  */
-export function MeasurePanel({ song, selection, onChange, onRemove }) {
+export function MeasurePanel({ song, selection, onChange, onRemoveMeasure }) {
 	const { section, measure, sectionIndex, measureIndex } = selection;
 
 	/**
@@ -66,22 +67,6 @@ export function MeasurePanel({ song, selection, onChange, onRemove }) {
 			...song,
 			sections: replaceAt(song.sections, sectionIndex, nextSection),
 		});
-	};
-
-	/**
-	 * Remove the selected measure from its section and emit the next whole `song`,
-	 * then signal the parent so it clears the now-stale selection. A section's
-	 * `measures` is required but may be empty, so removing the last measure leaves
-	 * `measures: []`, which still validates.
-	 */
-	const removeMeasure = () => {
-		const nextMeasures = removeAt(section.measures, measureIndex);
-		const nextSection = { ...section, measures: nextMeasures };
-		onChange({
-			...song,
-			sections: replaceAt(song.sections, sectionIndex, nextSection),
-		});
-		onRemove?.();
 	};
 
 	/**
@@ -153,7 +138,11 @@ export function MeasurePanel({ song, selection, onChange, onRemove }) {
 				</ToolsPanelItem>
 			</ToolsPanel>
 
-			<Button variant="secondary" isDestructive onClick={removeMeasure}>
+			<Button
+				variant="secondary"
+				isDestructive
+				onClick={() => onRemoveMeasure?.(sectionIndex, measureIndex)}
+			>
 				{__("Remove measure", "piano-block")}
 			</Button>
 		</PanelBody>

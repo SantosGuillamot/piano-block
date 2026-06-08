@@ -131,7 +131,8 @@ function fixtureSong() {
  * @param {Object} [options]
  * @param {Object} [options.song]      The starting working song.
  * @param {Object} [options.selection] The raw selection coordinates.
- * @return {{ container: HTMLElement, calls: Object[], removed: Object }} Handle.
+ * @return {{ container: HTMLElement, calls: Object[], removed: Object,
+ *   removeMeasure: Object }} Handle.
  */
 function renderPanel({
 	song: initialSong = fixtureSong(),
@@ -144,6 +145,9 @@ function renderPanel({
 } = {}) {
 	const calls = [];
 	const removed = { count: 0 };
+	// The remove-measure mutator is now lifted to `edit.js`; the panel only signals
+	// intent through this prop. Record each invocation for the assertions.
+	const removeMeasure = { count: 0, args: null };
 	let song = initialSong;
 	let handle;
 	const props = () => ({
@@ -152,6 +156,10 @@ function renderPanel({
 		onChange,
 		onRemove: () => {
 			removed.count += 1;
+		},
+		onRemoveMeasure: (sectionIndex, measureIndex) => {
+			removeMeasure.count += 1;
+			removeMeasure.args = [sectionIndex, measureIndex];
 		},
 	});
 	function onChange(next) {
@@ -164,7 +172,7 @@ function renderPanel({
 		}
 	}
 	handle = render(createElement(MeasurePanel, props()));
-	return { container: handle.container, calls, removed };
+	return { container: handle.container, calls, removed, removeMeasure };
 }
 
 /** Assert the real validator accepts the emitted working song. */
@@ -213,19 +221,18 @@ describe("MeasurePanel — standalone annotations", () => {
 });
 
 describe("MeasurePanel — remove measure", () => {
-	it("removes the measure, keeping the section, and clears selection", () => {
-		const { container, calls, removed } = renderPanel();
+	it("calls the lifted onRemoveMeasure handler with the selected coords (no local mutation)", () => {
+		const { container, removeMeasure, calls } = renderPanel();
 		click(buttonByText(container, "Remove measure"));
-		const measures = calls.at(-1).sections[0].measures;
-		// Section 0 had two measures; removing measure 0 leaves the trailing one.
-		expect(measures).toHaveLength(1);
-		expect(measures[0].rightHand[0].type).toBe("rest");
-		expect(removed.count).toBe(1);
-		expectConformant(calls.at(-1));
+		expect(removeMeasure.count).toBe(1);
+		// The panel passes its resolved section/measure coords to the lifted handler.
+		expect(removeMeasure.args).toEqual([0, 0]);
+		// No local emission — the lifted handler commits and re-targets the selection.
+		expect(calls).toHaveLength(0);
 	});
 
-	it("leaves a conformant empty measures array when removing the last measure", () => {
-		const { container, calls } = renderPanel({
+	it("passes a later section/measure's coords through to onRemoveMeasure", () => {
+		const { container, removeMeasure } = renderPanel({
 			selection: {
 				sectionIndex: 1,
 				measureIndex: 0,
@@ -234,8 +241,6 @@ describe("MeasurePanel — remove measure", () => {
 			},
 		});
 		click(buttonByText(container, "Remove measure"));
-		const section = calls.at(-1).sections[1];
-		expect(section.measures).toEqual([]);
-		expectConformant(calls.at(-1));
+		expect(removeMeasure.args).toEqual([1, 0]);
 	});
 });

@@ -17,12 +17,12 @@
  * projection `SectionEditor` used — so every emission stays conformant by
  * construction and an unset override drops its key (clean round-trip).
  *
- * The structural **Add section** appends an empty-but-conformant `newSection()` to
- * `song.sections`; **Remove section** removes the selected section and signals up
- * through `onRemove`, which the parent pairs with clearing the now-stale
- * selection. `song.sections` is `required` but unbounded — a song with **zero**
- * sections validates — so removing the only section is allowed and needs no
- * min-one guard.
+ * The structural **Add section** / **Remove section** buttons only signal intent
+ * through the lifted `onAddSection` / `onRemoveSection(sectionIndex)` props — the
+ * splice and the selection-fallout are owned once in `edit.js` (the single owner of
+ * `working` + `commit`), shared with the Structure list. `song.sections` is
+ * `required` but unbounded — a song with **zero** sections validates — so removing
+ * the only section is allowed and needs no min-one guard.
  */
 import {
 	Button,
@@ -32,7 +32,7 @@ import {
 } from "@wordpress/components";
 import { __ } from "@wordpress/i18n";
 import { ContextEditor } from "../ContextEditor.js";
-import { insertAt, newSection, removeAt, replaceAt } from "../songModel.js";
+import { replaceAt } from "../songModel.js";
 
 /** The context override keys a section may carry alongside its `measures`. */
 const OVERRIDE_KEYS = ["tempo", "timeSignature", "rightHand", "leftHand"];
@@ -58,14 +58,21 @@ function projectOverrides(section) {
  * The inspector panel for the selected event's section.
  *
  * @param {Object}   props
- * @param {Object}   props.song      The current working song object.
- * @param {Object}   props.selection The resolved selection — the live `section`
- *                                   with its `sectionIndex` coord.
- * @param {Function} props.onChange  Receives the next working song.
- * @param {Function} props.onRemove  Called to remove the selected section.
+ * @param {Object}   props.song            The current working song object.
+ * @param {Object}   props.selection       The resolved selection — the live
+ *                                         `section` with its `sectionIndex` coord.
+ * @param {Function} props.onChange        Receives the next working song.
+ * @param {Function} props.onAddSection    Lifted: append a section.
+ * @param {Function} props.onRemoveSection Lifted: remove the section at the index.
  * @return {Object} The rendered Section panel.
  */
-export function SectionPanel({ song, selection, onChange, onRemove }) {
+export function SectionPanel({
+	song,
+	selection,
+	onChange,
+	onAddSection,
+	onRemoveSection,
+}) {
 	const { section, sectionIndex } = selection;
 
 	/** Splice `nextSection` back into the whole `song` at its index and emit it. */
@@ -84,27 +91,6 @@ export function SectionPanel({ song, selection, onChange, onRemove }) {
 	const emitOverrides = (next) => {
 		const { tempo, timeSignature, rightHand, leftHand, ...keep } = section;
 		emitSection({ ...keep, ...next });
-	};
-
-	/** Append an empty-but-conformant section and emit the next whole `song`. */
-	const addSection = () => {
-		onChange({
-			...song,
-			sections: insertAt(song.sections, song.sections.length, newSection()),
-		});
-	};
-
-	/**
-	 * Remove the selected section and emit the next whole `song`, then signal the
-	 * parent so it clears the now-stale selection. `sections` may be empty, so
-	 * removing the only section is allowed and still validates.
-	 */
-	const removeSection = () => {
-		onChange({
-			...song,
-			sections: removeAt(song.sections, sectionIndex),
-		});
-		onRemove?.();
 	};
 
 	const overrides = projectOverrides(section);
@@ -134,10 +120,14 @@ export function SectionPanel({ song, selection, onChange, onRemove }) {
 				</ToolsPanelItem>
 			</ToolsPanel>
 
-			<Button variant="secondary" onClick={addSection}>
+			<Button variant="secondary" onClick={() => onAddSection?.()}>
 				{__("Add section", "piano-block")}
 			</Button>
-			<Button variant="secondary" isDestructive onClick={removeSection}>
+			<Button
+				variant="secondary"
+				isDestructive
+				onClick={() => onRemoveSection?.(sectionIndex)}
+			>
 				{__("Remove section", "piano-block")}
 			</Button>
 		</PanelBody>

@@ -127,7 +127,8 @@ function fixtureSong() {
  * @param {Object} [options]
  * @param {Object} [options.song]      The starting working song.
  * @param {Object} [options.selection] The raw selection coordinates.
- * @return {{ container: HTMLElement, calls: Object[], removed: Object }} Handle.
+ * @return {{ container: HTMLElement, calls: Object[], removed: Object,
+ *   addSection: Object, removeSection: Object }} Handle.
  */
 function renderPanel({
 	song: initialSong = fixtureSong(),
@@ -140,6 +141,10 @@ function renderPanel({
 } = {}) {
 	const calls = [];
 	const removed = { count: 0 };
+	// The structural mutators are now lifted to `edit.js`; the panel only signals
+	// intent through these props. Record each invocation for the assertions.
+	const addSection = { count: 0 };
+	const removeSection = { count: 0, args: null };
 	let song = initialSong;
 	let handle;
 	const props = () => ({
@@ -148,6 +153,13 @@ function renderPanel({
 		onChange,
 		onRemove: () => {
 			removed.count += 1;
+		},
+		onAddSection: () => {
+			addSection.count += 1;
+		},
+		onRemoveSection: (sectionIndex) => {
+			removeSection.count += 1;
+			removeSection.args = [sectionIndex];
 		},
 	});
 	function onChange(next) {
@@ -160,7 +172,13 @@ function renderPanel({
 		}
 	}
 	handle = render(createElement(SectionPanel, props()));
-	return { container: handle.container, calls, removed };
+	return {
+		container: handle.container,
+		calls,
+		removed,
+		addSection,
+		removeSection,
+	};
 }
 
 /** Assert the real validator accepts the emitted working song. */
@@ -204,52 +222,37 @@ describe("SectionPanel — context overrides (omit-when-unset)", () => {
 });
 
 describe("SectionPanel — add section", () => {
-	it("appends an empty-but-conformant section and the song validates", () => {
-		const { container, calls } = renderPanel();
+	it("calls the lifted onAddSection handler (no local mutation)", () => {
+		const { container, addSection, calls } = renderPanel();
 		click(buttonByText(container, "Add section"));
-		const sections = calls.at(-1).sections;
-		// The two fixture sections plus the appended one.
-		expect(sections).toHaveLength(3);
-		expect(sections[2].measures).toHaveLength(1);
-		expectConformant(calls.at(-1));
+		// The panel only signals intent; the lifted handler in `edit.js` owns the
+		// splice, so the panel emits nothing through onChange itself.
+		expect(addSection.count).toBe(1);
+		expect(calls).toHaveLength(0);
 	});
 });
 
 describe("SectionPanel — remove section", () => {
-	it("removes the section, keeping the rest, and clears selection", () => {
-		const { container, calls, removed } = renderPanel();
+	it("calls the lifted onRemoveSection handler with the selected section index", () => {
+		const { container, removeSection, calls } = renderPanel();
 		click(buttonByText(container, "Remove section"));
-		const sections = calls.at(-1).sections;
-		// Section 0 removed; the trailing section (the whole-rest one) remains.
-		expect(sections).toHaveLength(1);
-		expect(sections[0].measures[0].rightHand[0].type).toBe("rest");
-		expect(removed.count).toBe(1);
-		expectConformant(calls.at(-1));
+		expect(removeSection.count).toBe(1);
+		// The panel passes its resolved section coord to the lifted handler.
+		expect(removeSection.args).toEqual([0]);
+		// No local emission — the lifted handler commits and re-targets the selection.
+		expect(calls).toHaveLength(0);
 	});
 
-	it("allows removing the only section, leaving a conformant empty sections array", () => {
-		const { container, calls } = renderPanel({
-			song: {
-				sections: [
-					{
-						measures: [
-							{
-								rightHand: [
-									{
-										type: "note",
-										duration: "quarter",
-										pitches: [{ step: "C", octave: 4 }],
-									},
-								],
-							},
-						],
-					},
-				],
+	it("passes a later section's index through to onRemoveSection", () => {
+		const { container, removeSection } = renderPanel({
+			selection: {
+				sectionIndex: 1,
+				measureIndex: 0,
+				hand: "rightHand",
+				eventIndex: 0,
 			},
 		});
 		click(buttonByText(container, "Remove section"));
-		expect(calls.at(-1).sections).toEqual([]);
-		// The validator accepts zero sections, so no min-one guard is needed.
-		expectConformant(calls.at(-1));
+		expect(removeSection.args).toEqual([1]);
 	});
 });

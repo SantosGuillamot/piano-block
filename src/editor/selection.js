@@ -77,25 +77,40 @@ export function globalMeasureNumber( song, sectionIndex, measureIndex ) {
 
 /**
  * Resolve a selection against the current working object, returning the live
- * event/measure/section it points at — or `null` when any level no longer exists.
+ * section/measure/event it points at — or `null` when any tagged level no longer
+ * exists.
  *
- * Levels are dependent: a missing section invalidates everything below it. The
+ * A selection is **kind-tagged** — `{ kind: "section" | "measure" | "event", … }`
+ * — and the resolver walks top-down (section → measure → event), stopping at the
+ * depth the `kind` names and returning the deepest tagged object:
+ *   - `"section"` → `{ kind, section, sectionIndex }`.
+ *   - `"measure"` → `+ { measure, measureIndex }`.
+ *   - `"event"`   → `+ { event, hand, eventIndex }` (the full resolution).
+ *
+ * Levels are dependent: a missing higher level invalidates everything below it. The
  * existence checks mirror the structural editor's old `repairPath` chain
  * (`song.sections?.[si]` → `.measures?.[mi]` → `measure[hand]?.[eventIndex]`), so
  * a selection left stale by a structural edit, an undo/redo, or a raw-JSON change
  * resolves to `null` and the sidebar falls back to Song-only — no edit ever
- * targets a missing event.
+ * targets a missing object.
+ *
+ * **Backward compatibility:** an *untagged* selection that carries all four event
+ * fields still resolves as an event (so a canvas selection set before its `onSelect`
+ * stamps `kind` keeps working within a single rebase), and the returned object
+ * carries `kind: "event"`. An untagged *partial* (e.g. only section + measure) has no
+ * `kind` to make it well-formed, so it resolves to `null` (malformed).
  *
  * @param {?Object} song      The working song object.
- * @param {?Object} selection The selection `{ sectionIndex, measureIndex, hand, eventIndex }`.
+ * @param {?Object} selection The selection `{ kind?, sectionIndex, measureIndex?, hand?, eventIndex? }`.
  * @return {?{
- *   event: Object,
- *   measure: Object,
+ *   kind: string,
  *   section: Object,
  *   sectionIndex: number,
- *   measureIndex: number,
- *   hand: string,
- *   eventIndex: number,
+ *   measure?: Object,
+ *   measureIndex?: number,
+ *   event?: Object,
+ *   hand?: string,
+ *   eventIndex?: number,
  * }} The resolved selection, or `null` when stale/absent.
  */
 export function resolveSelection( song, selection ) {
@@ -103,20 +118,40 @@ export function resolveSelection( song, selection ) {
 		return null;
 	}
 	const { sectionIndex, measureIndex, hand, eventIndex } = selection;
-	if (
-		sectionIndex === undefined ||
-		measureIndex === undefined ||
-		hand === undefined ||
-		eventIndex === undefined
-	) {
+	// Default the kind for an untagged-but-complete event tuple (backward compat);
+	// an untagged partial has no kind, so it stays malformed below.
+	const kind =
+		selection.kind ??
+		( sectionIndex !== undefined &&
+		measureIndex !== undefined &&
+		hand !== undefined &&
+		eventIndex !== undefined
+			? 'event'
+			: undefined );
+	if ( kind === undefined || sectionIndex === undefined ) {
 		return null;
 	}
+
 	const section = song?.sections?.[ sectionIndex ];
 	if ( ! section ) {
 		return null;
 	}
+	if ( kind === 'section' ) {
+		return { kind, section, sectionIndex };
+	}
+
+	if ( measureIndex === undefined ) {
+		return null;
+	}
 	const measure = section.measures?.[ measureIndex ];
 	if ( ! measure ) {
+		return null;
+	}
+	if ( kind === 'measure' ) {
+		return { kind, section, sectionIndex, measure, measureIndex };
+	}
+
+	if ( hand === undefined || eventIndex === undefined ) {
 		return null;
 	}
 	const event = measure[ hand ]?.[ eventIndex ];
@@ -124,14 +159,38 @@ export function resolveSelection( song, selection ) {
 		return null;
 	}
 	return {
-		event,
-		measure,
+		kind,
 		section,
 		sectionIndex,
+		measure,
 		measureIndex,
+		event,
 		hand,
 		eventIndex,
 	};
+}
+
+/**
+ * The 1-based global measure numbers of every measure in one section — the derived
+ * inverse the canvas uses to highlight a whole section (the emit carries no
+ * `data-section`, so a section highlight is the set of its measures' `data-measure`
+ * groups). Filters `measureCoords(song)` to the target `sectionIndex` and maps each
+ * to its 1-based global position.
+ *
+ * @param {?Object} song         The working song object.
+ * @param {number}  sectionIndex The section's index.
+ * @return {number[]} The section's measures' 1-based global numbers (empty when the
+ *   section is out of range or absent).
+ */
+export function measureNumbersForSection( song, sectionIndex ) {
+	const coords = measureCoords( song );
+	const numbers = [];
+	coords.forEach( ( coord, position ) => {
+		if ( coord.sectionIndex === sectionIndex ) {
+			numbers.push( position + 1 );
+		}
+	} );
+	return numbers;
 }
 
 /**

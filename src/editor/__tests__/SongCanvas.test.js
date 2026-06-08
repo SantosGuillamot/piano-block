@@ -144,6 +144,7 @@ describe("SongCanvas", () => {
 		clickNode(group.firstChild ?? group);
 		expect(onSelect).toHaveBeenCalledTimes(1);
 		expect(onSelect).toHaveBeenCalledWith({
+			kind: "event",
 			sectionIndex: 0,
 			measureIndex: 0,
 			hand: "rightHand",
@@ -177,6 +178,7 @@ describe("SongCanvas", () => {
 		expect(rest.getAttribute("data-kind")).toBe("rest");
 		clickNode(rest.firstChild ?? rest);
 		expect(onSelect).toHaveBeenCalledWith({
+			kind: "event",
 			sectionIndex: 0,
 			measureIndex: 0,
 			hand: "rightHand",
@@ -207,6 +209,7 @@ describe("SongCanvas", () => {
 		expect(hit.hasAttribute("data-event-index")).toBe(false);
 		clickNode(hit);
 		expect(onSelect).toHaveBeenCalledWith({
+			kind: "event",
 			sectionIndex: 1,
 			measureIndex: 0,
 			hand: "rightHand",
@@ -228,6 +231,7 @@ describe("SongCanvas", () => {
 		expect(group).toBeTruthy();
 		clickNode(group.firstChild ?? group);
 		expect(onSelect).toHaveBeenCalledWith({
+			kind: "event",
 			sectionIndex: 1,
 			measureIndex: 0,
 			hand: "rightHand",
@@ -252,6 +256,7 @@ describe("SongCanvas", () => {
 			);
 		});
 		expect(onSelect).toHaveBeenCalledWith({
+			kind: "event",
 			sectionIndex: 1,
 			measureIndex: 0,
 			hand: "rightHand",
@@ -265,6 +270,7 @@ describe("SongCanvas", () => {
 			);
 		});
 		expect(onSelect).toHaveBeenCalledWith({
+			kind: "event",
 			sectionIndex: 1,
 			measureIndex: 0,
 			hand: "rightHand",
