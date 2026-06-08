@@ -19,15 +19,32 @@ ottava brackets, high notes/ledgers) are left untouched.
 
 The work is ordered so that the production-code excision (Tasks 1–4) lands first
 along the data-flow direction (producer → spacing → consumer → constant), then the
-test suite is brought into its committed three-test guard state (Tasks 5–6), and a
-final build/lint/test verification closes out AC6 (Task 7). This is a pure removal
-plus a one-for-two test swap; no new production behavior is written.
+three remaining measure-number-referencing comments that live *outside* every
+edited function — and would otherwise be left describing an output the model no
+longer produces — are scrubbed (Task 5); then the test suite is brought into its
+committed three-test guard state (Tasks 6–7), and a final build/lint/test
+verification closes out AC6 (Task 8). This is a pure removal plus a one-for-two
+test swap; no new production behavior is written.
 
 ### Codebase facts pinned for this plan
 
 - `src/notation/constants.js:179-180` — doc comment + `export const MEASURE_NUMBER_SIZE = 2.2;`.
 - `src/notation/layout.js:49` — `MEASURE_NUMBER_SIZE` named import.
-- `src/notation/layout.js:1729-1748` — the sequential 1..N `number` assignment (KEEP; feeds `data-measure`).
+- `src/notation/layout.js:1411-1420` — the `buildLayoutModel` block-header comment;
+  its texts list at `:1417` reads
+  "…+ texts (dynamics, notes, tempo, measure numbers, ottava)." (stale after removal).
+- `src/notation/layout.js:1706-1720` — the `buildLayoutModel` JSDoc; its texts list at
+  `:1712` reads "…and the texts (tempo, measure number, dynamics, notes, ottava)."
+  (stale after removal).
+- `src/notation/layout.js:2135` — the call-site comment directly above
+  `const texts = buildSystemTexts(...)`: "// ── System-level texts: tempo + measure
+  number + ottava. ──" (stale after removal).
+- `src/notation/layout.js:1726-1728` — the flatten block-comment that mentions "a
+  sequential 1..N measure number"; this describes the KEPT internal index counter
+  (`let measureNumber = 0;` at `:1730`, incremented at `:1738`, assigned to
+  `number:` at `:1745`). **KEEP — do not edit (R5/AC5).**
+- `src/notation/layout.js:1729-1748` — the sequential 1..N `number` assignment, driven
+  by the `measureNumber` counter (KEEP; feeds `data-measure`).
 - `src/notation/layout.js:2865-2910` — `topMarginLayout(members, ledgerTop, aboveRHCount)`; the number reservation is at `:2869-2878` (`showsMeasureNumber` + `Math.max` `innerZone`).
 - `src/notation/layout.js:2912-3031` — `buildSystemTexts(members, measureModels, band)`; JSDoc at `:2912-2929`, `measureNumber` computation at `:2954-2964`, return at `:3030`.
 - `src/notation/svg.js:35` — `MEASURE_NUMBER_SIZE` named import.
@@ -50,8 +67,8 @@ empirically during planning by rendering `buildLayoutModel(COMPREHENSIVE_SONG, 3
   with **tempos=1 and ottavaAbove=1**.
 
 So **`COMPREHENSIVE_SONG` at width 30 satisfies the later-system lane-placement
-requirement** and is reused directly in Task 6's `layout.test.js` test — no new
-inline fixture is needed there. The `svg.test.js` DOM absence test (Task 5) DOES
+requirement** and is reused directly in Task 7's `layout.test.js` test — no new
+inline fixture is needed there. The `svg.test.js` DOM absence test (Task 6) DOES
 need its own small inline wrapping fixture, because the file's local `SONG` is a
 2-measure single-system song that never wraps.
 
@@ -105,7 +122,7 @@ need its own small inline wrapping fixture, because the file's local `SONG` is a
     gone, and no other reference to `head` remains in the function. (This must be
     verified by reading the code, not by the lint gate: Biome flags
     `noUnusedVariables` only at WARNING severity under `recommended: true`, so
-    `npm run lint` exits 0 even if the binding were left behind; Task 7's gate would
+    `npm run lint` exits 0 even if the binding were left behind; Task 8's gate would
     NOT catch it.)
 
 ### Task 2: Collapse the top-margin number reservation in `topMarginLayout`
@@ -211,7 +228,78 @@ need its own small inline wrapping fixture, because the file's local `SONG` is a
     introduced by this change.
   - All other exported constants and imports are unchanged.
 
-### Task 5: Add a DOM-level absence test for a wrapping song in `svg.test.js`
+### Task 5: Scrub the three measure-number-referencing comments outside the edited functions in `layout.js`
+
+- **Goal:** Bring the three measure-number-referencing comments that live *outside*
+  every function edited in Tasks 1–4 into a truthful end state, so that no comment in
+  `layout.js` claims `buildLayoutModel` produces a measure-number text (it no longer
+  does after Task 1). Each comment is edited so it no longer lists a measure-number
+  text among `buildLayoutModel`'s outputs, while the rest of the comment is preserved
+  verbatim. The kept internal-index counter and its describing comment are left
+  untouched.
+- **Files to change:** `src/notation/layout.js`.
+- **Changes:** Three independent comment edits, identified by their distinctive text
+  (line numbers will drift after Tasks 1–4 land, so locate by text, not by number):
+  - **The `buildLayoutModel` block-header comment** (around `:1411-1420`, the
+    `// ── Full model assembly — buildLayoutModel ──` banner). Its texts-list line
+    currently reads:
+    `// + spans (ties/slurs) + texts (dynamics, notes, tempo, measure numbers,`
+    continuing on the next line `// ottava). Everything is in sp units …`.
+    Remove only the `measure numbers,` item from that list so it reads
+    `… + texts (dynamics, notes, tempo, ottava). Everything is in sp units …`,
+    preserving the rest of the banner verbatim (including the "Everything is in sp
+    units" sentence and the resize note).
+  - **The `buildLayoutModel` JSDoc** (around `:1706-1720`). Its texts-list line
+    currently reads:
+    `* the texts (tempo, measure number, dynamics, notes, ottava). Resize need only …`.
+    Remove only the `measure number, ` item so it reads
+    `* the texts (tempo, dynamics, notes, ottava). Resize need only …`, preserving
+    the rest of the JSDoc verbatim (the surrounding sentence, the `@param`/`@return`
+    tags, and the "Resize need only re-run…" note).
+  - **The call-site comment above `buildSystemTexts(...)`** (around `:2135`, directly
+    above `const texts = buildSystemTexts(members, measureModels, band);`). It
+    currently reads:
+    `// ── System-level texts: tempo + measure number + ottava. ──`.
+    Remove only the `measure number + ` term so it reads
+    `// ── System-level texts: tempo + ottava. ──` (keep the box-drawing rule style
+    of the surrounding comments; the exact dash padding is a mechanical authoring
+    detail).
+  - **Do NOT touch** the flatten block-comment around `:1726-1728` that mentions "a
+    sequential 1..N measure number", nor the `measureNumber` counter variable
+    (`let measureNumber = 0;` at `:1730`, `measureNumber += 1;` at `:1738`,
+    `number: measureNumber` at `:1745`). These describe and drive the KEPT internal
+    per-measure index that feeds `data-measure` (R5/AC5); they are correct as-is and
+    must remain intact.
+- **Depends on:** Task 1 (the producer no longer returns a `measureNumber` field, so
+  these comments are now false). Independent of Tasks 2–4, but ordered after them so
+  the entire production-file excision — code then comments — lands as one contiguous
+  block before the test tasks.
+- **Traces to:** Spec AC6 (no stale/false comment left as dead documentation after
+  the removal); R5/AC5 negatively (the kept internal-index counter and its comment
+  are explicitly preserved); Design Key Decision "Remove the `measureNumber` model
+  field entirely (… so no documentation-level dead reference lingers)" — which the
+  design applied to `buildSystemTexts`'s own JSDoc/prose in Task 1 and which this
+  task extends to the same removal's references that sit outside that function.
+- **Acceptance:**
+  - No comment in `layout.js` — outside the kept internal-index counter and its
+    flatten block-comment — describes `buildLayoutModel` (or its `texts` output) as
+    producing a measure-number text. Specifically: the `buildLayoutModel`
+    block-header texts list, the `buildLayoutModel` JSDoc texts list, and the
+    call-site comment above `buildSystemTexts(...)` each no longer name a
+    measure-number text.
+  - Each of the three edited comments retains all of its non-measure-number content
+    (the other texts in each list, the surrounding sentences/notes, and the
+    box-drawing comment style) — only the measure-number reference is removed.
+  - The flatten block-comment that mentions "a sequential 1..N measure number"
+    (around `:1726-1728`) and the `measureNumber` counter variable (`:1730`/`:1738`/
+    `:1745`) are byte-for-byte unchanged; the internal index that feeds `data-measure`
+    is unaffected.
+  - A search of `layout.js` for "measure number" / "measure numbers" returns matches
+    only on the kept internal-index counter comment (the "sequential 1..N measure
+    number" line) — no remaining match describes a rendered/produced measure-number
+    text.
+
+### Task 6: Add a DOM-level absence test for a wrapping song in `svg.test.js`
 
 - **Goal:** Guard the consumer side of AC1 — that no measure-number node is emitted
   in the rendered SVG for a song that actually wraps to multiple systems.
@@ -241,7 +329,7 @@ need its own small inline wrapping fixture, because the file's local `SONG` is a
   - The fixture is defined inline in `svg.test.js` and does not depend on
     `layout.test.js`'s `COMPREHENSIVE_SONG`.
 
-### Task 6: Replace the old behavior test and add the later-system lane-placement test in `layout.test.js`
+### Task 7: Replace the old behavior test and add the later-system lane-placement test in `layout.test.js`
 
 - **Goal:** Guard the producer side of AC1 (model-level absence) and AC3/R3/R4 (the
   one path that legitimately reclaims whitespace — a later, formerly-numbered system
@@ -306,7 +394,7 @@ need its own small inline wrapping fixture, because the file's local `SONG` is a
   - The first-system tests at `:2059` and `:2081` are byte-for-byte unchanged and
     still pass.
 
-### Task 7: Verify clean build, lint, and full test suite
+### Task 8: Verify clean build, lint, and full test suite
 
 - **Goal:** Confirm the project builds, lints, and passes the full unit-test suite
   with no dead code remaining from the removal (closing AC6).
@@ -320,7 +408,7 @@ need its own small inline wrapping fixture, because the file's local `SONG` is a
     unused-variable errors remain (in particular nothing referencing
     `MEASURE_NUMBER_SIZE` or `showsMeasureNumber`).
   - Run the build (`npm run build`, i.e. `wp-scripts build`) and confirm it succeeds.
-- **Depends on:** Task 1, Task 2, Task 3, Task 4, Task 5, Task 6.
+- **Depends on:** Task 1, Task 2, Task 3, Task 4, Task 5, Task 6, Task 7.
 - **Traces to:** Spec AC6 (clean build and lint, no dead code), and validates the
   end-to-end result of all prior tasks.
 - **Acceptance:**
@@ -329,5 +417,10 @@ need its own small inline wrapping fixture, because the file's local `SONG` is a
     removed measure-number code.
   - `npm run build` completes successfully.
   - A repo-wide search finds no remaining reference to `MEASURE_NUMBER_SIZE`,
-    `measureNumber` (as the removed model field), `measure-number` (the removed
-    `data-text`), or `showsMeasureNumber`.
+    `measureNumber` (as the removed model field — the kept internal-index counter
+    variable of the same name in `layout.js:1730/1738/1745` is the only allowed
+    survivor), `measure-number` (the removed `data-text`), or `showsMeasureNumber`.
+  - No comment in `layout.js` describes `buildLayoutModel` (or its `texts` output) as
+    producing a measure-number text (Task 5); the only surviving "measure number"
+    prose is the kept internal-index counter comment ("a sequential 1..N measure
+    number").
