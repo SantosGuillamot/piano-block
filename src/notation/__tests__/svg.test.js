@@ -1381,3 +1381,45 @@ describe("renderSvg — measure-number absence", () => {
 		);
 	});
 });
+
+describe("renderSvg — duration-ordered spacing reaches the SVG (issue #21)", () => {
+	// Four eighths + two quarters, single-pitch (single-pitch ⇒ cx === note.x,
+	// so the chord back-head skew never enters the gap comparison). This is the
+	// same canonical fixture used at the layout/model layers, inlined here since
+	// the two test files do not share fixture imports.
+	const events = [
+		...Array.from({ length: 4 }, () => ({
+			type: "note",
+			duration: "eighth",
+			pitches: [{ step: "C", octave: 5 }],
+		})),
+		...Array.from({ length: 2 }, () => ({
+			type: "note",
+			duration: "quarter",
+			pitches: [{ step: "C", octave: 5 }],
+		})),
+	];
+	const song = { metadata: {}, sections: [{ measures: [{ rightHand: events }] }] };
+
+	it("renders eighth noteheads closer together than the quarter noteheads (AC10)", () => {
+		const svg = renderSvg(buildLayoutModel(song, 1000));
+		const cx = (i) =>
+			Number(
+				svg
+					.querySelector(`#rightHand-note-${i}`)
+					.querySelector("[data-notehead]")
+					.getAttribute("cx"),
+			);
+
+		// Guard the pitch-less skip trap: all six events must reach the SVG, so a
+		// regression that drops notes fails loudly here instead of throwing on null.
+		for (let i = 0; i < 6; i += 1) {
+			expect(svg.querySelector(`#rightHand-note-${i}`)).not.toBeNull();
+		}
+
+		// A leading eighth cx gap is narrower than the genuine q→q cx gap. The
+		// last two events are the quarters, so cx(5) - cx(4) is a real q→q gap
+		// (not the eighth→quarter boundary, which is still governed by the eighth).
+		expect(cx(1) - cx(0)).toBeLessThan(cx(5) - cx(4));
+	});
+});
