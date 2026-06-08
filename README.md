@@ -16,7 +16,7 @@ There is no playable keyboard or audio yet, but a published page now shows the s
 
 ## Using the Piano block
 
-The Piano block stores one **song** — a JSON document in the plugin's own [song format](docs/song-format.md). You author that song with a **canvas-first visual editor** (the default surface): the rendered sheet-music staff is itself the editing surface — you add and select notes directly on it and adjust their settings in the **block settings sidebar**. If you prefer, you can switch to editing the **raw JSON** of the same song as text. Here is the end-to-end workflow.
+The Piano block stores one **song** — a JSON document in the plugin's own [song format](docs/song-format.md). You author that song with a **canvas-first visual editor** (the default surface): the rendered sheet-music staff is itself the editing surface — you select notes directly on it and adjust their settings in the **block settings sidebar**, where you also add and remove notes and manage the song's structure. If you prefer, you can switch to editing the **raw JSON** of the same song as text. Here is the end-to-end workflow.
 
 ### 1. Insert the block
 
@@ -26,19 +26,19 @@ In the editor, open the inserter and add the **Piano** block — it lives under 
 
 The block opens to a **canvas-first visual editor by default** — no JSON required. A **freshly inserted block** already shows an **empty grand staff** ready for notes (the editor seeds a minimal song behind the scenes), so there is **nothing to press first** — you start adding notes straight away.
 
-**Add notes on the canvas.** Each measure offers an **add-note** affordance per staff (labelled, for example, *Add note to right hand in measure 1*), and **which staff you add to decides the hand**: a note added to the right-hand (treble) staff lands in the right hand, one added to the left-hand (bass) staff lands in the left hand. An **Add measure** button at the end of the score appends a fresh measure.
+**Add notes from the sidebar.** Notes are added from the **block settings sidebar**, not on the canvas — there are no per-staff "add note" buttons drawn on the score and no end-of-score "Add measure" button. Select a note (see below) and use the **Note** panel's **Add note** control: it adds a note to the **same hand as your current selection** — the hand is **inferred**, so you are never asked to pick one — and inserts it right after the selected note. To add the **first** note to an **empty** measure (where there is nothing to select), use that measure's row in the **Structure** list, which seeds a starting note for it. Sections and measures themselves are added and removed in the **Structure** list (see below).
 
 **Select a note (or rest) by clicking it on the staff** (you can also tab to it and press Enter or Space). When an event is selected, the **block settings sidebar** opens panels for it and the structure around it:
 
-- A **Note** panel for the selected event — its type (note or rest) and duration, a note's chord **pitches**, and, behind a small *Advanced* disclosure, its **dots, dynamic, tie, slur, crescendo/decrescendo, and annotations**. It also offers **Remove note**.
+- A **Note** panel for the selected event — its type (note or rest) and duration, a note's chord **pitches**, and, behind a small *Advanced* disclosure, its **dots, dynamic, tie, slur, crescendo/decrescendo, and annotations**. It also offers **Add note** (in the same hand as the selection) and **Remove note**.
 - A **Measure** panel for the measure the event belongs to.
-- A **Section** panel for its section — the section's overrides, plus **Add section** and **Remove section**.
+- A **Section** panel for its section — the section's overrides. (Adding and removing whole sections now lives in the **Structure** list, described below, though a convenience **Add section** / **Remove section** also appears here.)
 
 A **Song** panel is **always present** in the sidebar, whether or not anything is selected: it holds the song's **title and composer** and the song-wide musical **defaults** — tempo, time signature, and (behind *Advanced*) the beat unit and each hand's clef, accidentals, and octave shift. When nothing is selected, the sidebar shows only this Song panel.
 
 **Progressive disclosure.** Each panel shows a small set of common settings up front and tucks the less-common ones behind an *Advanced* disclosure, so the sidebar stays shallow while still reaching the whole model.
 
-**Add and remove across the model.** You add **notes** and **measures** on the canvas; you **add/remove sections**, **remove the selected note**, and **add/remove a note's chord pitches** from the sidebar panels. **Reordering is not available** in this version — there are no move-up/move-down controls.
+**Add and remove across the model.** **Notes** are added and removed from the **Note** panel (the hand inferred from your selection), and an empty measure's **first** note from its row in the **Structure** list; **sections and measures** are added and removed from the **Structure** list; a note's **chord pitches** are added and removed from the **Note** panel. **Reordering is not available** in this version — there are no move-up/move-down controls.
 
 Every control only lets you produce a **valid song**: each field offers the format's allowed values, so the visual editor can't put the song into a non-conformant state. It does **not**, however, check musical *timing* — a bar's note durations need not add up to its time signature.
 
