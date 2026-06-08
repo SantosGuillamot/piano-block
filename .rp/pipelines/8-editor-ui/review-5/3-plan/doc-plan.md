@@ -41,15 +41,21 @@ panel**, and **remove** the now-false claims that Add section lives at the botto
 of the structure tree and that an Add section button appears in the Section
 panel. The author can still add sections; only the affordance's location changed
 (Spec Req 2 / AC2; design KD2). Add-measure and per-hand Add-note stay in the
-tree and must remain described as tree affordances.
+tree and must remain described as tree affordances. The same relocation also
+falsifies two mirror claims under `## For contributors` — the `### File layout`
+`src/editor/` row and the `### The song format and validator` Tests paragraph,
+each of which still frames add as happening "at every level from the tree" — so
+those get the same minimal correction (edits 4–5).
 
 **Audience.** Plugin authors/users reading the end-to-end visual-editor workflow.
 
 **Files.** `README.md` only. (No `docs/song-format.md` change; no inline
 code-symbol docs; no pipeline references.)
 
-**Sections-scope.** Inside `## Using the Piano block` (and its line-1 status
-summary only if it asserts the location, which it does not — leave it):
+**Sections-scope.** Mostly inside `## Using the Piano block` (edits 1–3 and the
+consistency sweep), plus two mirror claims under `## For contributors` (edits 4–5)
+that repeat the falsified "add at every level from the tree" framing. The line-1
+status summary asserts no Add-section location, so leave it.
 
 1. **`### 2. … → "Add, remove, and duplicate from the tree."` paragraph
    (currently README ~line 33).** This is the load-bearing false claim:
@@ -87,16 +93,46 @@ summary only if it asserts the location, which it does not — leave it):
    selected, which is the design's rationale for putting it here). Fold this into
    the existing sentence(s) naturally; do not restructure the paragraph.
 
-**Consistency sweep (within `## Using the Piano block` only).** Check the section
-intro at README ~line 19 — "run add/remove/duplicate at every level from that
-tree" — it remains broadly true for measures/notes and for remove/duplicate of
-sections; do **not** rewrite it unless, read literally, it implies *adding a
-section* happens in the tree. If a light touch is needed, keep it minimal and
-consistent with edits 1–3 (the tree is still where you add/remove/duplicate
-measures and notes and remove/duplicate sections; adding a section is in the Song
-panel). Do not touch front-end sections (`### 4`), the JSON/raw-mode section
-(`### 3`), the format-reference cross-links, or any other heading — none make an
-Add-section location claim.
+**Consistency sweep.** Check the section intro at README ~line 19 — "run
+add/remove/duplicate at every level from that tree" — it remains broadly true for
+measures/notes and for remove/duplicate of sections; do **not** rewrite it unless,
+read literally, it implies *adding a section* happens in the tree. If a light
+touch is needed, keep it minimal and consistent with edits 1–3 (the tree is still
+where you add/remove/duplicate measures and notes and remove/duplicate sections;
+adding a section is in the Song panel).
+
+Two further claims outside `## Using the Piano block` repeat the same "add at
+every level from the tree" framing and so are **also** falsified by the relocation
+— they are in scope for the same minimal, light touch (edits 4–5 below). Do
+**not** touch the front-end sections (`### 4`), the JSON/raw-mode section (`###
+3`), or the format-reference cross-links — those make no Add-section location
+claim.
+
+4. **`### File layout` → `src/editor/` table row (currently README ~line 143).**
+   The row says the structure tree "is the **selection surface** and **hosts
+   add/remove/duplicate at every level** plus the per-hand 'Add note'." "At every
+   level" lists **section** as a level, but the tree no longer hosts add-section
+   (it keeps remove/duplicate at the section level, and add/remove/duplicate for
+   measures and notes). This is the structural mirror of the `:19` /`:33` claim.
+   Apply the **same minimal light touch**: adjust so the tree hosts
+   add/remove/duplicate for measures and notes and remove/duplicate for sections,
+   while **adding a section is in the Song panel** — and keep the trailing
+   per-hand "Add note" (which stays in the tree). Do not over-rewrite the dense
+   row; touch only the add-section wording.
+
+5. **`### The song format and validator` → Tests paragraph (currently README
+   ~line 201).** **RULED IN.** The paragraph says the editor e2e exercises
+   "tree-driven **add**/remove/**duplicate**/rename of sections, measures, and
+   notes." Code-plan Task 2 retargets the add-section e2e step from the tree
+   (`treeAction(editor, "Add section")`) to the sidebar Song panel, so
+   "tree-driven add … of sections" no longer matches what the test does for the
+   add-section case (remove/duplicate/rename of sections, and all of
+   measures/notes, stay tree-driven). Apply a **light touch** so the description
+   matches the retargeted test — e.g. note that the section *add* is exercised
+   through the **sidebar Song panel** while remove/duplicate/rename of sections
+   and all measure/note operations stay tree-driven — without over-editing this
+   dense paragraph. (Ruled in, not out, because the test description is otherwise
+   a precise false statement about the e2e suite.)
 
 **Depends on.** Nothing (sole doc task). Authored against the live `README.md`;
 the implementation tasks (Tasks 1–3 of the code plan) and this doc edit are
@@ -114,8 +150,17 @@ design KD2; code-plan Task 2.
 - **Add measure** (section rows) and per-hand **Add note** (hand-group rows)
   remain described as **tree** affordances; the "seed the first note" clause is
   preserved; Duplicate / "Reordering is not available" prose is unchanged.
-- No other README section changed; `docs/song-format.md` unchanged. No new claims
-  about button styling or highlight size were introduced (those changes stay
+- The `### File layout` `src/editor/` row no longer claims the tree hosts add "at
+  every level"; it reflects that adding a section is in the Song panel while the
+  tree keeps add/remove/duplicate for measures and notes and remove/duplicate for
+  sections, and the per-hand "Add note" still in the tree.
+- The `### The song format and validator` Tests paragraph no longer describes
+  add-section as tree-driven; it reflects that the section *add* is exercised via
+  the sidebar Song panel while the remaining tree-driven operations stay as
+  described.
+- No README section outside these in-scope claims (`:19`, `:33`, `:39`, `:41`,
+  `:143`, `:201`) changed; `docs/song-format.md` unchanged. No new claims about
+  button styling or highlight size were introduced (those changes stay
   undocumented as reader-invisible polish).
 - The edit reads in the README's existing voice and density; no broken Markdown
   links or anchors.
