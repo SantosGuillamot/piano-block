@@ -2311,18 +2311,52 @@ describe("layout-polish fixes", () => {
 		expect(m.right.notes[0].x).toBeLessThan(m.width / 2);
 	});
 
-	it("measure 1 is not numbered; a later system numbers its first measure", () => {
-		const model = buildLayoutModel(COMPREHENSIVE_SONG, 30); // narrow → many systems
+	it("no system carries a measure number, even when the song wraps", () => {
+		// Narrow → many systems, so coverage is non-vacuous: both the system that
+		// opens on measure 1 and the later systems that formerly carried a label
+		// are exercised. The model no longer produces a measure-number text on any
+		// of them, while the rest of the texts object stays intact.
+		const model = buildLayoutModel(COMPREHENSIVE_SONG, 30);
 		expect(model.systems.length).toBeGreaterThan(1);
-		// The system that opens the piece (measure 1) shows no measure number…
-		expect(model.systems[0].texts.measureNumber).toBeNull();
-		// …but at least one later system labels its first measure (number ≥ 2).
-		const later = model.systems
-			.slice(1)
-			.map((s) => s.texts.measureNumber)
-			.filter(Boolean);
-		expect(later.length).toBeGreaterThan(0);
-		expect(Number(later[0].text)).toBeGreaterThanOrEqual(2);
+		expect(
+			model.systems.every((s) => s.texts.measureNumber === undefined),
+		).toBe(true);
+		// The texts object is otherwise untouched: the head system still exposes its
+		// tempo + ottava collections as arrays.
+		expect(Array.isArray(model.systems[0].texts.tempos)).toBe(true);
+		expect(Array.isArray(model.systems[0].texts.ottavas)).toBe(true);
+	});
+
+	it("a later system's tempo + above-ottava lanes stay on baseline with the number whitespace reclaimed", () => {
+		// COMPREHENSIVE_SONG wraps into several systems at this width; a later one
+		// opens on a formerly-numbered measure (number ≠ 1) yet also carries a tempo
+		// and an above-placed ottava. With the measure-number lane gone, those marks
+		// must still stack on their own lanes — nothing clipped or shifted into the
+		// reclaimed whitespace.
+		const model = buildLayoutModel(COMPREHENSIVE_SONG, 30);
+		expect(model.systems.length).toBeGreaterThan(1);
+		// Select that system programmatically rather than hard-coding its index, so a
+		// future regression that drops the property surfaces as "no match" here.
+		const sys = model.systems.find(
+			(s, i) =>
+				i >= 1 &&
+				s.measures[0].number !== 1 &&
+				s.texts.tempos.length > 0 &&
+				s.texts.ottavas.some((o) => o.placement === "above"),
+		);
+		expect(sys).toBeDefined();
+		const above = sys.texts.ottavas.filter((o) => o.placement === "above");
+		// Lanes stack top→bottom exactly as on the first system (smaller Y is higher):
+		// tempo above the above-ottava lane, both above the staff top.
+		expect(sys.band.tempoLaneY).toBeLessThan(sys.band.ottavaAboveLaneY);
+		expect(sys.band.ottavaAboveLaneY).toBeLessThan(sys.band.rightStaffTopY);
+		// Each mark lands on its lane baseline — none drifted off-lane.
+		for (const t of sys.texts.tempos) {
+			expect(t.y).toBeCloseTo(sys.band.tempoLaneY, 10);
+		}
+		for (const o of above) {
+			expect(o.y).toBeCloseTo(sys.band.ottavaAboveLaneY, 10);
+		}
 	});
 
 	it("an opening note lands at the uniform lead-in; an opening accidental occupies that lead-in and draws left of the head", () => {
