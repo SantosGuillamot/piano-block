@@ -85,13 +85,31 @@
 		min-width: 280px;
 		overflow-x: auto;
 
-		/* The selected note/rest group, decorated after each draw. The outline is
+		/* The selected note/rest group, decorated after each draw. The highlight is
 		 * drawn on the SVG `<g>` so it tracks the glyph without changing layout. A
 		 * section/measure selection adds no canvas class — those kinds are surfaced
 		 * through the structure tree and the inspector panels. */
 		.is-selected {
-			outline: 1px solid #007cba;
-			outline-offset: 1px;
+			/* Cross-engine FLOOR: recolor the selected event's ink. Fill wherever
+			 * fill is the paint (filled heads, dots, text glyphs, rest bodies);
+			 * :not([fill="none"]) preserves an OPEN notehead's hole. Stroke ONLY
+			 * already-stroked geometry — stems/ledgers <line> and the open-notehead
+			 * ring — NEVER <text> (default stroke:none; a forced stroke would render a
+			 * fat ~8x-scaled outline around the glyph). Color-only => no layout shift;
+			 * editor-only (class added by SongCanvas post-render; view.js never sets
+			 * it) => front-end SVG byte-identical (AC4). */
+			*:not([fill="none"]) { fill: #007cba; } /* filled heads, dots, text, rest bodies */
+			line { stroke: #007cba; }               /* stems + ledger lines */
+			ellipse[fill="none"] { stroke: #007cba; } /* open-notehead ring (keeps its hole) */
+
+			/* Enclosing hairline (Chrome/Firefox; may no-op on Safari for a <g>,
+			 * hence the recolor floor above). Outline lengths resolve in the
+			 * staff-space user system, which the root viewBox scales 1 sp -> SP_PX
+			 * (8) CSS px, so divide by 8: 0.125 sp x 8 = ~1 CSS px line, 0.25 sp x 8
+			 * = ~2 CSS px gap. COUPLED to SP_PX=8 by design (this one commented line
+			 * must be re-divided if SP_PX is retuned). */
+			outline: 0.125px solid #007cba;
+			outline-offset: 0.25px;
 		}
 	}
 }
