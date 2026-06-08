@@ -137,11 +137,13 @@ function renderTree({
 		"s0/m0/rightHand",
 		"s0/m0/leftHand",
 	]),
+	collapsedOverride = new Set(),
 	system = "english",
 } = {}) {
 	const calls = {
 		select: [],
 		toggle: [],
+		toggleOverride: [],
 		addSection: 0,
 		removeSection: [],
 		duplicateSection: [],
@@ -159,6 +161,8 @@ function renderTree({
 			system,
 			expandedPaths,
 			onToggleExpanded: (path) => calls.toggle.push(path),
+			collapsedOverride,
+			onToggleCollapsedOverride: (path) => calls.toggleOverride.push(path),
 			onSelect: (next) => calls.select.push(next),
 			onAddSection: () => {
 				calls.addSection += 1;
@@ -434,6 +438,68 @@ describe("StructureTree — expansion", () => {
 		expect(selectButtonByText(container, "C E G")).toBeTruthy();
 		// The unrelated right-hand branch stays collapsed (no auto-expand of it).
 		expect(selectButtonByText(container, "C")).toBeFalsy();
+		unmount();
+	});
+
+	it("routes a selection-ancestor's collapse to the override, and the override beats auto-reveal (AC7)", () => {
+		// Select the left-hand chord so s0, s0/m0 and s0/m0/leftHand auto-reveal.
+		const selection = {
+			kind: "event",
+			sectionIndex: 0,
+			measureIndex: 0,
+			hand: "leftHand",
+			eventIndex: 0,
+		};
+		const { container, unmount, calls } = renderTree({
+			expandedPaths: new Set(),
+			collapsedOverride: new Set(),
+			selection,
+		});
+		// The ancestor rows and the selected leaf are revealed.
+		expect(selectButtonByText(container, "Measure 1")).toBeTruthy();
+		expect(selectButtonByText(container, "Left hand")).toBeTruthy();
+		expect(selectButtonByText(container, "C E G")).toBeTruthy();
+
+		// Collapsing an ancestor row (Measure 1) routes to the override, not the
+		// manual expandedPaths Set — that is what lets a manual collapse stick.
+		click(selectButtonByText(container, "Measure 1"));
+		expect(calls.toggleOverride).toEqual(["s0/m0"]);
+		expect(calls.toggle).toEqual([]);
+		unmount();
+
+		// Re-render with that ancestor in collapsedOverride (the controlled analog of
+		// the parent applying the toggle): the override vetoes the auto-reveal, so the
+		// ancestor's descendants are hidden while the ancestor row itself stays visible.
+		const { container: c2, unmount: u2 } = renderTree({
+			expandedPaths: new Set(),
+			collapsedOverride: new Set(["s0/m0"]),
+			selection,
+		});
+		expect(selectButtonByText(c2, "Measure 1")).toBeTruthy();
+		expect(selectButtonByText(c2, "Left hand")).toBeFalsy();
+		expect(selectButtonByText(c2, "Right hand")).toBeFalsy();
+		expect(selectButtonByText(c2, "C E G")).toBeFalsy();
+		u2();
+	});
+
+	it("still auto-reveals a different selection's ancestors when the override is empty (AC7 reveal half)", () => {
+		// A different leaf (the right-hand C note) with an EMPTY override: its
+		// ancestors must still auto-reveal — the override only vetoes paths it holds.
+		const { container, unmount } = renderTree({
+			expandedPaths: new Set(),
+			collapsedOverride: new Set(),
+			selection: {
+				kind: "event",
+				sectionIndex: 0,
+				measureIndex: 0,
+				hand: "rightHand",
+				eventIndex: 0,
+			},
+		});
+		expect(selectButtonByText(container, "Section 1")).toBeTruthy();
+		expect(selectButtonByText(container, "Measure 1")).toBeTruthy();
+		expect(selectButtonByText(container, "Right hand")).toBeTruthy();
+		expect(selectButtonByText(container, "C")).toBeTruthy();
 		unmount();
 	});
 

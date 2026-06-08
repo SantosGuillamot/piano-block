@@ -29,10 +29,14 @@
  * the selection model has no "hand" kind — so they are disclosure-only labels that
  * host the per-hand "Add note" and toggle expansion (KD 14).
  *
- * Expansion is derived, not just stored: a row is expanded when it is in the
- * manual `expandedPaths` Set OR it is an ancestor of the resolved selection, so
- * the selected branch is always revealed regardless of the Set's index-path
- * staleness (Design "Expansion state"). Node labels are `name`-or-positional for
+ * Expansion is derived per disjoint regime, not just stored. An ancestor of the
+ * resolved selection is auto-revealed so the selected branch is always visible
+ * (regardless of the Set's index-path staleness) UNLESS its path is in the
+ * `collapsedOverride` Set — a deliberate manual collapse that vetoes the
+ * auto-reveal so it does not immediately re-expand (Design KD7). A non-ancestor
+ * row follows the manual `expandedPaths` Set as before; the two Sets govern
+ * disjoint paths, so they never conflict. A disclosure toggle routes to whichever
+ * Set governs the clicked row's regime. Node labels are `name`-or-positional for
  * sections/measures and `noteLabel(event, system)` for notes. Only
  * `@wordpress/*` is used (AC13).
  */
@@ -97,6 +101,9 @@ function isSelectionAncestor(path, selection) {
  * @param {string}   props.system            The song's note-name system, for note labels.
  * @param {Set}      props.expandedPaths     The manually-expanded index-path strings.
  * @param {Function} props.onToggleExpanded  Toggle a path's manual expansion.
+ * @param {Set}      props.collapsedOverride The manually-collapsed index-path strings that
+ *                                           veto auto-reveal (only consulted for selection-ancestor rows).
+ * @param {Function} props.onToggleCollapsedOverride Toggle a path's manual-collapse veto.
  * @param {Function} props.onSelect          Receives a kind-tagged selection.
  * @param {Function} props.onAddSection      Lifted: append a section.
  * @param {Function} props.onRemoveSection   Lifted: remove the section at the index.
@@ -115,6 +122,8 @@ export function StructureTree({
 	system,
 	expandedPaths,
 	onToggleExpanded,
+	collapsedOverride,
+	onToggleCollapsedOverride,
 	onSelect,
 	onAddSection,
 	onRemoveSection,
@@ -128,12 +137,25 @@ export function StructureTree({
 }) {
 	const sections = Array.isArray(song?.sections) ? song.sections : [];
 
-	// A path is expanded when manually toggled OR when it is an ancestor of the
-	// selection (auto-expand the selected branch, so it is revealed regardless of
-	// the manual Set's index-path staleness).
+	// Expansion is derived per disjoint regime. A selection-ancestor row is
+	// auto-revealed so the selected branch is always visible (regardless of the
+	// manual Set's index-path staleness) UNLESS its path is in `collapsedOverride`
+	// — a deliberate manual collapse that vetoes the auto-reveal so it does not
+	// immediately re-expand (KD7). A non-ancestor row follows `expandedPaths` as
+	// before. The two Sets govern disjoint paths, so they never conflict.
 	const isExpanded = (path) =>
-		(expandedPaths?.has(path) ?? false) ||
-		isSelectionAncestor(path, selection);
+		isSelectionAncestor(path, selection)
+			? !(collapsedOverride?.has(path) ?? false)
+			: (expandedPaths?.has(path) ?? false);
+
+	// Route a disclosure toggle to the Set that governs the row's regime: an
+	// ancestor of the selection writes the manual-collapse veto (add on collapse,
+	// delete on re-expand); a non-ancestor writes `expandedPaths` as today. This
+	// keeps `edit.js` a dumb two-Set owner while the ancestor test lives here.
+	const toggleRow = (path) =>
+		isSelectionAncestor(path, selection)
+			? onToggleCollapsedOverride?.(path)
+			: onToggleExpanded?.(path);
 
 	const rows = [];
 
@@ -172,7 +194,7 @@ export function StructureTree({
 							aria-expanded={sectionExpanded}
 							aria-current={sectionSelected ? "true" : undefined}
 							onClick={() => {
-								onToggleExpanded?.(sectionPath);
+								toggleRow(sectionPath);
 								onSelect?.({ kind: "section", sectionIndex });
 							}}
 						>
@@ -271,7 +293,7 @@ export function StructureTree({
 								aria-expanded={measureExpanded}
 								aria-current={measureSelected ? "true" : undefined}
 								onClick={() => {
-									onToggleExpanded?.(measurePath);
+									toggleRow(measurePath);
 									onSelect?.({
 										kind: "measure",
 										sectionIndex,
@@ -377,7 +399,7 @@ export function StructureTree({
 									style={{ "--pb-tree-depth": 2 }}
 									variant="tertiary"
 									aria-expanded={handExpanded}
-									onClick={() => onToggleExpanded?.(handPath)}
+									onClick={() => toggleRow(handPath)}
 								>
 									{`${caret(handExpanded)} ${handLabel}`}
 								</Button>

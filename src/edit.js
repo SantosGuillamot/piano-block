@@ -96,18 +96,40 @@ export default function Edit({ attributes, setAttributes }) {
 	const [selection, setSelection] = useState(null);
 
 	// Editor-only UI state: whether the left structure tree is shown (open by
-	// default on mount), and which tree rows are manually expanded (by index-path
-	// string). Neither is persisted; the toolbar toggle closes and reopens the tree
-	// and a manual close sticks for the session (nothing re-forces it open). The
-	// expanded Set is layered with auto-expand of the selection's ancestors in the
-	// tree, so its index-path staleness after a structural edit is best-effort.
+	// default on mount), which tree rows are manually expanded (by index-path
+	// string), and which selection-ancestor rows the author has manually collapsed.
+	// None is persisted; the toolbar toggle closes and reopens the tree and a manual
+	// close sticks for the session (nothing re-forces it open). The expanded Set is
+	// layered with auto-expand of the selection's ancestors in the tree; the
+	// `collapsedOverride` Set is the manual-collapse veto over that auto-reveal, so a
+	// deliberate collapse of a selected node's ancestor sticks (it does not spring
+	// back open). Both Sets are index-path-keyed best-effort, so their staleness
+	// after a structural edit is best-effort (same wart, not new).
 	const [showTree, setShowTree] = useState(true);
 	const [expandedPaths, setExpandedPaths] = useState(() => new Set());
+	const [collapsedOverride, setCollapsedOverride] = useState(() => new Set());
 
 	// Toggle a tree row's manual expansion by its index-path string. A new Set is
 	// built each call so React sees a fresh reference and re-renders the tree.
 	const onToggleExpanded = (path) => {
 		setExpandedPaths((current) => {
+			const next = new Set(current);
+			if (next.has(path)) {
+				next.delete(path);
+			} else {
+				next.add(path);
+			}
+			return next;
+		});
+	};
+
+	// Toggle a selection-ancestor row's manual-collapse veto by its index-path
+	// string. Same immutable add/delete shape as `onToggleExpanded`: a fresh Set so
+	// React re-renders. The tree consults this only for selection-ancestor rows, so
+	// adding a path collapses an otherwise auto-revealed ancestor and deleting it
+	// restores the auto-reveal.
+	const onToggleCollapsedOverride = (path) => {
+		setCollapsedOverride((current) => {
 			const next = new Set(current);
 			if (next.has(path)) {
 				next.delete(path);
@@ -438,6 +460,8 @@ export default function Edit({ attributes, setAttributes }) {
 								system={system}
 								expandedPaths={expandedPaths}
 								onToggleExpanded={onToggleExpanded}
+								collapsedOverride={collapsedOverride}
+								onToggleCollapsedOverride={onToggleCollapsedOverride}
 								onSelect={setSelection}
 								onAddSection={onAddSection}
 								onRemoveSection={onRemoveSection}
