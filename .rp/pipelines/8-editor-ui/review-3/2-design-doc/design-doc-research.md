@@ -277,7 +277,12 @@ removed. Reuse the existing kind-tagged `selection` + `resolveSelection` +
    Selecting them would have no inspector panel and no canvas decoration. *Decision:*
    hand groups render as non-selecting labels (a static row or a disclosure-only
    row) that carry the per-hand "Add note" affordance; only section/measure/note
-   rows drive `setSelection`. *(Resolved — OQ-4: no "hand" selection kind exists.)*
+   rows drive `setSelection`. The hand row must CARRY its hand string so "Add note"
+   passes `"rightHand"`/`"leftHand"` to `onAddNote(si, mi, hand)`; and a **zero-note
+   hand group is a normal state** (`newMeasure` is `{}`; the hand key drops when its
+   list empties, `NotePanel.js:131-136`) that the row renders with only its "Add note"
+   child (`onAddNote` already tolerates an empty hand, `edit.js:167`).
+   *(Resolved — OQ-4: no "hand" selection kind exists.)*
 
 ### Topic 3 — Structural ops: add / remove / duplicate at every level
 
@@ -431,23 +436,40 @@ all listed carry-overs preserved by reuse, not reimplementation. The removed sur
   (derived off `resolveSelection`, no stored state), so the selected branch is always
   revealed and index-shift staleness stops mattering for the key case. (Topic 1
   decision 6.)
-- **OQ-4 (Topic 2, hand groups) — RESOLVED (analyst, code-grounded; researcher
-  concurs in substance).** Hand-group rows are organizational + non-selecting: they
-  host the per-hand "Add note" and toggle expansion only. The selection model has
-  ONLY `section`/`measure`/`event` kinds (verified `selection.js:139-170`) — there is
-  no "hand" kind, no inspector panel, and no canvas decoration for a hand, so making
-  hand rows selectable would have nothing to select into. Confirmed nothing is being
-  ignored. (Req 1.)
-- **OQ-5 (Topic 4, rename affordance) — RESOLVED (analyst, spec-grounded).**
+- **OQ-4 (Topic 2, hand groups) — RESOLVED (analyst + researcher, code-grounded).**
+  Hand-group rows are organizational + non-selecting: they host the per-hand "Add
+  note" and toggle expansion only. The selection model has ONLY `section`/`measure`/
+  `event` kinds (verified `selection.js:139-170`; `hand` exists only as an event
+  sub-coordinate and as the schema measure key `rightHand`/`leftHand`, never as a
+  selectable entity), so a hand row ignores nothing. *Implementation caveats
+  (researcher):* (a) the hand row must still CARRY its hand string so its "Add note"
+  passes `"rightHand"`/`"leftHand"` to `onAddNote(si, mi, hand)` (`edit.js:164`); (b) a
+  hand group with ZERO notes is a normal state (`newMeasure` is `{}`, `songModel.js
+  :158`; the hand key is dropped when its list empties, `NotePanel.js:131-136`) — the
+  row must render with its only child being the "Add note" action, and `onAddNote`
+  already tolerates an empty hand (`edit.js:167` `measure[hand] ?? []`). (Req 1, 6.)
+- **OQ-5 (Topic 4, rename affordance) — RESOLVED (analyst + researcher, spec-grounded).**
   Inspector-only `TextControl name` (Section + Measure panels) is the primary and sole
-  rename affordance for this review. Spec Req 9 explicitly leaves the affordance open
-  ("inline in the tree **and/or** a Name field in the Section/Measure panel"), so
-  inspector-only satisfies AC7; it avoids inline-edit keyboard plumbing inside TreeGrid
-  cells. Inline-tree rename is possible future polish, not required. (Req 9; AC7.)
-- **OQ-6 (Topic 5, note label) — RESOLVED (analyst, spec-grounded).** Pitch-name(s)
-  only, no octave. Spec AC8 says "labeled by its pitch name … a chord shows its
-  pitches" with no mention of octave; a compact pitch-name label meets AC8. Octave is
-  optional polish that can be added later if disambiguation proves necessary. (AC8.)
+  rename affordance for this review. AC7 constrains STORAGE/display ("stored in the
+  song, shown in the tree, preserved across save/reload and a raw-JSON round-trip"),
+  not the editing affordance; Req 9 explicitly leaves the affordance open. So a
+  `TextControl` emitting via `emitSection`/`emitMeasure` (dropping the key when blank,
+  `emit.js:21-28`) fully delivers AC7. *Caveat (researcher):* the AC7 "shown in the
+  tree" obligation is on the TREE's display of `name`-or-positional (Topic 4 decision
+  3) — independent of where the edit happens; inline-tree EDIT is skipped (it would
+  fight TreeGrid roving-tabindex/typeahead), but the tree must still READ
+  `section.name`/`measure.name` with the positional fallback. (Req 9; AC7.)
+- **OQ-6 (Topic 5, note label) — RESOLVED (analyst + researcher, spec-grounded).**
+  Pitch-name(s) only, no octave. Spec AC8 says "labeled by its pitch name … a chord
+  shows its pitches" with no mention of octave; a compact pitch-name label meets AC8.
+  *Caveat (researcher):* omitting octave introduces a genuine duplicate-label
+  ambiguity — two notes an octave apart (C4 vs C5) render IDENTICAL labels ("C"/"do"),
+  and a C4+C5 chord shows "C C". This is disambiguated on selection (canvas highlight +
+  the NotePanel's `PitchList`/`PitchEditor` show the real pitch), so it is
+  polish-to-defer, NOT a correctness gap. If pre-empting the confusion is wanted, a
+  one-token change (`stepInSystem(...) + pitch.octave`, e.g. "C4") stays within "pitch
+  name" in spirit — but is not required by AC8. *Decision: omit octave for v1, noted as
+  future polish* (both analyst and researcher lean this way). (Req 10; AC8.)
 
 ## Risks
 
