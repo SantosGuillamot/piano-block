@@ -2,16 +2,22 @@
  * Editor end-to-end tests for the Piano block.
  *
  * These tests drive the real built block in the editor via wp-env and verify
- * its authoring + persistence behavior. The visual editor is the DEFAULT
- * surface: a freshly inserted block shows the visual empty state (a "start a
- * new song" affordance), a conformant song shows the structured editor beside a
- * live sheet-music preview, and a non-empty-but-invalid song shows an invalid
- * state that routes to the raw JSON editor. The raw `Song (JSON)` textarea is
- * reached by switching the block into JSON mode from the block toolbar; in that
- * mode the raw string persists unconditionally — conformant input shows no
- * error and is stored verbatim, non-conformant input is flagged by a visible
- * error notice yet is STILL stored unchanged, and a stored song round-trips
- * faithfully across save/reload including HTML-significant characters.
+ * its authoring + persistence behavior. The CANVAS-FIRST visual editor is the
+ * DEFAULT surface: a freshly inserted block shows an interactive sheet-music
+ * canvas — seeded with an empty grand staff so it is ready for notes without
+ * any raw JSON — that the author both reads and edits on. Selecting a note on
+ * the canvas reveals the block's settings sidebar panels (the always-present
+ * Song panel plus the Note/Measure/Section panels bound to the selection);
+ * song- and event-level settings are edited there, not on the canvas. A
+ * non-empty-but-invalid song shows an invalid state that routes to the raw
+ * JSON editor.
+ *
+ * The raw `Song (JSON)` textarea is reached by switching the block into JSON
+ * mode from the block toolbar; in that mode the raw string persists
+ * unconditionally — conformant input shows no error and is stored verbatim,
+ * non-conformant input is flagged by a visible error notice yet is STILL stored
+ * unchanged, and a stored song round-trips faithfully across save/reload
+ * including HTML-significant characters.
  *
  * Prerequisites (run from the worktree root):
  *   1. npm install        — installs the toolchain (Playwright via @wordpress/scripts)
@@ -124,14 +130,6 @@ function songField(editor) {
 }
 
 /**
- * Locate the visual editor's metadata Title field on the editor canvas — a
- * structured control only present when the song is conformant.
- */
-function titleField(editor) {
-	return editor.canvas.getByLabel("Title");
-}
-
-/**
  * The block's non-blocking JSON-mode validation error region: a `Notice` with
  * `status="error"` rendered beneath the textarea (src/edit.js). The editor
  * shows unrelated notices, so this is scoped to the error-status notice on the
@@ -142,11 +140,59 @@ function errorNotice(editor) {
 }
 
 /**
- * The live, read-only sheet-music preview's container on the canvas, into which
- * the conformant song's `<svg>` is mounted.
+ * The canvas-first editor's single interactive surface on the canvas: the
+ * `.wp-block-piano-block-piano__canvas` container into which the notation core
+ * mounts the working song's `<svg>` — the staff the author both reads and edits
+ * on (src/editor/SongCanvas.js). Present whenever the song is empty-then-seeded
+ * or conformant; absent in the invalid state.
  */
-function previewContainer(editor) {
-	return editor.canvas.locator(".wp-block-piano-block-piano__preview");
+function canvasContainer(editor) {
+	return editor.canvas.locator(".wp-block-piano-block-piano__canvas");
+}
+
+/** The rendered sheet-music `<svg>` mounted inside the canvas container. */
+function canvasSvg(editor) {
+	return canvasContainer(editor).locator("svg");
+}
+
+/**
+ * The note groups the notation core emits on the canvas — each a `<g>` carrying
+ * `data-kind="note"` (src/notation/svg.js). Selectable: a click resolves to a
+ * `{ section, measure, hand, event }` selection that reveals the sidebar panels.
+ */
+function noteGroups(editor) {
+	return editor.canvas.locator('[data-kind="note"]');
+}
+
+/**
+ * Open the block settings sidebar (the document/block "Settings" panel) and
+ * return the page-level region the block's `InspectorControls` render into. The
+ * sidebar lives on the main page, NOT in the `editor.canvas` iframe, so its
+ * controls are located on `page` rather than `editor.canvas`.
+ */
+async function openSettingsSidebar(editor, page) {
+	await editor.openDocumentSettingsSidebar();
+	return page.getByRole("region", { name: "Editor settings" });
+}
+
+/**
+ * A sidebar inspector panel located by its `PanelBody` title. The block's
+ * panels are "Song" (always present) and "Note"/"Measure"/"Section" (only when
+ * an event is selected) — each rendered as a `PanelBody` whose title toggles the
+ * panel, so it surfaces as a button with that accessible name in the settings
+ * region (src/editor/inspector/*).
+ */
+function inspectorPanel(sidebar, title) {
+	return sidebar.getByRole("button", { name: title, exact: true });
+}
+
+/**
+ * The Song panel's metadata Title field, in the settings sidebar. The `title`
+ * lives in the always-present Song panel (src/editor/inspector/SongPanel.js →
+ * MetadataEditor), reached on `page`, distinct from any canvas locator.
+ */
+function titleField(sidebar) {
+	return sidebar.getByLabel("Title", { exact: true });
 }
 
 /**
@@ -198,13 +244,13 @@ test.describe("Piano block — editor authoring, persistence and validation", ()
 		await requestUtils.deleteAllPosts();
 	});
 
-	test("the visual editor is the default surface", async ({ editor }) => {
+	test("the canvas-first visual editor is the default surface", async ({
+		editor,
+	}) => {
 		await editor.insertBlock({ name: "piano-block/piano" });
 
-		// The default surface is the visual empty state, not the raw textarea.
-		await expect(
-			editor.canvas.getByRole("button", { name: "Start a new song" }),
-		).toBeVisible();
+		// The default surface is the interactive canvas, not the raw textarea.
+		await expect(canvasContainer(editor)).toBeVisible();
 		await expect(songField(editor)).toHaveCount(0);
 
 		// JSON mode is reachable from the toolbar; switching reveals the textarea.
@@ -212,62 +258,91 @@ test.describe("Piano block — editor authoring, persistence and validation", ()
 		await expect(songField(editor)).toBeVisible();
 	});
 
-	test("a freshly inserted block starts empty", async ({ editor }) => {
+	test("a freshly inserted block seeds an empty staff yet stores nothing", async ({
+		editor,
+	}) => {
 		await editor.insertBlock({ name: "piano-block/piano" });
 
-		// The block defaults to the visual empty state…
-		await expect(
-			editor.canvas.getByRole("button", { name: "Start a new song" }),
-		).toBeVisible();
+		// The block seeds an empty grand staff on the canvas, ready for notes…
+		await expect(canvasSvg(editor)).toBeVisible();
 
-		// …and no song content is stored: the attribute is the empty default.
+		// …yet no song content is stored: the seed is lazy, so the attribute stays
+		// the empty default until the first edit commits.
 		const blocks = await editor.getBlocks();
 		expect(blocks).toHaveLength(1);
 		expect(blocks[0].name).toBe("piano-block/piano");
 		expect(blocks[0].attributes.song).toBe("");
 
-		// In JSON mode the raw field renders blank for an empty song.
+		// In JSON mode the raw field renders blank for the not-yet-persisted song.
 		await switchToJsonMode(editor);
 		await expect(songField(editor)).toHaveValue("");
 	});
 
-	test("starting a song from scratch stores a conformant song", async ({
+	test("adding a note on the canvas stores it in the chosen hand", async ({
 		editor,
 	}) => {
 		await editor.insertBlock({ name: "piano-block/piano" });
 
-		// From the empty state, seed the minimal song with the visual affordance —
-		// no raw JSON is typed.
+		// The seeded empty song exposes a per-hand add-note affordance per measure.
+		// Click the right-hand one for the first (only) measure.
 		await editor.canvas
-			.getByRole("button", { name: "Start a new song" })
+			.getByRole("button", { name: "Add note to right hand in measure 1" })
 			.click();
 
-		// Make a purely visual edit: set the metadata title.
-		const title = titleField(editor);
-		await title.fill("Für Elise");
-		await title.blur();
-
-		// The stored song is non-empty and conformant, and carries the typed title.
-		const stored = await storedSong(editor);
-		expect(stored).not.toBe("");
-		const parsed = JSON.parse(stored);
-		expect(parsed.metadata.title).toBe("Für Elise");
+		// The stored song now carries a right-hand event in that measure, and the
+		// canvas re-rendered it as a note group.
+		const parsed = JSON.parse(await storedSong(editor));
 		expect(Array.isArray(parsed.sections)).toBe(true);
+		expect(parsed.sections[0].measures[0].rightHand).toHaveLength(1);
+		expect(parsed.sections[0].measures[0].rightHand[0].type).toBe("note");
+		expect(parsed.sections[0].measures[0].leftHand).toBeUndefined();
+		await expect(noteGroups(editor).first()).toBeVisible();
 	});
 
-	test("a visual edit is reflected in the stored song", async ({ editor }) => {
+	test("selecting a note reveals the Note, Measure and Section panels", async ({
+		editor,
+		page,
+	}) => {
+		await editor.insertBlock({ name: "piano-block/piano" });
+
+		// Seed a conformant single-note song, return to the canvas.
+		await seedSongViaJson(editor, CONFORMANT_SONG);
+		await switchToVisualMode(editor);
+
+		// With nothing selected, only the always-present Song panel is shown.
+		const sidebar = await openSettingsSidebar(editor, page);
+		await expect(inspectorPanel(sidebar, "Song")).toBeVisible();
+		await expect(inspectorPanel(sidebar, "Note")).toHaveCount(0);
+		await expect(inspectorPanel(sidebar, "Measure")).toHaveCount(0);
+		await expect(inspectorPanel(sidebar, "Section")).toHaveCount(0);
+
+		// Click the rendered note on the staff to select it.
+		await noteGroups(editor).first().click();
+
+		// The selection-bound panels appear alongside the Song panel.
+		await expect(inspectorPanel(sidebar, "Song")).toBeVisible();
+		await expect(inspectorPanel(sidebar, "Note")).toBeVisible();
+		await expect(inspectorPanel(sidebar, "Measure")).toBeVisible();
+		await expect(inspectorPanel(sidebar, "Section")).toBeVisible();
+	});
+
+	test("a sidebar edit is reflected in the stored song", async ({
+		editor,
+		page,
+	}) => {
 		await editor.insertBlock({ name: "piano-block/piano" });
 
 		// Seed a conformant song via JSON, then return to the visual editor.
 		await seedSongViaJson(editor, CONFORMANT_SONG);
 		await switchToVisualMode(editor);
 
-		// Change a field through the visual controls (the metadata title).
-		const title = titleField(editor);
+		// Change a field through the sidebar's Song panel (the metadata title).
+		const sidebar = await openSettingsSidebar(editor, page);
+		const title = titleField(sidebar);
 		await title.fill("Moonlight");
 		await title.blur();
 
-		// The stored song reflects the change made through the visual controls.
+		// The stored song reflects the change made through the sidebar controls.
 		const parsed = JSON.parse(await storedSong(editor));
 		expect(parsed.metadata.title).toBe("Moonlight");
 	});
@@ -327,6 +402,7 @@ test.describe("Piano block — editor authoring, persistence and validation", ()
 
 	test("a non-empty invalid song routes to the JSON editor", async ({
 		editor,
+		page,
 	}) => {
 		await editor.insertBlock({ name: "piano-block/piano" });
 
@@ -341,11 +417,15 @@ test.describe("Piano block — editor authoring, persistence and validation", ()
 			editor.canvas.getByRole("button", { name: "Edit as JSON" }),
 		).toBeVisible();
 
-		// The structured editor is NOT shown — there is no metadata Title field.
-		await expect(titleField(editor)).toHaveCount(0);
+		// The canvas is NOT shown — there is nothing to read or edit.
+		await expect(canvasContainer(editor)).toHaveCount(0);
+
+		// And the sidebar's Song-panel Title field is absent — no panels render.
+		const sidebar = await openSettingsSidebar(editor, page);
+		await expect(titleField(sidebar)).toHaveCount(0);
 	});
 
-	test("the live preview renders the sheet music", async ({ editor }) => {
+	test("the canvas renders the sheet music", async ({ editor }) => {
 		await editor.insertBlock({ name: "piano-block/piano" });
 
 		// Seed a conformant song via JSON, then return to the visual editor.
@@ -353,19 +433,23 @@ test.describe("Piano block — editor authoring, persistence and validation", ()
 		await switchToVisualMode(editor);
 
 		// The conformant song mounts the rendered sheet music as an <svg> in the
-		// preview area on the canvas.
-		await expect(previewContainer(editor).locator("svg")).toBeVisible();
+		// interactive canvas on the editor canvas.
+		await expect(canvasSvg(editor)).toBeVisible();
 	});
 
-	test("a round-trip preserves Spanish note names", async ({ editor }) => {
+	test("a round-trip preserves Spanish note names", async ({
+		editor,
+		page,
+	}) => {
 		await editor.insertBlock({ name: "piano-block/piano" });
 
 		// Seed a song spelled with a Spanish note name, then return to visual mode.
 		await seedSongViaJson(editor, SPANISH_SONG);
 		await switchToVisualMode(editor);
 
-		// Make an UNRELATED edit (the title) that does not touch the pitch.
-		const title = titleField(editor);
+		// Make an UNRELATED edit (the sidebar title) that does not touch the pitch.
+		const sidebar = await openSettingsSidebar(editor, page);
+		const title = titleField(sidebar);
 		await title.fill("Estudio");
 		await title.blur();
 
