@@ -54,6 +54,16 @@
 		width: 16em;
 		min-width: 12em;
 		max-width: 40%;
+
+		/* Depth indentation for the tree's label column. Each row's label button
+		 * carries an inline `--pb-tree-depth` (0 for a section … 3 for a note),
+		 * computed in JS from the row's `level`; this rule turns that depth number
+		 * into a left padding so the hierarchy reads as nested. The depth *number*
+		 * lives in JS (`level`); the indent *unit* lives here. The `0` default keeps
+		 * a var-less label (e.g. the action-button cell) flush-left. */
+		&-label {
+			padding-left: calc(var(--pb-tree-depth, 0) * 1.5em);
+		}
 	}
 
 	/* The interactive canvas wrapper: the SVG host plus the add affordances. The

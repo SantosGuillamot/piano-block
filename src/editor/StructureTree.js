@@ -13,7 +13,11 @@
  * hand-rolled `role="tree"` (Design KD 3). `working.sections` is flattened into an
  * ordered list of *visible* rows (respecting expansion), each carrying its
  * `level`/`positionInSet`/`setSize` ARIA wiring and keyed by an **index-path**
- * string (`s0`, `s0/m1`, `s0/m1/rightHand`, `s0/m1/rightHand/e2`).
+ * string (`s0`, `s0/m1`, `s0/m1/rightHand`, `s0/m1/rightHand/e2`). Each row's label
+ * `Button` also carries an inline `--pb-tree-depth` CSS var (`level - 1`, so
+ * section=0…note=3) that `style.scss` turns into a depth `padding-left`, giving the
+ * tree its visual indentation without relying on the runtime `aria-level` attribute
+ * (Design KD 2); the action-button cell is left flush so only the label indents.
  *
  * It is a pure controlled component holding no song state: selecting a
  * section/measure/note row signals a kind-tagged `selection` through `onSelect`
@@ -162,6 +166,8 @@ export function StructureTree({
 					{(cellProps) => (
 						<Button
 							{...cellProps}
+							className="wp-block-piano-block-piano__tree-label"
+							style={{ "--pb-tree-depth": 0 }}
 							variant="tertiary"
 							aria-expanded={sectionExpanded}
 							aria-current={sectionSelected ? "true" : undefined}
@@ -256,6 +262,8 @@ export function StructureTree({
 						{(cellProps) => (
 							<Button
 								{...cellProps}
+								className="wp-block-piano-block-piano__tree-label"
+								style={{ "--pb-tree-depth": 1 }}
 								variant="tertiary"
 								aria-expanded={measureExpanded}
 								aria-current={measureSelected ? "true" : undefined}
@@ -360,6 +368,8 @@ export function StructureTree({
 							{(cellProps) => (
 								<Button
 									{...cellProps}
+									className="wp-block-piano-block-piano__tree-label"
+									style={{ "--pb-tree-depth": 2 }}
 									variant="tertiary"
 									aria-expanded={handExpanded}
 									onClick={() => onToggleExpanded?.(handPath)}
@@ -412,6 +422,8 @@ export function StructureTree({
 								{(cellProps) => (
 									<Button
 										{...cellProps}
+										className="wp-block-piano-block-piano__tree-label"
+										style={{ "--pb-tree-depth": 3 }}
 										variant="tertiary"
 										aria-current={eventSelected ? "true" : undefined}
 										onClick={() =>
