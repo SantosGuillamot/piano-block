@@ -16,7 +16,7 @@ There is no playable keyboard or audio yet, but a published page now shows the s
 
 ## Using the Piano block
 
-The Piano block stores one **song** — a JSON document in the plugin's own [song format](docs/song-format.md). You author that song with a **visual editor** (the default surface), watching a **live preview** of the notation as you work; if you prefer, you can switch to editing the **raw JSON** of the same song as text. Here is the end-to-end workflow.
+The Piano block stores one **song** — a JSON document in the plugin's own [song format](docs/song-format.md). You author that song with a **canvas-first visual editor** (the default surface): the rendered sheet-music staff is itself the editing surface — you add and select notes directly on it and adjust their settings in the **block settings sidebar**. If you prefer, you can switch to editing the **raw JSON** of the same song as text. Here is the end-to-end workflow.
 
 ### 1. Insert the block
 
@@ -24,23 +24,31 @@ In the editor, open the inserter and add the **Piano** block — it lives under 
 
 ### 2. Build the song in the visual editor
 
-The block opens to a **visual editor by default** — no JSON required. A **freshly inserted (empty) block** lets you **start a new song from scratch**: a single button seeds an empty song, and from there you build it up with structured controls.
+The block opens to a **canvas-first visual editor by default** — no JSON required. A **freshly inserted block** already shows an **empty grand staff** ready for notes (the editor seeds a minimal song behind the scenes), so there is **nothing to press first** — you start adding notes straight away.
 
-Those controls cover the whole model:
+**Add notes on the canvas.** Each measure offers an **add-note** affordance per staff (labelled, for example, *Add note to right hand in measure 1*), and **which staff you add to decides the hand**: a note added to the right-hand (treble) staff lands in the right hand, one added to the left-hand (bass) staff lands in the left hand. An **Add measure** button at the end of the score appends a fresh measure.
 
-- **Song metadata** — title and composer.
-- **Musical context** — tempo, time signature, clef, accidentals (per-note alterations), and octave shift, set as song-wide **defaults** and overridable **per section**.
-- **Structure and content** — sections, measures, events, and pitches, plus per-event **dynamics, ties, slurs, crescendo/decrescendo**, measure **barlines**, and free-text **annotations**.
+**Select a note (or rest) by clicking it on the staff** (you can also tab to it and press Enter or Space). When an event is selected, the **block settings sidebar** opens panels for it and the structure around it:
 
-You move through the song with **drill-down navigation** — song → section → measure → event — using a breadcrumb to step back up, and you add, remove, and reorder items with **add / remove / move-up / move-down buttons** (there is no drag-and-drop). The controls only let you produce a **valid song**: every field offers the format's allowed values, so the visual editor can't put the song into a non-conformant state. It does **not**, however, check musical *timing* — a bar's note durations need not add up to its time signature.
+- A **Note** panel for the selected event — its type (note or rest) and duration, a note's chord **pitches**, and, behind a small *Advanced* disclosure, its **dots, dynamic, tie, slur, crescendo/decrescendo, and annotations**. It also offers **Remove note**.
+- A **Measure** panel for the measure the event belongs to.
+- A **Section** panel for its section — the section's overrides, plus **Add section** and **Remove section**.
 
-Alongside the editor sits a **live, read-only sheet-music preview**. It updates as you edit and draws the song with the **same notation the published page uses** (it is a preview, not a second editor — you can't edit the score directly in it).
+A **Song** panel is **always present** in the sidebar, whether or not anything is selected: it holds the song's **title and composer** and the song-wide musical **defaults** — tempo, time signature, and (behind *Advanced*) the beat unit and each hand's clef, accidentals, and octave shift. When nothing is selected, the sidebar shows only this Song panel.
+
+**Progressive disclosure.** Each panel shows a small set of common settings up front and tucks the less-common ones behind an *Advanced* disclosure, so the sidebar stays shallow while still reaching the whole model.
+
+**Add and remove across the model.** You add **notes** and **measures** on the canvas; you **add/remove sections**, **remove the selected note**, and **add/remove a note's chord pitches** from the sidebar panels. **Reordering is not available** in this version — there are no move-up/move-down controls.
+
+Every control only lets you produce a **valid song**: each field offers the format's allowed values, so the visual editor can't put the song into a non-conformant state. It does **not**, however, check musical *timing* — a bar's note durations need not add up to its time signature.
+
+The canvas **re-renders live** as you edit and draws the song with the **same notation the published page uses** — it *is* the live render and the editing surface at once, not a separate read-only preview.
 
 **Note names** can be written in **English** (`C D E F G A B`) or **Spanish** (`do re mi fa sol la si`). A song keeps the system it was written in — a Spanish song stays Spanish — and the editor's controls follow that system. The [song format reference](docs/song-format.md) covers the full vocabulary. (This README does not repeat the field-level detail; that document is the canonical source.)
 
 **When a song can't be edited visually.** The visual editor needs a conformant song to work with:
 
-- An **empty or whitespace-only** song is treated as "no song", so a brand-new block simply starts fresh.
+- An **empty or whitespace-only** song is treated as "no song", so a brand-new block simply starts fresh on the seeded empty staff.
 - A **non-empty but invalid** song (bad JSON, or valid JSON that doesn't conform to the format) **can't** be edited visually. The editor surfaces the problem and directs you to **fix it in raw JSON** (see the next step); once the song is valid again, visual editing resumes automatically.
 
 ### 3. Edit the raw JSON instead
