@@ -187,6 +187,7 @@ export function StructureTree({
 								{() => (
 									<Button
 										icon="trash"
+										variant="tertiary"
 										label={sprintf(
 											// translators: %d: section number.
 											__("Remove section %d", "piano-block"),
@@ -201,6 +202,7 @@ export function StructureTree({
 								{() => (
 									<Button
 										icon="admin-page"
+										variant="tertiary"
 										label={sprintf(
 											// translators: %d: section number.
 											__("Duplicate section %d", "piano-block"),
@@ -214,6 +216,7 @@ export function StructureTree({
 								{() => (
 									<Button
 										icon="plus"
+										variant="tertiary"
 										label={sprintf(
 											// translators: %d: section number the measure is added to.
 											__("Add measure to section %d", "piano-block"),
@@ -287,6 +290,7 @@ export function StructureTree({
 									{() => (
 										<Button
 											icon="trash"
+											variant="tertiary"
 											label={sprintf(
 												// translators: 1: measure number, 2: section number.
 												__(
@@ -307,6 +311,7 @@ export function StructureTree({
 									{() => (
 										<Button
 											icon="admin-page"
+											variant="tertiary"
 											label={sprintf(
 												// translators: 1: measure number, 2: section number.
 												__(
@@ -384,6 +389,7 @@ export function StructureTree({
 									{() => (
 										<Button
 											icon="plus"
+											variant="tertiary"
 											label={addNoteLabel}
 											onClick={() =>
 												onAddNote?.(sectionIndex, measureIndex, hand)
@@ -447,6 +453,7 @@ export function StructureTree({
 											{() => (
 												<Button
 													icon="trash"
+													variant="tertiary"
 													label={sprintf(
 														// translators: 1: note number, 2: hand name, 3: measure number, 4: section number.
 														__(
@@ -474,6 +481,7 @@ export function StructureTree({
 											{() => (
 												<Button
 													icon="admin-page"
+													variant="tertiary"
 													label={sprintf(
 														// translators: 1: note number, 2: hand name, 3: measure number, 4: section number.
 														__(
