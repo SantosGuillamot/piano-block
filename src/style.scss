@@ -90,8 +90,8 @@
 		 * section/measure selection adds no canvas class — those kinds are surfaced
 		 * through the structure tree and the inspector panels. */
 		.is-selected {
-			outline: 2px solid #007cba;
-			outline-offset: 2px;
+			outline: 1px solid #007cba;
+			outline-offset: 1px;
 		}
 	}
 }
