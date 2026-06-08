@@ -457,12 +457,14 @@ export default function Edit({ attributes, setAttributes }) {
 						/>
 					</div>
 					<InspectorControls>
-						<SongPanel song={working} system={system} onChange={commit} />
-						{/* Gate the per-level panels by the selection's kind: every kind
-						    has a section; a measure/event also has a measure; only an
-						    event has a note. So a section selection shows Section only, a
-						    measure selection shows Measure+Section, and an event selection
-						    shows all three (today's behavior preserved). */}
+						{/* Render the panels most-specific first — Note → Measure →
+						    Section → Song — gating each by the selection's kind: only an
+						    event has a note; a measure/event also has a measure; every
+						    kind has a section; Song is always shown, last. So a note
+						    selection shows Note+Measure+Section+Song, a measure shows
+						    Measure+Section+Song, a section shows Section+Song, and nothing
+						    selected shows Song only (the same per-kind sets as before;
+						    only the order changed). */}
 						{resolvedSelection?.kind === "event" && (
 							<NotePanel
 								song={working}
@@ -491,6 +493,7 @@ export default function Edit({ attributes, setAttributes }) {
 								onRemoveSection={onRemoveSection}
 							/>
 						)}
+						<SongPanel song={working} system={system} onChange={commit} />
 					</InspectorControls>
 				</>
 			)}
