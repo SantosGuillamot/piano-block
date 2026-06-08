@@ -30,4 +30,13 @@ describe("songSchema", () => {
 		expect(properties.crescendo).toEqual({ enum: ["start", "stop"] });
 		expect(properties.decrescendo).toEqual({ enum: ["start", "stop"] });
 	});
+
+	it("declares the optional `language` enum (the note-name system keys), not required", () => {
+		// Editor-internal, permissive: the enum keys are exactly the note-name
+		// system keys (`spanish` / `english`), and the field is never required.
+		expect(songSchema.properties.language).toEqual({
+			enum: ["spanish", "english"],
+		});
+		expect(songSchema.required).not.toContain("language");
+	});
 });

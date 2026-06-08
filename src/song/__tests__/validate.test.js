@@ -886,6 +886,36 @@ describe("validateSong — walker special cases", () => {
 	});
 });
 
+describe("validateSong — optional `language` enum", () => {
+	// The editor-internal note-name system field: additive, permissive, and
+	// non-blocking. Its enum keys are exactly the note-name system keys.
+	const languageSong = (language) => ({
+		language,
+		sections: [{ measures: [] }],
+	});
+
+	it("accepts `language: \"spanish\"`", () => {
+		expect(check(languageSong("spanish"))).toEqual([]);
+	});
+
+	it("accepts `language: \"english\"`", () => {
+		expect(check(languageSong("english"))).toEqual([]);
+	});
+
+	it("accepts a song with no `language` field (it is optional)", () => {
+		expect(check({ sections: [{ measures: [] }] })).toEqual([]);
+	});
+
+	it("reports exactly one informational enum message for an unknown `language` (never blocks saving)", () => {
+		// A bad value is flagged so the author sees it, but raw JSON still stores
+		// the song — the single message is informational, not a second error.
+		const result = check(languageSong("fr"));
+		expect(result).toHaveLength(1);
+		expect(result[0]).toMatch(/language/);
+		expect(result[0]).toMatch(/not one of the allowed values/);
+	});
+});
+
 describe("validateSong — lenient on unknown properties", () => {
 	it("ignores an unknown property at the root", () => {
 		expect(check({ foo: 1, sections: [{ measures: [] }] })).toEqual([]);

@@ -36,6 +36,12 @@ const songSchema = {
 			// additionalProperties permissive (unknown keys ignored)
 		},
 		defaults: { $ref: "#/$defs/context" },
+		// language: the editor-internal note-name system the editor displays this
+		// song in. Permissive and optional (not `required`): its keys are exactly
+		// the note-name system keys ("spanish" / "english"), and an unrecognised
+		// value yields only the generic enum message — it never blocks raw-JSON
+		// saving (matching today's non-blocking behaviour).
+		language: { enum: ["spanish", "english"] },
 		sections: {
 			type: "array",
 			items: { $ref: "#/$defs/section" },
