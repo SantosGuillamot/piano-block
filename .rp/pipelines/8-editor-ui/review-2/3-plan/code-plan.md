@@ -9,7 +9,7 @@ a time, sequentially).
 
 - **Repo linter is biome.** Run `npm run lint` (NOT `wp-scripts lint-js`). Fix any
   finding it reports before committing.
-- **Unit tests** run with the repo's existing jest setup (`npm test`). The
+- **Unit tests** run with the repo's existing jest setup (`npm run test:unit`). The
   baseline is **green: 548 tests / 19 suites**; every task must leave the full
   suite green (do not regress existing tests except where a task explicitly
   rewrites them).
@@ -129,7 +129,7 @@ byte-identical (flag defaults false; `view.js` never passes it).
 **Traces to.** Req 1–3, 15; AC1, AC2, AC12.
 
 **Acceptance.**
-- `npm test` green; new svg + SongCanvas unit tests pass.
+- `npm run test:unit` green; new svg + SongCanvas unit tests pass.
 - `npm run lint` clean.
 - Front-end parity: rendering through the `view.js` call shape (no `interactive`)
   emits zero hit-rects (asserted).
@@ -170,7 +170,7 @@ round-trips and validates; never blocks raw-JSON saving.
 
 **Traces to.** Req 10, 15, 16, 17; AC11, AC13, AC14.
 
-**Acceptance.** `npm test` green; `npm run lint` clean; the new validate/schema
+**Acceptance.** `npm run test:unit` green; `npm run lint` clean; the new validate/schema
 assertions pass.
 
 ---
@@ -220,7 +220,7 @@ selector is T4) — this lands the data path so T4 is a thin control.
 
 **Traces to.** Req 10, 12, 13, 14, 16; AC9, AC10, AC13.
 
-**Acceptance.** `npm test` green; `npm run lint` clean; the editor still infers
+**Acceptance.** `npm run test:unit` green; `npm run lint` clean; the editor still infers
 English for a language-less song (existing Edit tests stay green).
 
 ---
@@ -262,7 +262,7 @@ on change, runs `mapSong` + commits. Display already follows `system` once it re
 
 **Traces to.** Req 11, 12, 13, 14; AC9, AC10.
 
-**Acceptance.** `npm test` green; `npm run lint` clean; switching the selector
+**Acceptance.** `npm run test:unit` green; `npm run lint` clean; switching the selector
 converts pitches and stores `language` (asserted at the panel level; the e2e is in T8).
 
 ---
@@ -372,7 +372,7 @@ grouping; no dependency on T2–T4.
 
 **Traces to.** Req 6, 7, 8, 9; AC5, AC6, AC7, AC8, AC13.
 
-**Acceptance.** `npm test` green (selection + Edit + panel suites updated);
+**Acceptance.** `npm run test:unit` green (selection + Edit + panel suites updated);
 `npm run lint` clean; event selection behavior unchanged in the editor.
 
 ---
@@ -465,7 +465,7 @@ canvas highlight (measure direct, section derived via `measureNumbersForSection`
 
 **Traces to.** Req 6, 7, 8, 9, 15, 19; AC5, AC6, AC7, AC8, AC12, AC15.
 
-**Acceptance.** `npm test` green (new StructureList + updated SongCanvas suites);
+**Acceptance.** `npm run test:unit` green (new StructureList + updated SongCanvas suites);
 `npm run lint` clean; the Structure panel renders always and selecting a row
 highlights the canvas; front-end emit unchanged (no `data-section`, no new emit).
 
@@ -543,7 +543,7 @@ canvas-grid removal — the hard sequencing constraint).
 
 **Traces to.** Req 4, 5; AC3, AC4.
 
-**Acceptance.** `npm test` green (NotePanel + StructureList + SongCanvas suites
+**Acceptance.** `npm run test:unit` green (NotePanel + StructureList + SongCanvas suites
 updated; no stranded-measure gap — the Structure "Add note" exists in the same
 commit that removes the canvas grid); `npm run lint` clean. Manually: an empty
 seeded song can still add a first note via the Structure list.
@@ -589,7 +589,7 @@ full build/lint/unit/e2e audit and confirm the front-end boundary.
      emit is editor-only).
 3. **Final integration audit:**
    - `npm run build` (compiles `src/` → `build/`), `npm run lint` (biome) clean,
-     `npm test` green (full suite, with all the rewritten/added unit tests from
+     `npm run test:unit` green (full suite, with all the rewritten/added unit tests from
      T1–T7), `npm run test:e2e` (after `npm run env:start`).
    - **Boundary check:** confirm `view.js` still calls `renderInto(container, model,
      { accessibleName })` with **no** `interactive`, `render.php` is unchanged, and
@@ -604,7 +604,7 @@ full build/lint/unit/e2e audit and confirm the front-end boundary.
 **Traces to.** Req 1–19; AC1–AC15 (the e2e is the authoritative real-browser guard;
 the audit closes KD5's cross-cutting constraints).
 
-**Acceptance.** `npm run build` succeeds; `npm run lint` clean; `npm test` green
+**Acceptance.** `npm run build` succeeds; `npm run lint` clean; `npm run test:unit` green
 (target ≥ 548 baseline, adjusted for the tests this review rewrites/adds);
 `npm run test:e2e` green for the new + existing specs; the boundary + deps audit
 confirms front-end byte-identity and WordPress-only deps. If Docker e2e cannot run
