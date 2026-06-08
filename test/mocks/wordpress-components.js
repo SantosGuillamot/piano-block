@@ -19,9 +19,10 @@
 const { createElement } = require("@wordpress/element");
 
 /**
- * Minimal `Button` stand-in. `icon`/`variant` are accepted and ignored (they
- * carry no behavior the tests assert); the accessible name comes from `label`
- * (mapped to `aria-label`) or, failing that, the button's text children.
+ * Minimal `Button` stand-in. `icon`/`variant`/`isDestructive` are accepted and
+ * ignored (they carry no behavior the tests assert); the accessible name comes
+ * from `label` (mapped to `aria-label`) or, failing that, the button's text
+ * children.
  *
  * @param {Object} props Button props.
  * @return {Object} A React `<button>` element.
@@ -35,6 +36,7 @@ const Button = ({
 	// Swallow props that have no DOM meaning in the mock.
 	icon: _icon,
 	variant: _variant,
+	isDestructive: _isDestructive,
 	...rest
 }) =>
 	createElement(
