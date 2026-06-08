@@ -7,22 +7,27 @@
  * with an empty grand staff so it is ready for notes without any raw JSON — that
  * the author reads while editing through the sidebar. The canvas is display +
  * highlight only: it does NOT hit-test, so clicking it never changes the
- * selection. Selection is driven by the left structure tree, and selecting a tree
- * row reveals the block's settings sidebar panels (the always-present Song panel
- * plus the Note/Measure/Section panels bound to the selection) and highlights the
- * matching group on the canvas; song- and event-level settings are edited there,
- * not on the canvas. A non-empty-but-invalid song shows an invalid state that
- * routes to the raw JSON editor.
+ * selection. Selection is driven by the left **structure tree** (toggled from the
+ * block toolbar's "Structure" button and rendered left of the canvas inside the
+ * block, NOT in Gutenberg's global List View). Selecting a tree row reveals the
+ * block's settings sidebar panels (the always-present Song panel plus the
+ * Note/Measure/Section panels bound to the selection) and highlights the matching
+ * group on the canvas; song- and event-level settings are edited there, not on
+ * the canvas. A non-empty-but-invalid song shows an invalid state that routes to
+ * the raw JSON editor.
  *
- * Authoring no longer happens with on-canvas add buttons. The always-present
- * sidebar **Structure** panel browses the song's sections and measures (to
- * measure depth) and carries the structural add/remove controls; an empty
- * measure's first note is seeded from its Structure row's "Add note" (the
- * canvas add-grid is gone). Once an event is selected, the Note panel's
- * contextual "Add note" inserts a sibling in the same hand (inferred from the
- * selection) and "Remove note" deletes it. The Song panel's "Note language"
- * selector converts the whole song between English and Spanish spellings and
- * stores the choice in an additive `language` field.
+ * Authoring no longer happens with on-canvas add buttons. The structure tree
+ * navigates Section → Measure → {Right hand, Left hand} → Note and carries the
+ * structural add/remove/duplicate controls at every level; an empty measure's
+ * first note is seeded from its hand group's "Add note" (the canvas add-grid is
+ * gone). Tree rows carry a leading disclosure caret, so they are located by an
+ * accessible/contains name lookup rather than an exact match. Once an event is
+ * selected, the Note panel's contextual "Add note" inserts a sibling in the same
+ * hand (inferred from the selection) and "Remove note" deletes it; sections and
+ * measures are renamed via the "Section name"/"Measure name" fields in their
+ * inspector panels. The Song panel's "Note language" selector converts the whole
+ * song between English and Spanish spellings and stores the choice in an additive
+ * `language` field.
  *
  * The raw `Song (JSON)` textarea is reached by switching the block into JSON
  * mode from the block toolbar; in that mode the raw string persists
@@ -196,9 +201,10 @@ function canvasSvg(editor) {
 
 /**
  * The note groups the notation core emits on the canvas — each a `<g>` carrying
- * `data-kind="note"` (src/notation/svg.js). Selectable: a click resolves to a
- * kind-tagged `{ section, measure, hand, event }` selection that reveals the
- * sidebar panels.
+ * `data-kind="note"` (src/notation/svg.js). Display + highlight only: a click no
+ * longer resolves to a selection (the canvas does not hit-test); the group only
+ * carries the `is-selected` decoration when the matching note is selected via the
+ * structure tree.
  */
 function noteGroups(editor) {
 	return editor.canvas.locator('[data-kind="note"]');
@@ -217,10 +223,11 @@ async function openSettingsSidebar(editor, page) {
 
 /**
  * A sidebar inspector panel located by its `PanelBody` title. The block's
- * panels are "Song" and "Structure" (always present) and
- * "Note"/"Measure"/"Section" (gated by the selection's kind) — each rendered as
- * a `PanelBody` whose title toggles the panel, so it surfaces as a button with
- * that accessible name in the settings region (src/editor/inspector/*).
+ * always-present panel is "Song"; "Note"/"Measure"/"Section" are gated by the
+ * selection's kind — each rendered as a `PanelBody` whose title toggles the
+ * panel, so it surfaces as a button with that accessible name in the settings
+ * region (src/editor/inspector/*). (The structure browser is no longer a sidebar
+ * panel; it is the left structure tree on the canvas.)
  */
 function inspectorPanel(sidebar, title) {
 	return sidebar.getByRole("button", { name: title, exact: true });
@@ -246,14 +253,58 @@ function languageSelect(sidebar) {
 }
 
 /**
- * The sidebar Structure panel's section/measure row select button, by its
- * 1-based ordinal label (src/editor/inspector/StructureList.js). Each row is a
- * plain `Button` whose accessible name is "Section N" / "Measure M"; clicking it
- * drives the kind-tagged selection. `exact` so "Section 1" never matches the
- * "Remove section 1" / "Add … section 1" controls.
+ * Toggle the left structure tree open from the block toolbar's "Structure"
+ * button (src/edit.js → BlockControls). The tree is the selection surface; it is
+ * hidden by default and revealed by this toggle. Scoped to the block toolbar via
+ * `clickBlockToolbarButton`, so it never collides with any sidebar control.
  */
-function structureRow(sidebar, name) {
-	return sidebar.getByRole("button", { name, exact: true });
+async function openStructureTree(editor) {
+	await editor.clickBlockToolbarButton("Structure");
+}
+
+/**
+ * The structure tree's root container on the canvas: the
+ * `.wp-block-piano-block-piano__tree` element the `StructureTree` renders into,
+ * left of the canvas inside the block (src/editor/StructureTree.js). The tree
+ * lives on the editor canvas iframe, so it is located on `editor.canvas`. Only
+ * present once `openStructureTree` has toggled it on.
+ */
+function structureTree(editor) {
+	return editor.canvas.locator(".wp-block-piano-block-piano__tree");
+}
+
+/**
+ * A structure-tree label row's select button, by the 1-based ordinal/hand name
+ * its label carries ("Section N" / "Measure M" / "Right hand" / a note's pitch).
+ * Expandable rows prefix the label with a disclosure caret glyph (`▸`/`▾`), so an
+ * `exact` match would miss them; matching the row by its trailing label with a
+ * CASE-SENSITIVE, end-anchored regex both tolerates the caret prefix AND avoids
+ * the row's own action buttons. Those buttons spell the ordinal lowercase
+ * ("Remove section 1", "Add note to Right hand of measure 1 of section 1"), so a
+ * case-sensitive `/…Section 1$/` never matches them, while the capitalized,
+ * end-of-name row label does. Clicking a section/measure/note row toggles its
+ * expansion and drives the kind-tagged selection; a hand-group row only toggles
+ * expansion (it never selects). Scoped to the tree container.
+ *
+ * @param {Object} editor The Playwright editor fixture.
+ * @param {string} name   The row's trailing label (e.g. "Section 1", "C").
+ */
+function treeRow(editor, name) {
+	const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+	return structureTree(editor).getByRole("button", {
+		name: new RegExp(`${escaped}$`),
+	});
+}
+
+/**
+ * A structure-tree action button, by its precise full label (src/editor/
+ * StructureTree.js — e.g. "Add measure to section 1", "Remove section 2",
+ * "Duplicate measure 1 of section 1", "Add note to Right hand of measure 1 of
+ * section 1"). These labels are unique and verb-prefixed, so they are matched
+ * exactly and never collide with a row's caret-prefixed label.
+ */
+function treeAction(editor, name) {
+	return structureTree(editor).getByRole("button", { name, exact: true });
 }
 
 /**
@@ -344,23 +395,24 @@ test.describe("Piano block — editor authoring, persistence and validation", ()
 		await expect(songField(editor)).toHaveValue("");
 	});
 
-	test("the seeded empty measure adds its first note from the Structure panel", async ({
+	test("the seeded empty measure adds its first note from the structure tree", async ({
 		editor,
-		page,
 	}) => {
 		await editor.insertBlock({ name: "piano-block/piano" });
 
 		// The seeded empty song has no on-canvas add affordance — the canvas
-		// add-grid is gone. The first note is bootstrapped from the always-present
-		// Structure panel: open the sidebar, select the seeded empty measure, and
-		// click its "Add note" (the only first-note entry point for an empty
+		// add-grid is gone. The first note is bootstrapped from the structure tree:
+		// toggle it open, expand the seeded section then its measure, and click the
+		// right hand's "Add note" (the only first-note entry point for an empty
 		// measure; it seeds a default RIGHT-hand note).
-		const sidebar = await openSettingsSidebar(editor, page);
-		await expect(inspectorPanel(sidebar, "Structure")).toBeVisible();
-		await structureRow(sidebar, "Measure 1").click();
-		await sidebar
-			.getByRole("button", { name: "Add note to measure 1 of section 1" })
-			.click();
+		await openStructureTree(editor);
+		await expect(structureTree(editor)).toBeVisible();
+		await treeRow(editor, "Section 1").click();
+		await treeRow(editor, "Measure 1").click();
+		await treeAction(
+			editor,
+			"Add note to Right hand of measure 1 of section 1",
+		).click();
 
 		// The stored song now carries a right-hand note in that measure (the
 		// default hand), and only that hand…
@@ -409,16 +461,20 @@ test.describe("Piano block — editor authoring, persistence and validation", ()
 	}) => {
 		await editor.insertBlock({ name: "piano-block/piano" });
 
-		// Seed the single right-hand C4 note and select it on the canvas.
+		// Seed the single right-hand C4 note and select it via the structure tree.
 		await seedSongViaJson(editor, CONFORMANT_SONG);
 		await switchToVisualMode(editor);
 		const sidebar = await openSettingsSidebar(editor, page);
-		await noteGroups(editor).first().click();
+		await openStructureTree(editor);
+		await treeRow(editor, "Section 1").click();
+		await treeRow(editor, "Measure 1").click();
+		await treeRow(editor, "Right hand").click();
+		await treeRow(editor, "C").click();
 		await expect(inspectorPanel(sidebar, "Note")).toBeVisible();
 
 		// The Note panel's contextual "Add note" inserts a sibling in the selected
-		// note's hand (inferred — never prompted). `exact` so it never matches the
-		// Structure row's "Add note to measure …" label.
+		// note's hand (inferred — never prompted). Scoped to the `sidebar` and
+		// `exact`, so it never matches the tree's "Add note to Right hand …" action.
 		await sidebar.getByRole("button", { name: "Add note", exact: true }).click();
 
 		// A second right-hand note now exists in that same measure/hand, and the
@@ -444,22 +500,20 @@ test.describe("Piano block — editor authoring, persistence and validation", ()
 			.toBe(1);
 	});
 
-	test("the Structure panel adds and removes a section and a measure", async ({
+	test("the structure tree adds, removes and duplicates sections and measures", async ({
 		editor,
-		page,
 	}) => {
 		await editor.insertBlock({ name: "piano-block/piano" });
 
-		// Seed a single-section, single-measure song and open the Structure panel.
+		// Seed a single-section, single-measure song and open the structure tree,
+		// then expand the section so its measures' row controls are reachable.
 		await seedSongViaJson(editor, CONFORMANT_SONG);
 		await switchToVisualMode(editor);
-		const sidebar = await openSettingsSidebar(editor, page);
-		await expect(inspectorPanel(sidebar, "Structure")).toBeVisible();
+		await openStructureTree(editor);
+		await treeRow(editor, "Section 1").click();
 
 		// Add a measure to section 1 → that section now has two measures.
-		await sidebar
-			.getByRole("button", { name: "Add measure to section 1" })
-			.click();
+		await treeAction(editor, "Add measure to section 1").click();
 		await expect
 			.poll(async () => {
 				const parsed = await storedSongObject(editor);
@@ -467,47 +521,63 @@ test.describe("Piano block — editor authoring, persistence and validation", ()
 			})
 			.toBe(2);
 
-		// Add a section → the song now has two sections.
-		await sidebar.getByRole("button", { name: "Add section" }).click();
-		await expect
-			.poll(async () => (await storedSongObject(editor)).sections.length)
-			.toBe(2);
-
-		// Remove the second measure of section 1 → back to one measure there.
-		await sidebar
-			.getByRole("button", { name: "Remove measure 2 of section 1" })
-			.click();
+		// Duplicate measure 1 of section 1 → a deep copy lands right after it, so
+		// that section now has three measures.
+		await treeAction(editor, "Duplicate measure 1 of section 1").click();
 		await expect
 			.poll(async () => {
 				const parsed = await storedSongObject(editor);
 				return parsed.sections[0].measures.length;
 			})
-			.toBe(1);
+			.toBe(3);
 
-		// Remove the second (empty) section → back to one section.
-		await sidebar
-			.getByRole("button", { name: "Remove section 2" })
-			.click();
+		// Add a section (the tree's footer "Add section") → the song now has two
+		// sections.
+		await treeAction(editor, "Add section").click();
 		await expect
 			.poll(async () => (await storedSongObject(editor)).sections.length)
-			.toBe(1);
+			.toBe(2);
+
+		// Duplicate section 1 → its deep copy lands right after it, so the song now
+		// has three sections.
+		await treeAction(editor, "Duplicate section 1").click();
+		await expect
+			.poll(async () => (await storedSongObject(editor)).sections.length)
+			.toBe(3);
+
+		// Remove the third measure of section 1 (the duplicate) → back to two there.
+		await treeAction(editor, "Remove measure 3 of section 1").click();
+		await expect
+			.poll(async () => {
+				const parsed = await storedSongObject(editor);
+				return parsed.sections[0].measures.length;
+			})
+			.toBe(2);
+
+		// Remove the third (empty) section → back to two sections.
+		await treeAction(editor, "Remove section 3").click();
+		await expect
+			.poll(async () => (await storedSongObject(editor)).sections.length)
+			.toBe(2);
 	});
 
-	test("selecting Structure rows reveals the right panels and highlights the canvas", async ({
+	test("selecting structure-tree rows reveals the right panels and highlights the canvas", async ({
 		editor,
 		page,
 	}) => {
 		await editor.insertBlock({ name: "piano-block/piano" });
 
-		// Seed a conformant single-note song and open the Structure panel.
+		// Seed a conformant single-note song and open the structure tree.
 		await seedSongViaJson(editor, CONFORMANT_SONG);
 		await switchToVisualMode(editor);
 		const sidebar = await openSettingsSidebar(editor, page);
+		await openStructureTree(editor);
 
 		// Selecting the SECTION row reveals the Section panel only (every kind has a
 		// section), not the Measure/Note panels, and highlights the section's
-		// measure group(s) on the canvas with `is-active-section`.
-		await structureRow(sidebar, "Section 1").click();
+		// measure group(s) on the canvas with `is-active-section`. (Clicking it also
+		// expands the section, surfacing its measure row.)
+		await treeRow(editor, "Section 1").click();
 		await expect(inspectorPanel(sidebar, "Section")).toBeVisible();
 		await expect(inspectorPanel(sidebar, "Measure")).toHaveCount(0);
 		await expect(inspectorPanel(sidebar, "Note")).toHaveCount(0);
@@ -518,13 +588,50 @@ test.describe("Piano block — editor authoring, persistence and validation", ()
 		// Selecting the MEASURE row reveals Measure + Section (a measure has both),
 		// still not the Note panel, and highlights exactly that measure group with
 		// `is-active-measure`.
-		await structureRow(sidebar, "Measure 1").click();
+		await treeRow(editor, "Measure 1").click();
 		await expect(inspectorPanel(sidebar, "Measure")).toBeVisible();
 		await expect(inspectorPanel(sidebar, "Section")).toBeVisible();
 		await expect(inspectorPanel(sidebar, "Note")).toHaveCount(0);
 		await expect(
 			editor.canvas.locator('[data-measure].is-active-measure'),
 		).toHaveCount(1);
+	});
+
+	test("renaming a section through its panel relabels its structure-tree row", async ({
+		editor,
+		page,
+	}) => {
+		await editor.insertBlock({ name: "piano-block/piano" });
+
+		// Seed a conformant song, open the tree, and select its section so the
+		// Section panel (with the rename field) appears.
+		await seedSongViaJson(editor, CONFORMANT_SONG);
+		await switchToVisualMode(editor);
+		const sidebar = await openSettingsSidebar(editor, page);
+		await openStructureTree(editor);
+		await treeRow(editor, "Section 1").click();
+
+		// The Section panel's "Section name" field renames the section; the name is
+		// stored in the additive `name` key and the tree row relabels to it (the
+		// positional "Section 1" fallback is gone).
+		const name = sidebar.getByLabel("Section name", { exact: true });
+		await name.fill("Intro");
+		await name.blur();
+
+		await expect
+			.poll(async () => (await storedSongObject(editor)).sections[0].name)
+			.toBe("Intro");
+		await expect(treeRow(editor, "Intro")).toBeVisible();
+		await expect(treeRow(editor, "Section 1")).toHaveCount(0);
+
+		// Clearing the field drops the `name` key (no empty-string husk) and the row
+		// reverts to its positional label.
+		await name.fill("");
+		await name.blur();
+		await expect
+			.poll(async () => (await storedSongObject(editor)).sections[0].name)
+			.toBeUndefined();
+		await expect(treeRow(editor, "Section 1")).toBeVisible();
 	});
 
 	test("the Note-language selector converts pitches and stores the language", async ({
