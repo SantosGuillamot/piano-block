@@ -245,3 +245,24 @@ export function replaceAt(list, index, item) {
 	}
 	return next;
 }
+
+/**
+ * Return a new array with a deep copy of the element at `index` inserted
+ * immediately after it (so the original and its copy sit side by side). The
+ * copy is a `structuredClone`, so mutating the copy never touches the original
+ * — duplicating a section copies all its measures and notes, a measure both
+ * hands, a note its pitches. An out-of-range index yields a plain copy (the
+ * tolerate-and-copy convention `removeAt`/`replaceAt` follow), avoiding the
+ * `structuredClone(undefined)` that would otherwise corrupt the list. Never
+ * mutates `list`.
+ *
+ * @param {Array}  list  The source array.
+ * @param {number} index The index of the element to duplicate.
+ * @return {Array} A new array with the deep copy inserted after the original.
+ */
+export function duplicateAt(list, index) {
+	if (index < 0 || index >= list.length) {
+		return list.slice();
+	}
+	return insertAt(list, index + 1, structuredClone(list[index]));
+}

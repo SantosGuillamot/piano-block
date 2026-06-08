@@ -23,6 +23,7 @@ import {
 	CLEFS,
 	DOTS_MAX,
 	DOTS_MIN,
+	duplicateAt,
 	DURATIONS,
 	DYNAMICS,
 	EVENT_TYPES,
@@ -300,5 +301,32 @@ describe("immutable array helpers", () => {
 		const result = replaceAt(list, 5, "x");
 		expect(result).toEqual(["a", "b"]);
 		expect(result).not.toBe(list);
+	});
+
+	it("duplicateAt inserts a copy immediately after the original", () => {
+		const list = ["a", "b", "c"];
+		const result = duplicateAt(list, 1);
+		expect(result).toEqual(["a", "b", "b", "c"]);
+		expect(list).toEqual(["a", "b", "c"]);
+		expect(result).not.toBe(list);
+	});
+
+	it("duplicateAt deep-copies the item (nested mutation does not leak)", () => {
+		const section = { measures: [{}] };
+		const list = [section];
+		const result = duplicateAt(list, 0);
+		expect(result).toHaveLength(2);
+		expect(result[1]).toEqual(section);
+		expect(result[1]).not.toBe(section);
+		// Mutating a nested field of the copy must not touch the original.
+		result[1].measures.push({});
+		expect(section.measures).toHaveLength(1);
+	});
+
+	it("duplicateAt out of range returns a copy (no-op)", () => {
+		const list = ["a", "b"];
+		expect(duplicateAt(list, 5)).toEqual(["a", "b"]);
+		expect(duplicateAt(list, -1)).toEqual(["a", "b"]);
+		expect(duplicateAt(list, 5)).not.toBe(list);
 	});
 });
