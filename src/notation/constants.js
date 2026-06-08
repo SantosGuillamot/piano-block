@@ -176,9 +176,6 @@ export const NOTE_SIZE = 2.8;
 /** Tempo marking text size ("[note-glyph] = [bpm]"). */
 export const TEMPO_SIZE = 2.8;
 
-/** Measure-number text size (above-left of each system's first measure). */
-export const MEASURE_NUMBER_SIZE = 2.2;
-
 /** Ottava-bracket label text size ("8va" / "8vb" / "15ma" / "15mb"). */
 export const OTTAVA_SIZE = 2.2;
 
