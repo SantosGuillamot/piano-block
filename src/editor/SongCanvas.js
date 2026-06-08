@@ -11,11 +11,14 @@
  *      selection via the core's emitted `data-*` hooks (`data-kind`/`data-hand`/
  *      `data-event-index` on the event, `data-measure` on its measure group) and
  *      the editor-side `measureCoords` flatten; a click on empty staff clears it.
- *   2. SELECTION decoration — after each draw, the currently-selected group is
- *      marked `is-selected` and made focusable, located by the scoped
- *      `selectionQuery` (the emitted `id` is not globally unique, so a measure-
- *      scoped query is required). Re-applied on every redraw; a stale selection
- *      (query matches nothing) decorates nothing.
+ *   2. SELECTION decoration — after each draw, the current selection is marked,
+ *      branched by its `kind`: an event group is `is-selected` (located by the
+ *      scoped `selectionQuery`, since the emitted `id` is not globally unique); a
+ *      measure group is `is-active-measure`; a section's measure groups are each
+ *      `is-active-section` (derived from `measureNumbersForSection` — the emit
+ *      carries no `data-section`). Event groups are also made focusable. A
+ *      measure/section highlight `scrollIntoView`s its group; re-applied on every
+ *      redraw, and a stale selection (query matches nothing) decorates nothing.
  *   3. ADD affordances — real HTML `<button>`s layered beside the SVG (not
  *      SVG-embedded, so they get native focus/labels): per hand per measure an
  *      "add note" button (hand = which staff), and one end-of-score "add measure"
@@ -38,6 +41,7 @@ import { renderInto } from "../notation/svg.js";
 import {
 	globalMeasureNumber,
 	measureCoords,
+	measureNumbersForSection,
 	selectionQuery,
 } from "./selection.js";
 
@@ -153,19 +157,56 @@ function makeEventsFocusable(container) {
 }
 
 /**
- * Decorate the selected note/rest group with `is-selected` after a draw, located
- * by the measure-scoped `selectionQuery`. A stale selection (the query matches
- * nothing — the event was removed, or the song changed) decorates nothing, so the
- * highlight simply disappears until a live selection is set.
+ * Scroll a located group into view, guarding the call so jsdom (which has no
+ * `scrollIntoView` on SVG children) and a stale/empty match never throw.
+ *
+ * @param {?Element} group The group to reveal, or a falsy value to skip.
+ */
+function scrollGroupIntoView(group) {
+	if (group && typeof group.scrollIntoView === "function") {
+		group.scrollIntoView({ inline: "nearest", block: "nearest" });
+	}
+}
+
+/**
+ * Decorate (and scroll to) the current selection after a draw, branched by its
+ * `kind` — the emit carries no `data-section`, so a section highlight is *derived*
+ * as the set of its measures' `data-measure` groups (no emit change, front end
+ * byte-identical):
+ *   - `"event"`   → the measure-scoped `selectionQuery` group, class `is-selected`.
+ *   - `"measure"` → the one `[data-measure="N"]` group, class `is-active-measure`.
+ *   - `"section"` → every `[data-measure="K"]` group of the section, class
+ *     `is-active-section` (the section scrolls its *first* measure into view).
+ *
+ * A stale selection (its global number is `null`, or the query matches nothing —
+ * the node was removed or the song changed) decorates nothing, so the highlight
+ * simply disappears until a live selection is set.
  *
  * @param {Element}  container The canvas container holding the SVG.
  * @param {?Object}  selection The current selection tuple, or `null`.
- * @param {Object}   song      The working song object (for the global number).
+ * @param {Object}   song      The working song object (for the global numbers).
  */
 function decorateSelection(container, selection, song) {
 	if (!selection) {
 		return;
 	}
+
+	if (selection.kind === "section") {
+		const numbers = measureNumbersForSection(song, selection.sectionIndex);
+		let firstGroup = null;
+		numbers.forEach((measureNumber) => {
+			const group = container.querySelector(
+				`[data-measure="${measureNumber}"]`,
+			);
+			if (group) {
+				group.classList.add("is-active-section");
+				firstGroup = firstGroup ?? group;
+			}
+		});
+		scrollGroupIntoView(firstGroup);
+		return;
+	}
+
 	const measureNumber = globalMeasureNumber(
 		song,
 		selection.sectionIndex,
@@ -174,6 +215,16 @@ function decorateSelection(container, selection, song) {
 	if (measureNumber === null) {
 		return;
 	}
+
+	if (selection.kind === "measure") {
+		const group = container.querySelector(`[data-measure="${measureNumber}"]`);
+		if (group) {
+			group.classList.add("is-active-measure");
+			scrollGroupIntoView(group);
+		}
+		return;
+	}
+
 	const node = container.querySelector(
 		selectionQuery({
 			measureNumber,

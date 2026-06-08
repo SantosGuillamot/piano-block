@@ -293,9 +293,11 @@ describe("SongCanvas", () => {
 		});
 		// Enter off any group (on the bare SVG root) does nothing either.
 		act(() => {
-			container.querySelector("svg").dispatchEvent(
-				new window.KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
-			);
+			container
+				.querySelector("svg")
+				.dispatchEvent(
+					new window.KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
+				);
 		});
 		expect(onSelect).not.toHaveBeenCalled();
 		cleanup(container, root);
@@ -383,9 +385,7 @@ describe("SongCanvas", () => {
 			createElement(SongCanvas, { song: SONG, onAddNote }),
 		);
 		const addNotes = [
-			...container.querySelectorAll(
-				".wp-block-piano-block-piano__add-note",
-			),
+			...container.querySelectorAll(".wp-block-piano-block-piano__add-note"),
 		];
 		// "Add note to right hand in measure 1" targets section 0, measure 0, right.
 		const rightMeasure1 = addNotes.find(
@@ -433,6 +433,123 @@ describe("SongCanvas", () => {
 			);
 		});
 		expect(onAddMeasure).toHaveBeenCalledTimes(1);
+		cleanup(container, root);
+	});
+
+	it("decorates the one measure group with is-active-measure for a measure selection", () => {
+		const { container, root } = render(
+			createElement(SongCanvas, {
+				song: SONG,
+				// Section 0, measure 1 → global measure 2.
+				selection: { kind: "measure", sectionIndex: 0, measureIndex: 1 },
+			}),
+		);
+		const active = container.querySelectorAll(".is-active-measure");
+		expect(active).toHaveLength(1);
+		expect(active[0].getAttribute("data-measure")).toBe("2");
+		// A measure highlight is distinct from the event outline — nothing is
+		// `is-selected` and no section box is drawn.
+		expect(container.querySelectorAll(".is-selected")).toHaveLength(0);
+		expect(container.querySelectorAll(".is-active-section")).toHaveLength(0);
+		cleanup(container, root);
+	});
+
+	it("decorates every measure group of a section with is-active-section", () => {
+		const { container, root } = render(
+			createElement(SongCanvas, {
+				song: SONG,
+				// Section 0 spans global measures 1 and 2.
+				selection: { kind: "section", sectionIndex: 0 },
+			}),
+		);
+		const active = container.querySelectorAll(".is-active-section");
+		expect(active).toHaveLength(2);
+		const numbers = [...active]
+			.map((group) => group.getAttribute("data-measure"))
+			.sort();
+		expect(numbers).toEqual(["1", "2"]);
+		// No event outline and no single-measure box for a section highlight.
+		expect(container.querySelectorAll(".is-selected")).toHaveLength(0);
+		expect(container.querySelectorAll(".is-active-measure")).toHaveLength(0);
+		cleanup(container, root);
+	});
+
+	it("decorates a later section's lone measure with is-active-section", () => {
+		const { container, root } = render(
+			createElement(SongCanvas, {
+				song: SONG,
+				// Section 1 is just global measure 3.
+				selection: { kind: "section", sectionIndex: 1 },
+			}),
+		);
+		const active = container.querySelectorAll(".is-active-section");
+		expect(active).toHaveLength(1);
+		expect(active[0].getAttribute("data-measure")).toBe("3");
+		cleanup(container, root);
+	});
+
+	it("decorates nothing for a stale measure or section selection", () => {
+		// A measure index past the section's end (and a section index out of range)
+		// resolves to no group, so the highlight simply disappears.
+		const stale = render(
+			createElement(SongCanvas, {
+				song: SONG,
+				selection: { kind: "measure", sectionIndex: 0, measureIndex: 9 },
+			}),
+		);
+		expect(stale.container.querySelectorAll(".is-active-measure")).toHaveLength(
+			0,
+		);
+		cleanup(stale.container, stale.root);
+
+		const staleSection = render(
+			createElement(SongCanvas, {
+				song: SONG,
+				selection: { kind: "section", sectionIndex: 9 },
+			}),
+		);
+		expect(
+			staleSection.container.querySelectorAll(".is-active-section"),
+		).toHaveLength(0);
+		cleanup(staleSection.container, staleSection.root);
+	});
+
+	it("scrolls the highlighted measure group into view when scrollIntoView exists", () => {
+		// jsdom has no scrollIntoView on SVG groups; install a spy on the prototype so
+		// the guarded call is exercised, then assert it ran for a measure selection.
+		const proto = window.SVGElement.prototype;
+		const had = Object.hasOwn(proto, "scrollIntoView");
+		const original = proto.scrollIntoView;
+		const spy = jest.fn();
+		proto.scrollIntoView = spy;
+		try {
+			const { container, root } = render(
+				createElement(SongCanvas, {
+					song: SONG,
+					selection: { kind: "measure", sectionIndex: 0, measureIndex: 0 },
+				}),
+			);
+			expect(spy).toHaveBeenCalled();
+			cleanup(container, root);
+		} finally {
+			if (had) {
+				proto.scrollIntoView = original;
+			} else {
+				delete proto.scrollIntoView;
+			}
+		}
+	});
+
+	it("does not throw when scrollIntoView is absent (jsdom)", () => {
+		// With no scrollIntoView on the group, a measure selection must still draw the
+		// highlight and not throw — the guard tolerates the missing API.
+		const { container, root } = render(
+			createElement(SongCanvas, {
+				song: SONG,
+				selection: { kind: "measure", sectionIndex: 0, measureIndex: 0 },
+			}),
+		);
+		expect(container.querySelectorAll(".is-active-measure")).toHaveLength(1);
 		cleanup(container, root);
 	});
 });

@@ -17,6 +17,7 @@ import { MeasurePanel } from "./editor/inspector/MeasurePanel.js";
 import { NotePanel } from "./editor/inspector/NotePanel.js";
 import { SectionPanel } from "./editor/inspector/SectionPanel.js";
 import { SongPanel } from "./editor/inspector/SongPanel.js";
+import { StructureList } from "./editor/inspector/StructureList.js";
 import { inferNoteNameSystem } from "./editor/noteNames.js";
 import { resolveSelection } from "./editor/selection.js";
 import { commitSong } from "./editor/serializeSong.js";
@@ -300,6 +301,20 @@ export default function Edit({ attributes, setAttributes }) {
 					/>
 					<InspectorControls>
 						<SongPanel song={working} system={system} onChange={commit} />
+						{/* The always-present Structure browser: the song is navigable
+						    with nothing selected (sections → measures, to measure depth),
+						    and selecting a row drives the kind-tagged selection that gates
+						    the panels and the canvas highlight. The lifted structural
+						    mutators are the single owner of `working` + `commit`. */}
+						<StructureList
+							song={working}
+							selection={resolvedSelection}
+							onSelect={setSelection}
+							onAddSection={onAddSection}
+							onRemoveSection={onRemoveSection}
+							onAddMeasure={onAddMeasure}
+							onRemoveMeasure={onRemoveMeasure}
+						/>
 						{/* Gate the per-level panels by the selection's kind: every kind
 						    has a section; a measure/event also has a measure; only an
 						    event has a note. So a section selection shows Section only, a
