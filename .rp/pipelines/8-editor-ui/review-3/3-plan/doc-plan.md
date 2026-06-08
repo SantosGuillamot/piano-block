@@ -60,6 +60,9 @@ only the *editing/selection model* changes.
 - The blockquote **Status** paragraph (around line 5).
 - **What the block does today** (the intro paragraph and its three bullets, around
   lines 7–15).
+- The **Forthcoming** section's opening "Authoring now happens in…" sentence (around
+  line 203), which still describes a "canvas-first visual editor — you select and edit
+  notes on the rendered staff."
 
 **Changes.**
 - Reframe "canvas-first visual editing UI … the rendered sheet-music staff is itself the
@@ -75,6 +78,12 @@ only the *editing/selection model* changes.
 - Do **not** introduce the word "List View" as a product name (it is *like* the List View,
   but it is the block's own in-canvas tree, not Gutenberg's global List View) — describe it
   as a "structure tree / outline panel beside the canvas." Keep it short.
+- In **Forthcoming**, reword the opening "Authoring now happens in a **canvas-first visual
+  editor** — you select and edit notes on the rendered staff…" sentence to the same
+  tree-selects / canvas-highlights framing (authoring happens through a structure tree beside
+  the canvas; the canvas is the live render with selection highlighting), with **no** claim
+  that you select notes on the staff. Leave the gradual-dynamics / audio-playback content in
+  that paragraph and the rest of the Forthcoming list unchanged.
 
 **Depends on.** None (first task).
 
@@ -84,6 +93,11 @@ only the *editing/selection model* changes.
 - The status blurb and "What the block does today" no longer describe the canvas as the
   click-to-select surface; they describe the left structure tree as the selection surface
   and the canvas as display + highlight only.
+- No remaining sentence in **Forthcoming** describes selecting notes on the canvas/staff;
+  the "Authoring now happens in…" sentence reframes to the tree-selects / canvas-highlights
+  split (authoring happens through a structure tree beside the canvas; the canvas is the live
+  render with selection highlighting). The gradual-dynamics / audio-playback content in that
+  paragraph and the rest of the Forthcoming list are unchanged.
 - No claim that the front-end rendering changed. No mention of reordering. No "Gutenberg
   List View" product naming.
 
@@ -272,6 +286,9 @@ honest to the drift-resistance bar.
 **Files.** `docs/song-format.md`.
 
 **Sections-scope.**
+- The **Intro and mental model** paragraph (around line 9), which still says the editor is
+  "a **canvas-first visual editor** — the default authoring surface, where you select and
+  edit notes directly on the rendered staff."
 - **`defaults` and `sections`** — the `section := { … }` shape block (lines ~71–78): add
   `name?` with a one-line comment.
 - **`measures`** — the `measure := { … }` shape block (lines ~89–96): add `name?` with a
@@ -287,6 +304,13 @@ honest to the drift-resistance bar.
   a latest additive optional field.
 
 **Changes.**
+- In the **Intro and mental model** paragraph, reword "where you select and edit notes
+  directly on the rendered staff" to the tree-selects / canvas-highlights split — e.g.
+  "…where you navigate and select the song through a structure tree beside the canvas and
+  edit settings in the block sidebar; the canvas displays the song and highlights the
+  selection." Keep the rest of that paragraph (the raw-JSON alternative, no-audio-yet, the
+  front-end-renders-as-SVG, and the cross-links to the README workflow and "What the front
+  end shows") intact.
 - In the `section :=` and `measure :=` blocks add `name?,  // optional editor-side label;
   see "name"` (match the existing comment idiom — e.g. how `language?` / `tempo?` are
   commented). Keep `measures` (for section) and the existing required members unchanged;
@@ -321,6 +345,10 @@ provisional anchor, DT4 must make the anchor real and matching.
 **Traces to.** Spec Req 9, 11, 12; AC7, AC10. Design KD 10, 11, 15; code-plan T1, T4.
 
 **Acceptance.**
+- The **Intro and mental model** paragraph no longer describes the canvas/staff as the
+  selection surface; it reframes to the tree-selects / canvas-highlights split, with the rest
+  of the paragraph (raw-JSON alternative, no-audio-yet, front-end SVG render, README
+  cross-links) intact.
 - `name?` appears in both the `section :=` and `measure :=` shape blocks with a short
   comment; the new **`name`** subsection documents it exactly like `language` (optional/
   additive, stored, round-trips, validated permissively/never-blocking, **front end ignores
