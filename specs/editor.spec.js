@@ -253,21 +253,22 @@ function languageSelect(sidebar) {
 }
 
 /**
- * Toggle the left structure tree open from the block toolbar's "Structure"
- * button (src/edit.js → BlockControls). The tree is the selection surface; it is
- * hidden by default and revealed by this toggle. Scoped to the block toolbar via
- * `clickBlockToolbarButton`, so it never collides with any sidebar control.
+ * Assert the left structure tree is already open. The tree is the selection
+ * surface and is now open by default the first time the block is selected
+ * (src/edit.js `showTree` defaults to `true`); the block toolbar's "Structure"
+ * button still closes and reopens it. Tests no longer toggle it on before drilling
+ * in — they just confirm it is present, which also pins AC1's open-by-default.
  */
-async function openStructureTree(editor) {
-	await editor.clickBlockToolbarButton("Structure");
+async function assertStructureTreeOpen(editor) {
+	await expect(structureTree(editor)).toBeVisible();
 }
 
 /**
  * The structure tree's root container on the canvas: the
  * `.wp-block-piano-block-piano__tree` element the `StructureTree` renders into,
  * left of the canvas inside the block (src/editor/StructureTree.js). The tree
- * lives on the editor canvas iframe, so it is located on `editor.canvas`. Only
- * present once `openStructureTree` has toggled it on.
+ * lives on the editor canvas iframe, so it is located on `editor.canvas`. Present
+ * by default (the tree is open on insert) until the "Structure" toggle closes it.
  */
 function structureTree(editor) {
 	return editor.canvas.locator(".wp-block-piano-block-piano__tree");
@@ -401,11 +402,10 @@ test.describe("Piano block — editor authoring, persistence and validation", ()
 		await editor.insertBlock({ name: "piano-block/piano" });
 
 		// The seeded empty song has no on-canvas add affordance — the canvas
-		// add-grid is gone. The first note is bootstrapped from the structure tree:
-		// toggle it open, expand the seeded section then its measure, and click the
-		// right hand's "Add note" (the only first-note entry point for an empty
-		// measure; it seeds a default RIGHT-hand note).
-		await openStructureTree(editor);
+		// add-grid is gone. The first note is bootstrapped from the structure tree,
+		// which is open by default: expand the seeded section then its measure, and
+		// click the right hand's "Add note" (the only first-note entry point for an
+		// empty measure; it seeds a default RIGHT-hand note).
 		await expect(structureTree(editor)).toBeVisible();
 		await treeRow(editor, "Section 1").click();
 		await treeRow(editor, "Measure 1").click();
@@ -461,11 +461,12 @@ test.describe("Piano block — editor authoring, persistence and validation", ()
 	}) => {
 		await editor.insertBlock({ name: "piano-block/piano" });
 
-		// Seed the single right-hand C4 note and select it via the structure tree.
+		// Seed the single right-hand C4 note and select it via the structure tree
+		// (open by default).
 		await seedSongViaJson(editor, CONFORMANT_SONG);
 		await switchToVisualMode(editor);
 		const sidebar = await openSettingsSidebar(editor, page);
-		await openStructureTree(editor);
+		await assertStructureTreeOpen(editor);
 		await treeRow(editor, "Section 1").click();
 		await treeRow(editor, "Measure 1").click();
 		await treeRow(editor, "Right hand").click();
@@ -505,11 +506,11 @@ test.describe("Piano block — editor authoring, persistence and validation", ()
 	}) => {
 		await editor.insertBlock({ name: "piano-block/piano" });
 
-		// Seed a single-section, single-measure song and open the structure tree,
-		// then expand the section so its measures' row controls are reachable.
+		// Seed a single-section, single-measure song; the structure tree is open by
+		// default, so expand the section so its measures' row controls are reachable.
 		await seedSongViaJson(editor, CONFORMANT_SONG);
 		await switchToVisualMode(editor);
-		await openStructureTree(editor);
+		await assertStructureTreeOpen(editor);
 		await treeRow(editor, "Section 1").click();
 
 		// Add a measure to section 1 → that section now has two measures.
@@ -567,11 +568,11 @@ test.describe("Piano block — editor authoring, persistence and validation", ()
 	}) => {
 		await editor.insertBlock({ name: "piano-block/piano" });
 
-		// Seed a conformant single-note song and open the structure tree.
+		// Seed a conformant single-note song; the structure tree is open by default.
 		await seedSongViaJson(editor, CONFORMANT_SONG);
 		await switchToVisualMode(editor);
 		const sidebar = await openSettingsSidebar(editor, page);
-		await openStructureTree(editor);
+		await assertStructureTreeOpen(editor);
 
 		// Selecting the SECTION row reveals the Section panel only (every kind has a
 		// section), not the Measure/Note panels, and highlights the section's
@@ -603,12 +604,12 @@ test.describe("Piano block — editor authoring, persistence and validation", ()
 	}) => {
 		await editor.insertBlock({ name: "piano-block/piano" });
 
-		// Seed a conformant song, open the tree, and select its section so the
-		// Section panel (with the rename field) appears.
+		// Seed a conformant song; the tree is open by default. Select its section so
+		// the Section panel (with the rename field) appears.
 		await seedSongViaJson(editor, CONFORMANT_SONG);
 		await switchToVisualMode(editor);
 		const sidebar = await openSettingsSidebar(editor, page);
-		await openStructureTree(editor);
+		await assertStructureTreeOpen(editor);
 		await treeRow(editor, "Section 1").click();
 
 		// The Section panel's "Section name" field renames the section; the name is

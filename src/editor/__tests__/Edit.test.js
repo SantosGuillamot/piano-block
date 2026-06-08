@@ -304,11 +304,11 @@ describe("Edit mode container", () => {
 
 	it("seeds a note from the structure tree's per-hand Add note and opens the Note panel", () => {
 		const { container, calls } = renderEdit(SONG);
-		// The per-hand "Add note" lives on the structure tree's hand-group row. Open
-		// the tree, then expand the section, its measure, and the right-hand group so
-		// the per-hand Add note is reachable. The fixture's lone measure is measure 1
-		// of section 1; its right-hand "Add note" seeds a default note.
-		click(buttonByText(container, "Structure"));
+		// The per-hand "Add note" lives on the structure tree's hand-group row. The
+		// tree is open by default, so expand the section, its measure, and the
+		// right-hand group so the per-hand Add note is reachable. The fixture's lone
+		// measure is measure 1 of section 1; its right-hand "Add note" seeds a default
+		// note.
 		clickByText(container, "Section 1");
 		clickByText(container, "Measure 1");
 		clickByText(container, "Right hand");
@@ -379,11 +379,11 @@ describe("Edit mode container", () => {
 
 /**
  * Select the SONG fixture's lone right-hand note through the structure tree (the
- * selection surface — the canvas no longer hit-tests). Opens the tree, drills down
- * to the note row, and clicks it. The fixture note is a C5 → its row label is "C".
+ * selection surface — the canvas no longer hit-tests). The tree is open by default,
+ * so this drills straight down to the note row and clicks it. The fixture note is a
+ * C5 → its row label is "C".
  */
 function selectLoneNote(container) {
-	click(buttonByText(container, "Structure"));
 	clickByText(container, "Section 1");
 	clickByText(container, "Measure 1");
 	clickByText(container, "Right hand");
@@ -452,8 +452,7 @@ describe("Edit — lifted structural mutators", () => {
 		const { container, calls } = renderEdit(SONG);
 		// The structure tree's per-section "Add measure" signals the lifted
 		// onAddMeasure with that section's explicit index — section 1 (the lone one).
-		// The section-row action is present as soon as the tree is open.
-		click(buttonByText(container, "Structure"));
+		// The tree is open by default, so the section-row action is present at once.
 		click(fieldByName(container, "Add measure to section 1"));
 		const persisted = JSON.parse(calls.at(-1));
 		expect(persisted.sections[0].measures).toHaveLength(2);
@@ -513,34 +512,36 @@ describe("Edit — lifted structural mutators", () => {
 });
 
 describe("Edit — structure tree", () => {
-	it("toggles the structure tree open and closed from the toolbar button", () => {
+	it("opens the structure tree by default and toggles it closed and open from the toolbar button", () => {
 		const { container } = renderEdit(SONG);
-		// The workspace exists but holds no tree until the Structure toggle is on.
+		// The tree is open by default: the workspace holds it (a treegrid) on first
+		// render, before any toggle.
 		const workspace = container.querySelector(
 			".wp-block-piano-block-piano__workspace",
 		);
 		expect(workspace).not.toBeNull();
 		expect(
 			workspace.querySelector(".wp-block-piano-block-piano__tree"),
+		).not.toBeNull();
+		expect(container.querySelector('[role="treegrid"]')).not.toBeNull();
+
+		// The first Structure click closes the open-by-default tree.
+		click(buttonByText(container, "Structure"));
+		expect(
+			workspace.querySelector(".wp-block-piano-block-piano__tree"),
 		).toBeNull();
 
-		// Toggling the Structure button reveals the tree (a treegrid in the workspace).
+		// A second click reopens it (the full AC1 toggle cycle).
 		click(buttonByText(container, "Structure"));
 		expect(
 			workspace.querySelector(".wp-block-piano-block-piano__tree"),
 		).not.toBeNull();
 		expect(container.querySelector('[role="treegrid"]')).not.toBeNull();
-
-		// Toggling it off hides the tree again.
-		click(buttonByText(container, "Structure"));
-		expect(
-			workspace.querySelector(".wp-block-piano-block-piano__tree"),
-		).toBeNull();
 	});
 
 	it("selecting a tree section row reveals only the Section panel", () => {
 		const { container } = renderEdit(SONG);
-		click(buttonByText(container, "Structure"));
+		// The tree is open by default, so drill straight into the section row.
 		clickByText(container, "Section 1");
 		// A section selection gates the Section panel only (plus the always-on Song).
 		expect(panelByTitle(container, "Song")).not.toBeNull();
@@ -551,8 +552,7 @@ describe("Edit — structure tree", () => {
 
 	it("selecting a tree measure row reveals the Measure and Section panels", () => {
 		const { container } = renderEdit(SONG);
-		click(buttonByText(container, "Structure"));
-		// Expand the section, then select its measure row.
+		// The tree is open by default: expand the section, then select its measure row.
 		clickByText(container, "Section 1");
 		clickByText(container, "Measure 1");
 		expect(panelByTitle(container, "Measure")).not.toBeNull();
@@ -562,8 +562,8 @@ describe("Edit — structure tree", () => {
 
 	it("selecting a tree note row reveals all three per-level panels", () => {
 		const { container } = renderEdit(SONG);
-		click(buttonByText(container, "Structure"));
-		// Drill down to the lone right-hand note and select it.
+		// The tree is open by default: drill down to the lone right-hand note and
+		// select it.
 		clickByText(container, "Section 1");
 		clickByText(container, "Measure 1");
 		clickByText(container, "Right hand");

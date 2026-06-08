@@ -95,11 +95,13 @@ export default function Edit({ attributes, setAttributes }) {
 	// structural edit, undo, or raw edit) falls back to none.
 	const [selection, setSelection] = useState(null);
 
-	// Editor-only UI state: whether the left structure tree is shown, and which tree
-	// rows are manually expanded (by index-path string). Neither is persisted; the
+	// Editor-only UI state: whether the left structure tree is shown (open by
+	// default on mount), and which tree rows are manually expanded (by index-path
+	// string). Neither is persisted; the toolbar toggle closes and reopens the tree
+	// and a manual close sticks for the session (nothing re-forces it open). The
 	// expanded Set is layered with auto-expand of the selection's ancestors in the
 	// tree, so its index-path staleness after a structural edit is best-effort.
-	const [showTree, setShowTree] = useState(false);
+	const [showTree, setShowTree] = useState(true);
 	const [expandedPaths, setExpandedPaths] = useState(() => new Set());
 
 	// Toggle a tree row's manual expansion by its index-path string. A new Set is
