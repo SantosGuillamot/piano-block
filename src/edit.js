@@ -17,7 +17,6 @@ import { MeasurePanel } from "./editor/inspector/MeasurePanel.js";
 import { NotePanel } from "./editor/inspector/NotePanel.js";
 import { SectionPanel } from "./editor/inspector/SectionPanel.js";
 import { SongPanel } from "./editor/inspector/SongPanel.js";
-import { StructureList } from "./editor/inspector/StructureList.js";
 import { inferNoteNameSystem } from "./editor/noteNames.js";
 import { resolveSelection } from "./editor/selection.js";
 import { commitSong } from "./editor/serializeSong.js";
@@ -31,6 +30,7 @@ import {
 	removeAt,
 } from "./editor/songModel.js";
 import SongCanvas from "./editor/SongCanvas.js";
+import { StructureTree } from "./editor/StructureTree.js";
 import validateSong from "./song/validate.js";
 
 /**
@@ -90,10 +90,31 @@ export default function Edit({ attributes, setAttributes }) {
 	// persisted to attributes.
 	const [mode, setMode] = useState("visual");
 
-	// Editor-only UI state: the selected event on the canvas, or `null` for none.
-	// Not persisted; resolved against the working object each render, so a stale
-	// selection (after a structural edit, undo, or raw edit) falls back to none.
+	// Editor-only UI state: the selected node, or `null` for none. Not persisted;
+	// resolved against the working object each render, so a stale selection (after a
+	// structural edit, undo, or raw edit) falls back to none.
 	const [selection, setSelection] = useState(null);
+
+	// Editor-only UI state: whether the left structure tree is shown, and which tree
+	// rows are manually expanded (by index-path string). Neither is persisted; the
+	// expanded Set is layered with auto-expand of the selection's ancestors in the
+	// tree, so its index-path staleness after a structural edit is best-effort.
+	const [showTree, setShowTree] = useState(false);
+	const [expandedPaths, setExpandedPaths] = useState(() => new Set());
+
+	// Toggle a tree row's manual expansion by its index-path string. A new Set is
+	// built each call so React sees a fresh reference and re-renders the tree.
+	const onToggleExpanded = (path) => {
+		setExpandedPaths((current) => {
+			const next = new Set(current);
+			if (next.has(path)) {
+				next.delete(path);
+			} else {
+				next.add(path);
+			}
+			return next;
+		});
+	};
 
 	// Pure, presentational validation: re-run only when the text changes. The
 	// empty string is the "no song" state and is never validated.
@@ -359,6 +380,17 @@ export default function Edit({ attributes, setAttributes }) {
 		<div {...useBlockProps()}>
 			<BlockControls>
 				<ToolbarGroup>
+					{/* The structure-tree toggle, meaningful only on the visual surface
+					    (the left tree is the selection surface; in JSON mode there is no
+					    canvas to pair it with). Mirrors the "Edit as JSON" toggle. */}
+					{mode !== "json" && (
+						<ToolbarButton
+							isActive={showTree}
+							onClick={() => setShowTree((current) => !current)}
+						>
+							{__("Structure", "piano-block")}
+						</ToolbarButton>
+					)}
 					<ToolbarButton
 						isActive={mode === "json"}
 						onClick={() => setMode(mode === "json" ? "visual" : "json")}
@@ -392,37 +424,39 @@ export default function Edit({ attributes, setAttributes }) {
 				<InvalidState errors={errors} onEditAsJson={() => setMode("json")} />
 			) : (
 				<>
-					<SongCanvas
-						song={working}
-						accessibleName={accessibleName}
-						selection={resolvedSelection}
-						onSelect={setSelection}
-					/>
-					<InspectorControls>
-						<SongPanel song={working} system={system} onChange={commit} />
-						{/* The always-present Structure browser: the song is navigable
-						    with nothing selected (sections → measures, to measure depth),
-						    and selecting a row drives the kind-tagged selection that gates
-						    the panels and the canvas highlight. The lifted structural
-						    mutators are the single owner of `working` + `commit`. The
-						    note-level remove and the three duplicate handlers are threaded
-						    here too so the structure surface owns the full mutator set; the
-						    Structure list ignores the props it does not yet render, and the
-						    tree that replaces it consumes them all. */}
-						<StructureList
+					{/* The editor workspace: the left structure tree (the selection
+					    surface, toggled by the Structure toolbar button) beside the canvas
+					    (display + highlight). The tree column is left, the canvas right;
+					    `style.scss` lays them out as a flex row. */}
+					<div className="wp-block-piano-block-piano__workspace">
+						{showTree && (
+							<StructureTree
+								song={working}
+								selection={resolvedSelection}
+								system={system}
+								expandedPaths={expandedPaths}
+								onToggleExpanded={onToggleExpanded}
+								onSelect={setSelection}
+								onAddSection={onAddSection}
+								onRemoveSection={onRemoveSection}
+								onDuplicateSection={onDuplicateSection}
+								onAddMeasure={onAddMeasure}
+								onRemoveMeasure={onRemoveMeasure}
+								onDuplicateMeasure={onDuplicateMeasure}
+								onAddNote={onAddNote}
+								onRemoveNote={onRemoveNote}
+								onDuplicateNote={onDuplicateNote}
+							/>
+						)}
+						<SongCanvas
 							song={working}
+							accessibleName={accessibleName}
 							selection={resolvedSelection}
 							onSelect={setSelection}
-							onAddSection={onAddSection}
-							onRemoveSection={onRemoveSection}
-							onDuplicateSection={onDuplicateSection}
-							onAddMeasure={onAddMeasure}
-							onRemoveMeasure={onRemoveMeasure}
-							onDuplicateMeasure={onDuplicateMeasure}
-							onAddNote={onAddNote}
-							onRemoveNote={onRemoveNote}
-							onDuplicateNote={onDuplicateNote}
 						/>
+					</div>
+					<InspectorControls>
+						<SongPanel song={working} system={system} onChange={commit} />
 						{/* Gate the per-level panels by the selection's kind: every kind
 						    has a section; a measure/event also has a measure; only an
 						    event has a note. So a section selection shows Section only, a

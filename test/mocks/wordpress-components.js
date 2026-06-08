@@ -323,6 +323,102 @@ const ToolsPanelItem = ({
 const Icon = ({ icon: _icon, size: _size, ...rest }) =>
 	createElement("span", { "data-icon": true, ...rest });
 
+/**
+ * Minimal `__experimentalTreeGrid` (TreeGrid) stand-in. The real component
+ * renders a `<table role="treegrid">` and supplies the accessible treegrid
+ * keyboard model (roving tabindex, Up/Down/Left/Right navigation) over its rows;
+ * here it renders a bare `<table role="treegrid">` whose `<tbody>` holds the
+ * caller's row children, so jsdom tests can assert the row inventory, the row
+ * ARIA wiring, and the action-button payloads without the full keyboard model.
+ *
+ * The expansion callbacks (`onExpandRow`/`onCollapseRow`/`onFocusRow`) are
+ * accepted and ignored: this DOM-honest mock leaves true keyboard/roving-tabindex
+ * and expand/collapse-key behavior to the e2e suite. The component under test
+ * drives expansion through the explicit disclosure `Button`s it renders, so the
+ * unit tests assert expansion via which rows are present rather than via these
+ * keyboard callbacks. `className`/`label` pass through.
+ *
+ * @param {Object} props TreeGrid props.
+ * @return {Object} A React `<table role="treegrid">` element.
+ */
+const TreeGrid = ({
+	children,
+	label,
+	// Swallow the keyboard-model callbacks the mock does not simulate.
+	onExpandRow: _onExpandRow,
+	onCollapseRow: _onCollapseRow,
+	onFocusRow: _onFocusRow,
+	...rest
+}) =>
+	createElement(
+		"table",
+		{ role: "treegrid", "aria-label": label, ...rest },
+		createElement("tbody", null, children),
+	);
+
+/**
+ * Minimal `__experimentalTreeGridRow` (TreeGridRow) stand-in. Renders a
+ * `<tr role="row">` honoring the row props as their ARIA attributes —
+ * `level`→`aria-level`, `positionInSet`→`aria-posinset`, `setSize`→`aria-setsize`,
+ * and (when defined) `isExpanded`→`aria-expanded` — so tests can assert the
+ * treegrid ARIA wiring the real component derives. `data-path` and `children`
+ * pass through.
+ *
+ * @param {Object} props TreeGridRow props.
+ * @return {Object} A React `<tr role="row">` element.
+ */
+const TreeGridRow = ({
+	children,
+	level,
+	positionInSet,
+	setSize,
+	isExpanded,
+	...rest
+}) =>
+	createElement(
+		"tr",
+		{
+			role: "row",
+			"aria-level": level,
+			"aria-posinset": positionInSet,
+			"aria-setsize": setSize,
+			"aria-expanded": isExpanded === undefined ? undefined : isExpanded,
+			...rest,
+		},
+		children,
+	);
+
+/**
+ * Minimal `__experimentalTreeGridCell` (TreeGridCell) stand-in. The real cell
+ * passes roving-tabindex props to a render-prop child so the focusable inside it
+ * joins the treegrid's keyboard model; here it renders the render-prop child
+ * (`children(props)`) inside a `<td role="gridcell">`, passing an empty `props`
+ * object (the mock simulates no roving tabindex). A plain (non-render-prop) child
+ * is rendered as-is.
+ *
+ * @param {Object} props TreeGridCell props.
+ * @return {Object} A React `<td role="gridcell">` element.
+ */
+const TreeGridCell = ({ children, ...rest }) =>
+	createElement(
+		"td",
+		{ role: "gridcell", ...rest },
+		typeof children === "function" ? children({}) : children,
+	);
+
+/**
+ * Minimal `__experimentalTreeGridItem` (TreeGridItem) stand-in. The real item
+ * wraps one focusable within a cell that holds several; here it renders its
+ * render-prop child (`children(props)`) with an empty `props` object (or a plain
+ * child as-is), with no wrapping element of its own so the buttons stay inside
+ * their owning cell. Mirrors `TreeGridCell`'s render-prop handling.
+ *
+ * @param {Object} props TreeGridItem props.
+ * @return {Object} The rendered focusable.
+ */
+const TreeGridItem = ({ children }) =>
+	typeof children === "function" ? children({}) : children;
+
 module.exports = {
 	Button,
 	SelectControl,
@@ -338,4 +434,8 @@ module.exports = {
 	__experimentalNumberControl: NumberControl,
 	__experimentalToolsPanel: ToolsPanel,
 	__experimentalToolsPanelItem: ToolsPanelItem,
+	__experimentalTreeGrid: TreeGrid,
+	__experimentalTreeGridRow: TreeGridRow,
+	__experimentalTreeGridCell: TreeGridCell,
+	__experimentalTreeGridItem: TreeGridItem,
 };
