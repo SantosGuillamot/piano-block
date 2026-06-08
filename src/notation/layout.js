@@ -2910,14 +2910,11 @@ function topMarginLayout(members, ledgerTop, aboveRHCount) {
 }
 
 /**
- * Build a system's text primitives: the tempo marks + the measure number, plus the
- * ottava brackets.
+ * Build a system's text primitives: the tempo marks plus the ottava brackets.
  *
  * - **Tempo** prints above the first measure of the section at the song start and at
  *   any tempo change — so it is emitted at every measure in this system that is a
  *   section start whose diff marks `tempo` changed (and always at the score start).
- * - **Measure number** sits above-left of the system's first measure (sequential
- *   1..N across the whole song, never reset by section boundaries).
  * - **Ottava** is restated per wrapped system: for each hand, one bracket per
  *   contiguous run of this system's measures sharing a non-zero `octaveShift`,
  *   spanning that run's notes (the bracket is a marking, not a vertical move).
@@ -2925,11 +2922,9 @@ function topMarginLayout(members, ledgerTop, aboveRHCount) {
  * @param {object[]} members The system's flattened measure entries.
  * @param {object[]} measureModels The system's positioned measure models.
  * @param {object} band The system's band Y layout.
- * @return {{ tempos: object[], measureNumber: object, ottavas: object[] }} The texts.
+ * @return {{ tempos: object[], ottavas: object[] }} The texts.
  */
 function buildSystemTexts(members, measureModels, band) {
-	const head = members[0];
-
 	// Tempo: at the score start and at any in-system tempo change (a section start
 	// whose diff marks tempo changed). Each prints above its measure's left edge.
 	const tempos = [];
@@ -2950,18 +2945,6 @@ function buildSystemTexts(members, measureModels, band) {
 			}
 		}
 	});
-
-	// Measure 1 is conventionally left un-numbered (its number is obvious), so a system
-	// that opens the piece shows no number; every later system labels its first measure.
-	const measureNumber =
-		head.number === 1
-			? null
-			: {
-					text: String(head.number),
-					// Above-left of the first measure, never left of the staff margin.
-					x: Math.max(measureModels[0].x - 1, STAFF_MARGIN_X),
-					y: band.rightStaffTopY - 1,
-				};
 
 	// Ottava: per hand, one bracket per contiguous run sharing a non-zero shift.
 	const ottavas = [];
@@ -3027,5 +3010,5 @@ function buildSystemTexts(members, measureModels, band) {
 		flush();
 	}
 
-	return { tempos, measureNumber, ottavas };
+	return { tempos, ottavas };
 }

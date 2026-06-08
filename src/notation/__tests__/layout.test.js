@@ -1956,6 +1956,44 @@ describe("buildLayoutModel — the full positioned-primitive model", () => {
 		expect(eightVa.placement).toBe("above");
 	});
 
+	it("returns a per-system texts object whose only keys are tempos and ottavas", () => {
+		// The texts producer no longer carries a measure-number field; its own
+		// enumerable keys narrow to exactly the tempo + ottava collections. Checked at
+		// both a wide width (one head system) and a narrow width (many wrapped systems).
+		for (const width of [200, 30]) {
+			const model = buildLayoutModel(COMPREHENSIVE_SONG, width);
+			for (const sys of model.systems) {
+				expect(Object.keys(sys.texts).sort()).toEqual(["ottavas", "tempos"]);
+				expect("measureNumber" in sys.texts).toBe(false);
+			}
+		}
+	});
+
+	it("never carries a measureNumber on the head system or any wrapped system", () => {
+		// Narrow → many systems, so both the system that opens on measure 1 and the
+		// later systems that formerly carried a label are covered.
+		const model = buildLayoutModel(COMPREHENSIVE_SONG, 30);
+		expect(model.systems.length).toBeGreaterThan(1);
+		for (const sys of model.systems) {
+			expect(sys.texts.measureNumber).toBeUndefined();
+		}
+	});
+
+	it("still surfaces tempos and ottavas as arrays after dropping the measure number", () => {
+		// Removing the measure-number field leaves the tempo + ottava computations
+		// untouched: both stay arrays with their existing contents.
+		const model = buildLayoutModel(COMPREHENSIVE_SONG, 200);
+		const tempos = model.systems.flatMap((s) => s.texts.tempos);
+		const ottavas = model.systems.flatMap((s) => s.texts.ottavas);
+		for (const sys of model.systems) {
+			expect(Array.isArray(sys.texts.tempos)).toBe(true);
+			expect(Array.isArray(sys.texts.ottavas)).toBe(true);
+		}
+		// The fixture's tempo (song start + section-2 change) and 8va are intact.
+		expect(tempos.map((t) => t.bpm).sort((a, b) => a - b)).toEqual([90, 120]);
+		expect(ottavas.some((o) => o.label === "8va")).toBe(true);
+	});
+
 	it("draws an inline section change at a mid-system section boundary", () => {
 		// At a width that keeps all three measures on one system, the section-2 start
 		// (measure 3) carries inline cautionary changes (LH clef + RH/LH key sig).
