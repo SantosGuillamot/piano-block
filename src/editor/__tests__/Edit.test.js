@@ -1,12 +1,23 @@
 /**
  * Unit tests for the block's edit container — the thin mode container that
- * switches between the visual editor (default) and the raw-JSON field.
+ * switches between the canvas-first visual editor (default) and the raw-JSON
+ * field.
  *
- * `Edit` owns one piece of editor-only UI state, the `mode` (`"visual"` |
- * `"json"`), computes the memoized `errors = validateSong(song)` once (empty
- * string → `[]`), and renders one of two surfaces. These tests pin that:
- *   - the default surface is visual mode (the structured editor is present and
- *     the "Song (JSON)" textarea is NOT in the DOM);
+ * `Edit` owns two pieces of editor-only UI state, the `mode` (`"visual"` |
+ * `"json"`) and the canvas `selection`, computes the memoized
+ * `errors = validateSong(song)` once (empty string → `[]`), and renders one of
+ * three surfaces. These tests pin that:
+ *   - the default surface is the visual editor: the interactive `SongCanvas`
+ *     (its rendered `<svg>`) plus the always-present `SongPanel` inside the
+ *     `InspectorControls` sidebar, with the "Song (JSON)" textarea NOT in the
+ *     DOM;
+ *   - an empty song is seeded editor-side: the canvas mounts an empty grand-staff
+ *     `<svg>` (no EmptyState button) while the persisted attribute stays `""`
+ *     until a first edit;
+ *   - with nothing selected the sidebar shows only the Song panel — no
+ *     Note/Measure/Section panels;
+ *   - a non-empty *invalid* song routes to the invalid state ("Edit as JSON"),
+ *     not the canvas;
  *   - toggling to JSON mode shows the raw-JSON textarea with its exact label and,
  *     for a non-conformant song, the non-blocking error notice carrying the
  *     validator's first message;
@@ -18,7 +29,8 @@
  * jsdom (no `@testing-library/react`) and drive the mocked controls directly —
  * clicking the toolbar toggle, or setting a textarea value and dispatching a
  * change event — all inside `act` so React flushes synchronously. The mocked
- * `@wordpress/block-editor` renders `useBlockProps`/`BlockControls` inline.
+ * `@wordpress/block-editor` renders `useBlockProps`/`BlockControls`/
+ * `InspectorControls` inline (the last into a `data-inspector-controls` marker).
  */
 import { createElement, useState } from "@wordpress/element";
 import { act } from "react";
@@ -89,6 +101,16 @@ function buttonByText(container, text) {
 	);
 }
 
+/** The mocked `InspectorControls` sidebar region (the panels' host), or null. */
+function inspector(container) {
+	return container.querySelector("[data-inspector-controls]");
+}
+
+/** A rendered inspector `PanelBody` by its title (the mock's `aria-label`). */
+function panelByTitle(container, title) {
+	return container.querySelector(`[aria-label="${title}"]`);
+}
+
 /** Click a node inside `act` so React flushes the handler. */
 function click(node) {
 	act(() => {
@@ -140,21 +162,55 @@ function renderEdit(initial) {
 }
 
 describe("Edit mode container", () => {
-	it("defaults to visual mode: the structured editor is present, the JSON textarea is not", () => {
+	it("defaults to visual mode: the canvas and the Song panel are present, the JSON textarea is not", () => {
 		const { container } = renderEdit(SONG);
-		// Visual mode shows the structured editor (its metadata Title field).
-		expect(fieldByName(container, "Title")).not.toBeNull();
-		expect(fieldByName(container, "Title").value).toBe("Hello");
+		// The visual editor renders the interactive canvas (its rendered <svg>) and
+		// the always-present Song panel inside the InspectorControls sidebar.
+		expect(container.querySelector("svg")).not.toBeNull();
+		expect(inspector(container)).not.toBeNull();
+		expect(panelByTitle(container, "Song")).not.toBeNull();
 		// The raw-JSON textarea is absent in visual mode.
 		expect(fieldByName(container, "Song (JSON)")).toBeNull();
 	});
 
-	it("shows the empty state in visual mode for an empty song", () => {
-		const { container } = renderEdit("");
-		// No structured editor, no JSON textarea — the empty-state affordance shows.
-		expect(fieldByName(container, "Title")).toBeNull();
+	it("seeds an empty song editor-side: the canvas mounts but the attribute stays empty", () => {
+		const { container, calls } = renderEdit("");
+		// No raw-JSON textarea, no EmptyState button — the empty song is seeded with
+		// newSong() so the canvas mounts an empty grand-staff <svg> ready for notes.
 		expect(fieldByName(container, "Song (JSON)")).toBeNull();
-		expect(buttonByText(container, "Start a new song")).toBeDefined();
+		expect(buttonByText(container, "Start a new song")).toBeUndefined();
+		expect(container.querySelector("svg")).not.toBeNull();
+		// The seed is lazy: nothing is persisted until a first edit.
+		expect(calls).toHaveLength(0);
+		// Switching to JSON mode shows an empty textarea (the attribute is still "").
+		click(buttonByText(container, "Edit as JSON"));
+		expect(fieldByName(container, "Song (JSON)").value).toBe("");
+	});
+
+	it("shows only the Song panel when nothing is selected", () => {
+		const { container } = renderEdit(SONG);
+		// With no canvas selection, the sidebar holds the always-present Song panel
+		// and none of the selection-dependent Note/Measure/Section panels.
+		expect(panelByTitle(container, "Song")).not.toBeNull();
+		expect(panelByTitle(container, "Note")).toBeNull();
+		expect(panelByTitle(container, "Measure")).toBeNull();
+		expect(panelByTitle(container, "Section")).toBeNull();
+	});
+
+	it("reveals the Note/Measure/Section panels when a note is selected on the canvas", () => {
+		const { container } = renderEdit(SONG);
+		// Click the rendered note group the conformant fixture emits on the canvas;
+		// the container's native click handler resolves it to a selection, which
+		// reveals the per-level panels alongside the always-present Song panel.
+		const note = container.querySelector('[data-kind="note"]');
+		expect(note).not.toBeNull();
+		act(() => {
+			note.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+		});
+		expect(panelByTitle(container, "Song")).not.toBeNull();
+		expect(panelByTitle(container, "Note")).not.toBeNull();
+		expect(panelByTitle(container, "Measure")).not.toBeNull();
+		expect(panelByTitle(container, "Section")).not.toBeNull();
 	});
 
 	it("toggling the toolbar switch shows the raw-JSON textarea with its exact label", () => {
@@ -180,17 +236,22 @@ describe("Edit mode container", () => {
 		expect(back).toBeDefined();
 		click(back);
 		expect(fieldByName(container, "Song (JSON)")).toBeNull();
-		expect(fieldByName(container, "Title")).not.toBeNull();
+		// Back on the visual surface: the canvas and the Song panel are present.
+		expect(container.querySelector("svg")).not.toBeNull();
+		expect(panelByTitle(container, "Song")).not.toBeNull();
 	});
 
-	it("the visual mode's InvalidState JSON switch jumps to JSON mode", () => {
+	it("routes a non-empty invalid song to the invalid state, not the canvas", () => {
 		const { container } = renderEdit(INVALID_SONG);
-		// A non-conformant song renders the invalid state, not the JSON field yet.
+		// A non-conformant song renders the invalid state: no canvas, no Song panel,
+		// and not the JSON field yet.
 		expect(fieldByName(container, "Song (JSON)")).toBeNull();
+		expect(container.querySelector("svg")).toBeNull();
+		expect(panelByTitle(container, "Song")).toBeNull();
+		// Its "Edit as JSON" affordance jumps to JSON mode with the invalid text.
 		const jsonSwitch = buttonByText(container, "Edit as JSON");
 		expect(jsonSwitch).toBeDefined();
 		click(jsonSwitch);
-		// Now in JSON mode: the raw field carries the invalid text verbatim.
 		const textarea = fieldByName(container, "Song (JSON)");
 		expect(textarea).not.toBeNull();
 		expect(textarea.value).toBe(INVALID_SONG);
@@ -232,10 +293,10 @@ describe("Edit mode container", () => {
 		expect(notice.textContent).toBe(validateSong(RAW)[0]);
 	});
 
-	it("renders a live preview alongside the structured editor in visual mode", () => {
+	it("renders the conformant song on the canvas with its accessible name", () => {
 		const { container } = renderEdit(SONG);
-		// The conformant song mounts an <svg> in the preview column, and its
-		// <title> carries the metadata-derived accessible name.
+		// The conformant song mounts an <svg> on the canvas, and its <title> carries
+		// the metadata-derived accessible name passed down to the canvas.
 		const title = container.querySelector("svg title");
 		expect(title).not.toBeNull();
 		expect(title.textContent).toBe("Hello by Ada");

@@ -27,71 +27,13 @@
 	color: #767676;
 
 	/**
-	 * Editor-only layout styles for the on-canvas visual editor, its adjacent
-	 * read-only preview, and the mode container that switches between the visual
-	 * editor and the raw-JSON field. These rules style the editor surface only;
-	 * the front end renders the SVG directly and never sees these classes. The
-	 * `__preview` and `__song-input` classes are already emitted by the editor
-	 * components; the rest are attached by the mode container.
-	 */
-
-	/* The mode container's top toggle row (visual editor / edit as JSON). */
-	&__mode-toggle {
-		display: flex;
-		gap: 0.5em;
-		margin-bottom: 1em;
-	}
-
-	/* Two-column visual editor: structured editor beside the live preview. It
-	 * stacks vertically on a narrow canvas. */
-	&__visual {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 1em;
-		align-items: flex-start;
-	}
-
-	/* The structured (drill-down) editor column. */
-	&__editor {
-		flex: 1 1 280px;
-		min-width: 0;
-	}
-
-	/* The read-only preview column. A min-width keeps the column's
-	 * `clientWidth` non-zero so the preview can measure a real width and lay the
-	 * notation out at that scale. */
-	&__preview {
-		flex: 1 1 320px;
-		min-width: 280px;
-		overflow-x: auto;
-	}
-
-	/* The breadcrumb trail tying the drill-down levels together. */
-	&__breadcrumb {
-		margin-bottom: 0.5em;
-	}
-
-	/* A panel grouping one level's fields (metadata, context, a section, a
-	 * measure, an event). */
-	&__panel {
-		margin-bottom: 1em;
-	}
-
-	/* One row of a list (section, measure, event, pitch, annotation) with its
-	 * inline controls and reorder/remove buttons. */
-	&__list-row {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 0.5em;
-		align-items: flex-end;
-		margin-bottom: 0.5em;
-	}
-
-	/**
-	 * Canvas-first editor styles. The interactive sheet-music canvas replaces the
-	 * old read-only preview: the rendered staff is the surface the author selects
-	 * notes on, with on-canvas add affordances beside it. (The drill-down rules
-	 * above are superseded and removed when the visual branch is rewritten.)
+	 * Canvas-first editor styles. These rules style the editor surface only; the
+	 * front end renders the SVG directly and never sees these classes. The
+	 * interactive sheet-music canvas is the surface the author both reads and
+	 * selects notes on, with on-canvas add affordances beside it; the song-level
+	 * and selected-event settings live in the block's `InspectorControls` sidebar,
+	 * which WordPress styles. The `__song-input` class is emitted by the mode
+	 * container's raw-JSON field.
 	 */
 
 	/* The interactive canvas wrapper: the SVG host plus the add affordances. */
