@@ -33,7 +33,7 @@ and the unit tests that encode to-be-changed behavior.
 while the toolbar toggle still closes and reopens it and a manual close sticks for the
 session (KD1 / Req 1 / AC1).
 
-**Files.** `src/edit.js`; `src/editor/__tests__/Edit.test.js`.
+**Files.** `src/edit.js`; `src/editor/__tests__/Edit.test.js`; `specs/editor.spec.js`.
 
 **Changes.**
 1. `src/edit.js:102` — flip the initializer: `const [showTree, setShowTree] =
@@ -59,10 +59,26 @@ session (KD1 / Req 1 / AC1).
    which will break them. **Remove the leading `click(... "Structure")` from every
    such test/helper** (the tree is already open), keeping the subsequent drill-down
    clicks. Verify by running the suite — every `Edit.test.js` test must stay green.
+5. `specs/editor.spec.js` (e2e) — the `openStructureTree` helper
+   (`specs/editor.spec.js:261-263`) clicks the block-toolbar "Structure" button on the
+   premise (its doc-comment, `:255-259`) that the tree is **hidden by default**. With T1
+   flipping `showTree` to `useState(true)` the tree is **already open** on insert, so
+   each `openStructureTree(editor)` call (`:408`, `:468`, `:512`, `:574`, `:611`) would
+   now **close** it — breaking the very next `await expect(structureTree(editor))
+   .toBeVisible()` (`:409`) and every following `treeRow(...).click()`. **Remove every
+   `openStructureTree(editor)` call** (the tree is open by default) — or repurpose the
+   helper into a no-op / assert-already-open — and **rewrite its `:255-259` doc-comment**
+   so "hidden by default" reads as *open by default* (still closeable/reopenable via the
+   toggle). Also fix the `structureTree` helper's trailing comment (`:270`, "Only present
+   once `openStructureTree` has toggled it on") to reflect open-by-default. Optionally, in
+   the first such test, assert the tree is present immediately on insert without the toggle
+   and that the toolbar button now **closes** then **reopens** it (the AC1 cycle); not
+   required, but the call sites above MUST be fixed so the suite is not left broken.
 
 **Depends on.** none.
 
-**Traces to.** Req 1 / AC1; KD1; R2 (open-by-default Edit.test.js update).
+**Traces to.** Req 1 / AC1; KD1; R2 (open-by-default `Edit.test.js` and `editor.spec.js`
+updates).
 
 **Acceptance.**
 - `npm run test:unit` green; `Edit.test.js` count unchanged (tests rewritten in place,
@@ -70,6 +86,10 @@ session (KD1 / Req 1 / AC1).
 - The updated toggle test asserts: tree present on mount → click closes → click
   reopens.
 - No `Edit.test.js` test relies on a leading Structure click to *open* the tree.
+- No `openStructureTree(editor)` call remains in `specs/editor.spec.js` (or it is a
+  verified no-op/assert-already-open), and its doc-comment (and `structureTree`'s
+  trailing comment) describe the tree as open by default. The e2e spec no longer
+  encodes the now-false "hidden by default" precondition.
 - `npm run lint` clean.
 
 ---
@@ -159,7 +179,8 @@ highlight is unchanged. The now-dead `measureNumbersForSection` helper is pruned
 (KD4 + OQ1 / Req 4 / AC4).
 
 **Files.** `src/editor/SongCanvas.js`; `src/style.scss`; `src/editor/selection.js`;
-`src/editor/__tests__/SongCanvas.test.js`; `src/editor/__tests__/selection.test.js`.
+`src/editor/__tests__/SongCanvas.test.js`; `src/editor/__tests__/selection.test.js`;
+`specs/editor.spec.js`.
 
 **Changes.**
 1. `SongCanvas.js` `decorateSelection` (`:114-163`) — remove the **section branch**
@@ -215,6 +236,20 @@ highlight is unchanged. The now-dead `measureNumbersForSection` helper is pruned
      `scrollGroupIntoView`** and its doc-comment so no dead helper remains; remove the
      two scroll tests accordingly. Do not add scrolling to the event branch — that is
      out of scope.
+7. `specs/editor.spec.js` (e2e) — the test "selecting structure-tree rows reveals the
+   right panels and highlights the canvas" asserts the now-removed canvas decoration:
+   `editor.canvas.locator('[data-measure].is-active-section')` (`:585`) and
+   `editor.canvas.locator('[data-measure].is-active-measure')` (`:596`). After T4 removes
+   the section/measure branches and the `.is-active-*` CSS those classes are never
+   applied, so both assertions fail. **Drop both `is-active-*` assertions** (the section
+   one at `:584-586`, the measure one at `:595-597`) and the stale highlight prose in the
+   surrounding comments (`:576-590`) that describes the section/measure highlight — mirror
+   the unit-side `SongCanvas.test.js` treatment (section/measure selection now decorates
+   nothing). **Keep the panel-reveal half** of the test intact: the Section-row click
+   still asserts Section visible / Measure+Note absent, and the Measure-row click still
+   asserts Measure+Section visible / Note absent. Keep any `is-selected` event-highlight
+   assertion if present (there is none in this test). Rename the test title if it still
+   claims it "highlights the canvas."
 
 **Depends on.** T3 (independent files, but sequential base). Order T4 before T5 so the
 `.is-selected` rule is reshaped once on a settled SCSS block.
@@ -230,6 +265,10 @@ highlight is unchanged. The now-dead `measureNumbersForSection` helper is pruned
   no file imports them. `npm run lint` flags no unused import/var.
 - `SongCanvas.test.js` and `selection.test.js` updated; suites green. Net unit count
   **decreases** (four+ `SongCanvas` tests and two `selection` tests removed).
+- `specs/editor.spec.js` no longer asserts `[data-measure].is-active-section` (`:585`)
+  or `[data-measure].is-active-measure` (`:596`), and the surrounding comments no longer
+  describe a section/measure highlight; the panel-reveal assertions in that test are
+  retained. The e2e spec no longer encodes the removed highlight behavior.
 - `npm run test:unit` green; `npm run lint` clean.
 
 ---
@@ -414,6 +453,13 @@ with real logic.
 - `npm run test:unit` green. Expected net movement from the 629-test baseline: −several
   (T4 removes `is-active-*`/`measureNumbersForSection`/scroll tests) and +2 (T7 adds
   the AC7 + un-overridden-reveal tests); the suite count stays 20.
+- The e2e suite (`specs/editor.spec.js`, run via `wp-env`, not part of the per-task
+  `npm run test:unit` gate) is updated in lock-step under R2: T1 removes the stale
+  `openStructureTree` toggle calls / fixes its doc-comment for open-by-default, and T4
+  drops the `is-active-*` highlight assertions and their comments. No new e2e behavior is
+  required beyond reflecting open-by-default and the removed highlight. T6's panel reorder
+  does not touch the e2e suite (its panel assertions test presence by kind via
+  `toBeVisible`/`toHaveCount`, not DOM order), so it is correctly left out of e2e scope.
 - Manual editor verification (out of unit scope, for the verify phase): tree open on
   selecting a block; rows indent by depth; per-row action buttons themed; selecting a
   section/measure highlights nothing while a note shows a thin outline; panels render
