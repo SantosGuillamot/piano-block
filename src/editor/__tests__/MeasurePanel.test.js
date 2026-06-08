@@ -180,6 +180,35 @@ function expectConformant(song) {
 	expect(validateSong(JSON.stringify(song))).toEqual([]);
 }
 
+describe("MeasurePanel — name (omit-when-blank)", () => {
+	it("sets the measure name when typed and the song validates", () => {
+		const { container, calls } = renderPanel();
+		change(fieldByName(container, "Measure name"), "Pickup");
+		expect(calls.at(-1).sections[0].measures[0].name).toBe("Pickup");
+		// The name lands only on the selected measure, not its sibling.
+		expect(calls.at(-1).sections[0].measures[1].name).toBeUndefined();
+		expectConformant(calls.at(-1));
+	});
+
+	it("drops the name key when cleared (no empty husk)", () => {
+		const { container, calls } = renderPanel();
+
+		change(fieldByName(container, "Measure name"), "Pickup");
+		expect(calls.at(-1).sections[0].measures[0].name).toBe("Pickup");
+
+		change(fieldByName(container, "Measure name"), "");
+		expect(calls.at(-1).sections[0].measures[0]).not.toHaveProperty("name");
+		expectConformant(calls.at(-1));
+	});
+
+	it("shows the current name value", () => {
+		const song = fixtureSong();
+		song.sections[0].measures[0].name = "Chorus";
+		const { container } = renderPanel({ song });
+		expect(fieldByName(container, "Measure name").value).toBe("Chorus");
+	});
+});
+
 describe("MeasurePanel — barlines (omit-when-unset)", () => {
 	it("adds the end barline when set and the song validates", () => {
 		const { container, calls } = renderPanel();

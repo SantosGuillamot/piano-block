@@ -24,6 +24,7 @@ import {
 	Button,
 	PanelBody,
 	SelectControl,
+	TextControl,
 	__experimentalToolsPanel as ToolsPanel,
 	__experimentalToolsPanelItem as ToolsPanelItem,
 } from "@wordpress/components";
@@ -70,6 +71,20 @@ export function MeasurePanel({ song, selection, onChange, onRemoveMeasure }) {
 	};
 
 	/**
+	 * Set the measure's optional `name`: a non-blank value sets the key, a blank
+	 * one drops it so an emptied name leaves no empty husk in the round-trip
+	 * (the same omit-when-empty idiom the barline fields follow).
+	 */
+	const changeName = (value) => {
+		if (value.trim()) {
+			emitMeasure({ ...measure, name: value });
+			return;
+		}
+		const { name: _dropped, ...rest } = measure;
+		emitMeasure(rest);
+	};
+
+	/**
 	 * Set a barline field: a falsy value (the empty option) drops the key,
 	 * otherwise it is set to one of the schema's barline enums.
 	 */
@@ -84,6 +99,13 @@ export function MeasurePanel({ song, selection, onChange, onRemoveMeasure }) {
 
 	return (
 		<PanelBody title={__("Measure", "piano-block")} initialOpen>
+			<TextControl
+				label={__("Measure name", "piano-block")}
+				value={measure.name ?? ""}
+				onChange={changeName}
+				__nextHasNoMarginBottom
+			/>
+
 			<ToolsPanel
 				label={__("Advanced", "piano-block")}
 				resetAll={() => {

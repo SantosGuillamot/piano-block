@@ -186,6 +186,38 @@ function expectConformant(song) {
 	expect(validateSong(JSON.stringify(song))).toEqual([]);
 }
 
+describe("SectionPanel — name (omit-when-blank)", () => {
+	it("sets the section name when typed and the song validates", () => {
+		const { container, calls } = renderPanel();
+		change(fieldByName(container, "Section name"), "Intro");
+		expect(calls.at(-1).sections[0].name).toBe("Intro");
+		// The name lands only on the selected section, not its sibling.
+		expect(calls.at(-1).sections[1].name).toBeUndefined();
+		expect(calls.at(-1).sections[0].measures).toHaveLength(1);
+		expectConformant(calls.at(-1));
+	});
+
+	it("drops the name key when cleared (no empty husk)", () => {
+		const { container, calls } = renderPanel();
+
+		change(fieldByName(container, "Section name"), "Intro");
+		expect(calls.at(-1).sections[0].name).toBe("Intro");
+
+		change(fieldByName(container, "Section name"), "");
+		expect(calls.at(-1).sections[0]).not.toHaveProperty("name");
+		// The section keeps its required measures.
+		expect(calls.at(-1).sections[0].measures).toHaveLength(1);
+		expectConformant(calls.at(-1));
+	});
+
+	it("shows the current name value", () => {
+		const song = fixtureSong();
+		song.sections[0].name = "Verse";
+		const { container } = renderPanel({ song });
+		expect(fieldByName(container, "Section name").value).toBe("Verse");
+	});
+});
+
 describe("SectionPanel — context overrides (omit-when-unset)", () => {
 	it("adds a tempo override when set and the song validates", () => {
 		const { container, calls } = renderPanel();

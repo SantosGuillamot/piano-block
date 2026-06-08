@@ -27,6 +27,7 @@
 import {
 	Button,
 	PanelBody,
+	TextControl,
 	__experimentalToolsPanel as ToolsPanel,
 	__experimentalToolsPanelItem as ToolsPanelItem,
 } from "@wordpress/components";
@@ -84,6 +85,20 @@ export function SectionPanel({
 	};
 
 	/**
+	 * Set the section's optional `name`: a non-blank value sets the key, a blank
+	 * one drops it so an emptied name leaves no empty husk in the round-trip
+	 * (the same omit-when-empty idiom the override keys follow).
+	 */
+	const changeName = (value) => {
+		if (value.trim()) {
+			emitSection({ ...section, name: value });
+			return;
+		}
+		const { name: _dropped, ...rest } = section;
+		emitSection(rest);
+	};
+
+	/**
 	 * Rebuild the section from a next override context: keep its non-override keys
 	 * (always `measures`) plus only the override keys the context still carries, so
 	 * an unset override drops its key.
@@ -97,6 +112,13 @@ export function SectionPanel({
 
 	return (
 		<PanelBody title={__("Section", "piano-block")} initialOpen>
+			<TextControl
+				label={__("Section name", "piano-block")}
+				value={section.name ?? ""}
+				onChange={changeName}
+				__nextHasNoMarginBottom
+			/>
+
 			<ToolsPanel
 				label={__("Advanced", "piano-block")}
 				resetAll={() => {
