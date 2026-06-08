@@ -2152,6 +2152,64 @@ describe("layout-polish fixes", () => {
 		expect(plain.band.annotationAboveRHLaneY).toBeNull();
 	});
 
+	it("a head system opening on measure 1 keeps its exact top margin + lane baselines", () => {
+		// Measure 1 never reserved any above-staff number band, so collapsing the
+		// reservation to the bare ledger extent must leave this system pixel-identical.
+		// These are the verified pre-change values for the comprehensive song's head
+		// system (the one that opens on measure 1) at two widths.
+		const head30 = buildLayoutModel(COMPREHENSIVE_SONG, 30).systems[0];
+		expect(head30.measures[0].number).toBe(1);
+		expect(head30.band.topMargin).toBeCloseTo(8.7, 10);
+		expect(head30.band.tempoLaneY).toBeCloseTo(3.8, 10);
+		expect(head30.band.ottavaAboveLaneY).toBeNull();
+		expect(head30.band.annotationAboveRHLaneY).toBeCloseTo(7.2, 10);
+
+		const head200 = buildLayoutModel(COMPREHENSIVE_SONG, 200).systems[0];
+		expect(head200.measures[0].number).toBe(1);
+		expect(head200.band.topMargin).toBeCloseTo(13, 10);
+		expect(head200.band.tempoLaneY).toBeCloseTo(3.8, 10);
+		expect(head200.band.ottavaAboveLaneY).toBeCloseTo(6.6, 10);
+		expect(head200.band.annotationAboveRHLaneY).toBeCloseTo(10, 10);
+	});
+
+	it("the above-staff reservation depends only on the ledger extent, not on a measure number", () => {
+		// One low-note measure that carries a tempo lane and nothing high above the
+		// staff. As a song's first measure it is number 1 (never reserved a number
+		// band); reached as a later section start it is numbered ≥ 2 (formerly reserved
+		// one). With the reservation collapsed the two heads share identical geometry.
+		const note = {
+			type: "note",
+			duration: "quarter",
+			pitches: [{ step: "B", octave: 4 }],
+		};
+		const tempoMeasure = (bpm) => ({
+			tempo: { bpm, beatUnit: "quarter" },
+			measures: [{ rightHand: [note, note, note, note] }],
+		});
+		// Song A: the tempo-bearing measure opens the score → its system's head is #1.
+		const songOpensAtOne = {
+			defaults: { timeSignature: { beats: 4, beatType: 4 } },
+			sections: [tempoMeasure(100)],
+		};
+		// Song B: a leading section pushes the same tempo-change measure to #2, where it
+		// starts a fresh (wrapped) system at a narrow width.
+		const songOpensLater = {
+			defaults: { timeSignature: { beats: 4, beatType: 4 } },
+			sections: [tempoMeasure(100), tempoMeasure(120)],
+		};
+		const headAtOne = buildLayoutModel(songOpensAtOne, 40).systems[0];
+		const wrapped = buildLayoutModel(songOpensLater, 40);
+		const later = wrapped.systems.find((s) => s.measures[0].number === 2);
+		// Sanity: the two heads differ only by number, and both carry a tempo lane.
+		expect(headAtOne.measures[0].number).toBe(1);
+		expect(later).toBeDefined();
+		expect(headAtOne.band.tempoLaneY).not.toBeNull();
+		expect(later.band.tempoLaneY).not.toBeNull();
+		// The reservation no longer depends on the number → identical band geometry.
+		expect(later.band.topMargin).toBeCloseTo(headAtOne.band.topMargin, 10);
+		expect(later.band.tempoLaneY).toBeCloseTo(headAtOne.band.tempoLaneY, 10);
+	});
+
 	it("every barline leaves at least a notehead-width gap before the next measure's first note", () => {
 		const measures = buildLayoutModel(COMPREHENSIVE_SONG, 200).systems[0]
 			.measures;

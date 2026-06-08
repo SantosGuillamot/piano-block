@@ -2866,16 +2866,10 @@ function topMarginLayout(members, ledgerTop, aboveRHCount) {
 	// One above-RH stack step (baseline-to-baseline), so the lane reserves the full
 	// stack rather than a single line.
 	const stackStep = NOTE_SIZE + TEXT_LANE_GAP;
-	// The innermost reserved zone above the staff top holds whatever already lives
-	// there: the high notes/ledgers AND the system's measure number (drawn just above
-	// the top line at the left). The stacked text lanes clear both so the tempo never
-	// drops onto the measure number when little else is above the staff. Measure 1 is
-	// never numbered, so a system that starts there reserves no number room.
-	const showsMeasureNumber = members[0]?.number !== 1;
-	const innerZone = Math.max(
-		ledgerTop,
-		showsMeasureNumber ? MEASURE_NUMBER_SIZE + 1 : 0,
-	);
+	// The innermost reserved zone above the staff top holds the high-note/ledger
+	// extent that the stacked text lanes must clear, so the tempo never drops onto a
+	// high note or ledger line when little else sits above the staff.
+	const innerZone = ledgerTop;
 	// Distances ABOVE the staff top line (positive = up); each present lane stacks out.
 	let d = innerZone + ABOVE_STAFF_PAD;
 	let topExtent = innerZone;
