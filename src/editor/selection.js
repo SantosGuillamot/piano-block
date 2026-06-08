@@ -47,7 +47,7 @@ export function measureCoords( song ) {
 		const measures = Array.isArray( section?.measures )
 			? section.measures
 			: [];
-		measures.forEach( ( measure, measureIndex ) => {
+		measures.forEach( ( _measure, measureIndex ) => {
 			coords.push( { sectionIndex, measureIndex } );
 		} );
 	} );
