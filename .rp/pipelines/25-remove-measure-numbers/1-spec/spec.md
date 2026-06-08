@@ -2,12 +2,19 @@
 
 ## Overview
 
-The Piano block renders a piece as grand-staff sheet music (treble + bass). When
-a piece is long enough to wrap onto multiple lines (systems), every line after
-the first prints a small measure-number label above-left of its first measure —
-for example a "3" at the start of the second line and a "5" at the start of the
-third. The first line, which begins at measure 1, is left un-numbered. These
-line-start labels add visual clutter that the maintainer wants gone.
+The Piano block renders a piece as grand-staff sheet music (treble + bass). The
+notation is drawn in exactly one place: client-side, on the front end, when the
+block's stored song is turned into sheet music in the browser. (The block editor
+shows only a raw-JSON text field, never a rendered score, and the front-end
+markup the block emits carries the song but no drawn notation — so there is a
+single render path where the score, and the measure-number labels, ever appear.)
+
+When a piece is long enough to wrap onto multiple lines (systems), every line
+after the first prints a small measure-number label above-left of its first
+measure — for example a "3" at the start of the second line and a "5" at the
+start of the third. The first line, which begins at measure 1, is left
+un-numbered. These line-start labels add visual clutter that the maintainer wants
+gone.
 
 This feature removes those measure-number labels entirely. After the change, the
 rendered notation never displays a measure-number label, for any piece and any
@@ -26,9 +33,11 @@ above the staff.
    "5" at the start of line 3) no longer appear anywhere.
 
 2. **Removal is unconditional and applies everywhere the notation renders.**
-   There is no setting, attribute, or mode that re-enables measure numbers. The
-   change applies identically to the editor preview and to the saved/front-end
-   render (both produce the same notation output).
+   There is no setting, attribute, or mode that re-enables measure numbers (the
+   block exposes only the `song` attribute; no toggle exists today and none is
+   added). Because the notation is drawn through a single client-side render path
+   — the only place the score is ever drawn — removing the label there removes it
+   everywhere the notation can appear.
 
 3. **Other above-staff elements remain correctly placed.** Removing the label
    must not cause any overlap, clipping, shift, or misplacement of other
@@ -66,9 +75,10 @@ above the staff.
   appears at the start of any line (no measure-number text node is emitted for
   any system).
 
-- **AC2 — Single-line song unchanged.** Given a song that fits on a single line,
-  when the notation is rendered, then the output is unchanged (it never carried a
-  measure-number label).
+- **AC2 — Single-line song emits no label.** Given a song that fits on a single
+  line (one system), when the notation is rendered, then no measure-number label
+  is emitted (as before — a single-system score never carried one), and no other
+  above-staff element is added, removed, or shifted by the change.
 
 - **AC3 — Above-staff marks survive on later lines.** Given a wrapping song that
   also has tempo changes and ottava (8va/8vb) brackets on lines after the first,
