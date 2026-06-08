@@ -1956,6 +1956,44 @@ describe("buildLayoutModel — the full positioned-primitive model", () => {
 		expect(eightVa.placement).toBe("above");
 	});
 
+	it("returns a per-system texts object whose only keys are tempos and ottavas", () => {
+		// The texts producer no longer carries a measure-number field; its own
+		// enumerable keys narrow to exactly the tempo + ottava collections. Checked at
+		// both a wide width (one head system) and a narrow width (many wrapped systems).
+		for (const width of [200, 30]) {
+			const model = buildLayoutModel(COMPREHENSIVE_SONG, width);
+			for (const sys of model.systems) {
+				expect(Object.keys(sys.texts).sort()).toEqual(["ottavas", "tempos"]);
+				expect("measureNumber" in sys.texts).toBe(false);
+			}
+		}
+	});
+
+	it("never carries a measureNumber on the head system or any wrapped system", () => {
+		// Narrow → many systems, so both the system that opens on measure 1 and the
+		// later systems that formerly carried a label are covered.
+		const model = buildLayoutModel(COMPREHENSIVE_SONG, 30);
+		expect(model.systems.length).toBeGreaterThan(1);
+		for (const sys of model.systems) {
+			expect(sys.texts.measureNumber).toBeUndefined();
+		}
+	});
+
+	it("still surfaces tempos and ottavas as arrays after dropping the measure number", () => {
+		// Removing the measure-number field leaves the tempo + ottava computations
+		// untouched: both stay arrays with their existing contents.
+		const model = buildLayoutModel(COMPREHENSIVE_SONG, 200);
+		const tempos = model.systems.flatMap((s) => s.texts.tempos);
+		const ottavas = model.systems.flatMap((s) => s.texts.ottavas);
+		for (const sys of model.systems) {
+			expect(Array.isArray(sys.texts.tempos)).toBe(true);
+			expect(Array.isArray(sys.texts.ottavas)).toBe(true);
+		}
+		// The fixture's tempo (song start + section-2 change) and 8va are intact.
+		expect(tempos.map((t) => t.bpm).sort((a, b) => a - b)).toEqual([90, 120]);
+		expect(ottavas.some((o) => o.label === "8va")).toBe(true);
+	});
+
 	it("draws an inline section change at a mid-system section boundary", () => {
 		// At a width that keeps all three measures on one system, the section-2 start
 		// (measure 3) carries inline cautionary changes (LH clef + RH/LH key sig).
@@ -2220,6 +2258,64 @@ describe("layout-polish fixes", () => {
 		expect(plain.band.annotationAboveRHLaneY).toBeNull();
 	});
 
+	it("a head system opening on measure 1 keeps its exact top margin + lane baselines", () => {
+		// Measure 1 never reserved any above-staff number band, so collapsing the
+		// reservation to the bare ledger extent must leave this system pixel-identical.
+		// These are the verified pre-change values for the comprehensive song's head
+		// system (the one that opens on measure 1) at two widths.
+		const head30 = buildLayoutModel(COMPREHENSIVE_SONG, 30).systems[0];
+		expect(head30.measures[0].number).toBe(1);
+		expect(head30.band.topMargin).toBeCloseTo(8.7, 10);
+		expect(head30.band.tempoLaneY).toBeCloseTo(3.8, 10);
+		expect(head30.band.ottavaAboveLaneY).toBeNull();
+		expect(head30.band.annotationAboveRHLaneY).toBeCloseTo(7.2, 10);
+
+		const head200 = buildLayoutModel(COMPREHENSIVE_SONG, 200).systems[0];
+		expect(head200.measures[0].number).toBe(1);
+		expect(head200.band.topMargin).toBeCloseTo(13, 10);
+		expect(head200.band.tempoLaneY).toBeCloseTo(3.8, 10);
+		expect(head200.band.ottavaAboveLaneY).toBeCloseTo(6.6, 10);
+		expect(head200.band.annotationAboveRHLaneY).toBeCloseTo(10, 10);
+	});
+
+	it("the above-staff reservation depends only on the ledger extent, not on a measure number", () => {
+		// One low-note measure that carries a tempo lane and nothing high above the
+		// staff. As a song's first measure it is number 1 (never reserved a number
+		// band); reached as a later section start it is numbered ≥ 2 (formerly reserved
+		// one). With the reservation collapsed the two heads share identical geometry.
+		const note = {
+			type: "note",
+			duration: "quarter",
+			pitches: [{ step: "B", octave: 4 }],
+		};
+		const tempoMeasure = (bpm) => ({
+			tempo: { bpm, beatUnit: "quarter" },
+			measures: [{ rightHand: [note, note, note, note] }],
+		});
+		// Song A: the tempo-bearing measure opens the score → its system's head is #1.
+		const songOpensAtOne = {
+			defaults: { timeSignature: { beats: 4, beatType: 4 } },
+			sections: [tempoMeasure(100)],
+		};
+		// Song B: a leading section pushes the same tempo-change measure to #2, where it
+		// starts a fresh (wrapped) system at a narrow width.
+		const songOpensLater = {
+			defaults: { timeSignature: { beats: 4, beatType: 4 } },
+			sections: [tempoMeasure(100), tempoMeasure(120)],
+		};
+		const headAtOne = buildLayoutModel(songOpensAtOne, 40).systems[0];
+		const wrapped = buildLayoutModel(songOpensLater, 40);
+		const later = wrapped.systems.find((s) => s.measures[0].number === 2);
+		// Sanity: the two heads differ only by number, and both carry a tempo lane.
+		expect(headAtOne.measures[0].number).toBe(1);
+		expect(later).toBeDefined();
+		expect(headAtOne.band.tempoLaneY).not.toBeNull();
+		expect(later.band.tempoLaneY).not.toBeNull();
+		// The reservation no longer depends on the number → identical band geometry.
+		expect(later.band.topMargin).toBeCloseTo(headAtOne.band.topMargin, 10);
+		expect(later.band.tempoLaneY).toBeCloseTo(headAtOne.band.tempoLaneY, 10);
+	});
+
 	it("every barline leaves at least a notehead-width gap before the next measure's first note", () => {
 		const measures = buildLayoutModel(COMPREHENSIVE_SONG, 200).systems[0]
 			.measures;
@@ -2321,18 +2417,52 @@ describe("layout-polish fixes", () => {
 		expect(m.right.notes[0].x).toBeLessThan(m.width / 2);
 	});
 
-	it("measure 1 is not numbered; a later system numbers its first measure", () => {
-		const model = buildLayoutModel(COMPREHENSIVE_SONG, 30); // narrow → many systems
+	it("no system carries a measure number, even when the song wraps", () => {
+		// Narrow → many systems, so coverage is non-vacuous: both the system that
+		// opens on measure 1 and the later systems that formerly carried a label
+		// are exercised. The model no longer produces a measure-number text on any
+		// of them, while the rest of the texts object stays intact.
+		const model = buildLayoutModel(COMPREHENSIVE_SONG, 30);
 		expect(model.systems.length).toBeGreaterThan(1);
-		// The system that opens the piece (measure 1) shows no measure number…
-		expect(model.systems[0].texts.measureNumber).toBeNull();
-		// …but at least one later system labels its first measure (number ≥ 2).
-		const later = model.systems
-			.slice(1)
-			.map((s) => s.texts.measureNumber)
-			.filter(Boolean);
-		expect(later.length).toBeGreaterThan(0);
-		expect(Number(later[0].text)).toBeGreaterThanOrEqual(2);
+		expect(
+			model.systems.every((s) => s.texts.measureNumber === undefined),
+		).toBe(true);
+		// The texts object is otherwise untouched: the head system still exposes its
+		// tempo + ottava collections as arrays.
+		expect(Array.isArray(model.systems[0].texts.tempos)).toBe(true);
+		expect(Array.isArray(model.systems[0].texts.ottavas)).toBe(true);
+	});
+
+	it("a later system's tempo + above-ottava lanes stay on baseline with the number whitespace reclaimed", () => {
+		// COMPREHENSIVE_SONG wraps into several systems at this width; a later one
+		// opens on a formerly-numbered measure (number ≠ 1) yet also carries a tempo
+		// and an above-placed ottava. With the measure-number lane gone, those marks
+		// must still stack on their own lanes — nothing clipped or shifted into the
+		// reclaimed whitespace.
+		const model = buildLayoutModel(COMPREHENSIVE_SONG, 30);
+		expect(model.systems.length).toBeGreaterThan(1);
+		// Select that system programmatically rather than hard-coding its index, so a
+		// future regression that drops the property surfaces as "no match" here.
+		const sys = model.systems.find(
+			(s, i) =>
+				i >= 1 &&
+				s.measures[0].number !== 1 &&
+				s.texts.tempos.length > 0 &&
+				s.texts.ottavas.some((o) => o.placement === "above"),
+		);
+		expect(sys).toBeDefined();
+		const above = sys.texts.ottavas.filter((o) => o.placement === "above");
+		// Lanes stack top→bottom exactly as on the first system (smaller Y is higher):
+		// tempo above the above-ottava lane, both above the staff top.
+		expect(sys.band.tempoLaneY).toBeLessThan(sys.band.ottavaAboveLaneY);
+		expect(sys.band.ottavaAboveLaneY).toBeLessThan(sys.band.rightStaffTopY);
+		// Each mark lands on its lane baseline — none drifted off-lane.
+		for (const t of sys.texts.tempos) {
+			expect(t.y).toBeCloseTo(sys.band.tempoLaneY, 10);
+		}
+		for (const o of above) {
+			expect(o.y).toBeCloseTo(sys.band.ottavaAboveLaneY, 10);
+		}
 	});
 
 	it("an opening note lands at the uniform lead-in; an opening accidental occupies that lead-in and draws left of the head", () => {

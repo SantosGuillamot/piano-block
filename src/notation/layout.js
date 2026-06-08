@@ -46,7 +46,6 @@ import {
 	KEYSIG_TIMESIG_GAP,
 	LEDGER_WIDTH,
 	MAX_STRETCH,
-	MEASURE_NUMBER_SIZE,
 	MEASURE_START_PAD,
 	MID_GAP,
 	MIN_ADV,
@@ -1414,8 +1413,8 @@ export function systemScale(contentSp, availSp, { isLast = false } = {}) {
 // measure's two hands onto the union grid, packs measures into systems,
 // and assembles the positioned-primitive model: systems → grand-staff bands
 // → (staff lines, clefs, key sig, time sig, barlines, brace) + per-event primitives
-// + spans (ties/slurs) + texts (dynamics, notes, tempo, measure numbers,
-// ottava). Everything is in sp units — NO DOM, NO sp→px. Resize re-runs only the
+// + spans (ties/slurs) + texts (dynamics, notes, tempo, ottava).
+// Everything is in sp units — NO DOM, NO sp→px. Resize re-runs only the
 // packing/justify because the per-measure intrinsic widths and pitch Ys are
 // sp-relative invariants.
 
@@ -1709,7 +1708,7 @@ export function collectStandaloneAnnotations(measureNotes, ctx) {
  * `{ systems }`, where each system carries its Y band layout, leading reserve
  * (brace + clefs + key sig + optional time sig), per-measure barlines, both hands'
  * per-event primitives + beams, the resolved spans (ties/slurs), and the texts
- * (tempo, measure number, dynamics, notes, ottava). Resize need only re-run
+ * (tempo, dynamics, notes, ottava). Resize need only re-run
  * the packing/justify — the intrinsic widths and pitch Ys are sp-relative invariants.
  *
  * @param {{ defaults?: object, sections?: object[] }} song The parsed, conformant
@@ -2132,7 +2131,7 @@ export function buildLayoutModel(song, availableWidthInSp) {
 			x += scaledContent + trailingPad;
 		});
 
-		// ── System-level texts: tempo + measure number + ottava. ────────────────────
+		// ── System-level texts: tempo + ottava. ─────────────────────────────────────
 		const texts = buildSystemTexts(members, measureModels, band);
 
 		systems.push({
@@ -2866,16 +2865,10 @@ function topMarginLayout(members, ledgerTop, aboveRHCount) {
 	// One above-RH stack step (baseline-to-baseline), so the lane reserves the full
 	// stack rather than a single line.
 	const stackStep = NOTE_SIZE + TEXT_LANE_GAP;
-	// The innermost reserved zone above the staff top holds whatever already lives
-	// there: the high notes/ledgers AND the system's measure number (drawn just above
-	// the top line at the left). The stacked text lanes clear both so the tempo never
-	// drops onto the measure number when little else is above the staff. Measure 1 is
-	// never numbered, so a system that starts there reserves no number room.
-	const showsMeasureNumber = members[0]?.number !== 1;
-	const innerZone = Math.max(
-		ledgerTop,
-		showsMeasureNumber ? MEASURE_NUMBER_SIZE + 1 : 0,
-	);
+	// The innermost reserved zone above the staff top holds the high-note/ledger
+	// extent that the stacked text lanes must clear, so the tempo never drops onto a
+	// high note or ledger line when little else sits above the staff.
+	const innerZone = ledgerTop;
 	// Distances ABOVE the staff top line (positive = up); each present lane stacks out.
 	let d = innerZone + ABOVE_STAFF_PAD;
 	let topExtent = innerZone;
@@ -2910,14 +2903,11 @@ function topMarginLayout(members, ledgerTop, aboveRHCount) {
 }
 
 /**
- * Build a system's text primitives: the tempo marks + the measure number, plus the
- * ottava brackets.
+ * Build a system's text primitives: the tempo marks plus the ottava brackets.
  *
  * - **Tempo** prints above the first measure of the section at the song start and at
  *   any tempo change — so it is emitted at every measure in this system that is a
  *   section start whose diff marks `tempo` changed (and always at the score start).
- * - **Measure number** sits above-left of the system's first measure (sequential
- *   1..N across the whole song, never reset by section boundaries).
  * - **Ottava** is restated per wrapped system: for each hand, one bracket per
  *   contiguous run of this system's measures sharing a non-zero `octaveShift`,
  *   spanning that run's notes (the bracket is a marking, not a vertical move).
@@ -2925,11 +2915,9 @@ function topMarginLayout(members, ledgerTop, aboveRHCount) {
  * @param {object[]} members The system's flattened measure entries.
  * @param {object[]} measureModels The system's positioned measure models.
  * @param {object} band The system's band Y layout.
- * @return {{ tempos: object[], measureNumber: object, ottavas: object[] }} The texts.
+ * @return {{ tempos: object[], ottavas: object[] }} The texts.
  */
 function buildSystemTexts(members, measureModels, band) {
-	const head = members[0];
-
 	// Tempo: at the score start and at any in-system tempo change (a section start
 	// whose diff marks tempo changed). Each prints above its measure's left edge.
 	const tempos = [];
@@ -2950,18 +2938,6 @@ function buildSystemTexts(members, measureModels, band) {
 			}
 		}
 	});
-
-	// Measure 1 is conventionally left un-numbered (its number is obvious), so a system
-	// that opens the piece shows no number; every later system labels its first measure.
-	const measureNumber =
-		head.number === 1
-			? null
-			: {
-					text: String(head.number),
-					// Above-left of the first measure, never left of the staff margin.
-					x: Math.max(measureModels[0].x - 1, STAFF_MARGIN_X),
-					y: band.rightStaffTopY - 1,
-				};
 
 	// Ottava: per hand, one bracket per contiguous run sharing a non-zero shift.
 	const ottavas = [];
@@ -3027,5 +3003,5 @@ function buildSystemTexts(members, measureModels, band) {
 		flush();
 	}
 
-	return { tempos, measureNumber, ottavas };
+	return { tempos, ottavas };
 }
