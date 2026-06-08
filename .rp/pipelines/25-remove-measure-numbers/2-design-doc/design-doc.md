@@ -87,8 +87,9 @@ All affected components live in `src/notation/`.
   renders tempos and ottavas. Its lead comment is trimmed to drop the measure-number
   mention.
 
-- **`constants.js` — `MEASURE_NUMBER_SIZE`**. Defined at line 180 with a doc
-  comment, imported by `layout.js` and `svg.js`. After the producer, consumer, and
+- **`constants.js` — `MEASURE_NUMBER_SIZE`**. Defined at `constants.js:180`
+  (doc comment "Measure-number text size…" at `:179`), imported by `layout.js`
+  and `svg.js`. After the producer, consumer, and
   reservation edits, both uses vanish, so the constant, its doc comment, and both
   import lines are deleted.
 
@@ -98,8 +99,10 @@ All affected components live in `src/notation/`.
   *absence* test; (b) a new model-level *later-system lane-placement* test is added
   that renders a wrapping song carrying a tempo change and an ottava bracket on a
   system **after the first** and asserts those marks survive on their expected
-  lanes. The existing first-system lane/top-margin tests (`layout.test.js:2059`,
-  `:2081`) are **not** modified and serve as the AC2 single-system guard.
+  lanes. The existing first-system lane/top-margin tests —
+  `layout.test.js:2059` ("tempo, ottava, and note lanes stack above the staff")
+  and `:2081` ("the top margin flexes…") — are **not** modified and serve as the
+  AC2 single-system guard.
 
 - **`__tests__/svg.test.js`** — gains one new DOM-level absence test asserting no
   `measure-number` node is emitted for a wrapping song.
@@ -244,7 +247,8 @@ specifies WHAT each must assert, not the test code.
   - **Later-system lane placement** (`layout.test.js`, new): this is the committed
     guard for the one path the design admits changes pixels (Case 1b — a *later*,
     formerly-numbered system that also carries an above-staff lane). The existing
-    lane-stacking tests (`layout.test.js:2059`, `:2081`) only ever read
+    lane-stacking tests — `layout.test.js:2059` ("tempo, ottava, and note lanes
+    stack above the staff") and `:2081` ("the top margin flexes…") — only ever read
     `systems[0]`, which opens on measure 1 and was *never* numbered, so they never
     exercised the number-binding `innerZone` path and cannot serve as this guard.
     The new test must:
@@ -338,11 +342,14 @@ plus the test suite.
   arithmetic argument above shows clipping is impossible; this test converts that
   argument into an executable guard against an unforeseen interaction. Note the
   existing first-system lane tests (`layout.test.js:2059`, `:2081`) do **not** cover
-  this path — they read only `systems[0]`, which was never numbered.
+  this path — they read only `systems[0]`, which was never numbered. (Those
+  tests are `layout.test.js:2059` "tempo, ottava, and note lanes stack above the
+  staff" and `:2081` "the top margin flexes…".)
 - **Failure mode — a single-system render's above-staff geometry shifts despite
-  the edit (AC2).** Detected by the existing, unmodified first-system tests
-  (`layout.test.js:2059`, `:2081`), which pin `systems[0]`'s `topMargin` and lane
-  baselines; they must keep passing unchanged.
+  the edit (AC2).** Detected by the existing, unmodified first-system tests —
+  `layout.test.js:2059` ("tempo, ottava, and note lanes stack above the staff")
+  and `:2081` ("the top margin flexes…") — which pin `systems[0]`'s `topMargin`
+  and lane baselines; they must keep passing unchanged.
 - **Failure mode — the internal index breaks.** Would surface as wrong or missing
   `data-measure` attributes; guarded by leaving that path entirely untouched and by
   the existing `data-measure` test coverage.
@@ -361,9 +368,11 @@ plus the test suite.
   the committed **later-system lane-placement test** (specified in Key Decisions and
   added to `layout.test.js`) renders a tempo change and an ottava bracket on a
   formerly-numbered system *after the first* and asserts the marks remain present and
-  on-lane. This path is **not** covered by the existing first-system lane tests
-  (`layout.test.js:2059`, `:2081`), which only read `systems[0]` (measure 1, never
-  numbered) — hence the new, dedicated test rather than reliance on the suite as-is.
+  on-lane. This path is **not** covered by the existing first-system lane tests —
+  `layout.test.js:2059` ("tempo, ottava, and note lanes stack above the staff")
+  and `:2081` ("the top margin flexes…") — which only read `systems[0]` (measure 1,
+  never numbered) — hence the new, dedicated test rather than reliance on the suite
+  as-is.
 - **R-2 (Low) — A new wrapping fixture fails to actually wrap.** A zero-nodes
   assertion is vacuously true on a single-system song. Mitigation, baked into both
   new tests: assert `systems.length > 1` before the absence assertion.
