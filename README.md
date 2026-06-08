@@ -46,7 +46,7 @@ Every control only lets you produce a **valid song**: each field offers the form
 
 The canvas **re-renders live** as you edit and draws the song with the **same notation the published page uses** — it *is* the live render and the editing surface at once, not a separate read-only preview.
 
-**Note names** can be written in **English** (`C D E F G A B`) or **Spanish** (`do re mi fa sol la si`). A song keeps the system it was written in — a Spanish song stays Spanish — and the editor's controls follow that system. The [song format reference](docs/song-format.md) covers the full vocabulary. (This README does not repeat the field-level detail; that document is the canonical source.)
+**Note names** can be written in **English** (`C D E F G A B`) or **Spanish** (`do re mi fa sol la si`). The **Song** panel has a **Note language** selector (English / Spanish) that controls which system the whole song uses, and the editor's note-name controls follow it. Switching it **converts every note name** in the song to the chosen language — a Spanish song becomes English, or the reverse — and **stores** your choice in the song's [`language`](docs/song-format.md#language) field. An existing song that has no stored language **infers** its starting language from the note spellings it already uses (Spanish if it uses `do re mi…`, otherwise English), and a brand-new song defaults to **English**. The [song format reference](docs/song-format.md) covers the full vocabulary. (This README does not repeat the field-level detail; that document is the canonical source.)
 
 **When a song can't be edited visually.** The visual editor needs a conformant song to work with:
 

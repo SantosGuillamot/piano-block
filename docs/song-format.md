@@ -13,12 +13,13 @@ The block now has a **canvas-first visual editor** — the default authoring sur
 A song is a single JSON object:
 
 ```
-song := { metadata?, defaults?, sections }
+song := { metadata?, defaults?, language?, sections }
 ```
 
 - **`sections`** — the only **required** member. An array of section objects; the song's musical content lives here.
 - **`metadata`** — optional bibliographic data (title, composer).
 - **`defaults`** — optional song-wide context that every section inherits.
+- **`language`** — optional; the note-name system (`"spanish"` or `"english"`) the song is written in (see [`language`](#language)).
 
 The smallest valid song has just an empty section with no measures:
 
@@ -43,6 +44,22 @@ Optional bibliographic data. Both fields are optional free-text strings:
   "sections": [ { "measures": [] } ]
 }
 ```
+
+## `language`
+
+Optional. It records the **note-name system the song is written in** — `"spanish"` or `"english"` (these exact strings, *not* the ISO codes `es`/`en`). It is the song-level twin of the two [note-name systems](#note-name-systems-english-and-spanish-and-case) you may use for an individual `pitch.step`.
+
+```json
+{
+  "language": "spanish",
+  "sections": [ { "measures": [] } ]
+}
+```
+
+- **Optional and additive.** Absent is valid — it is one of the format's optional fields (see [Additive growth](#additive-growth-no-version-field)). An older song that omits it stays conformant.
+- **What it means.** It is used by the **visual editor** to display note names in the chosen system and to **convert** every note name when you switch systems. The README's [Note names](../README.md#2-build-the-song-in-the-visual-editor) describes that selector. The C↔do equivalence itself is the [note-name systems](#note-name-systems-english-and-spanish-and-case) table; this field just names which side the song is on.
+- **Front end does not consume it yet.** The published front end **ignores `language`** — a page renders a song's notes exactly as before regardless of this field, and storing or changing it changes **nothing** about the rendered notation. Consuming it on the front end is future work.
+- **Stored, round-trips, and validates.** It is stored verbatim in the `song` JSON and survives raw-JSON editing unchanged. Validation accepts the two values `"spanish"` and `"english"`; an out-of-vocabulary value is flagged informationally only and, like all raw-JSON validation, **never blocks saving** (see [Additive growth](#additive-growth-no-version-field) for the closed-enum rule and the never-blocking stance).
 
 ## `defaults` and `sections` — the constant-context model
 
@@ -382,7 +399,7 @@ So a pitch's sounding result is its note name plus its effective alteration, pla
 
 ## Additive growth (no `version` field)
 
-The format **has no `version` field**. It starts minimal and grows by adding **optional** fields to existing objects. A song you write today stays valid as the format grows, because new fields are optional and older songs simply omit them.
+The format **has no `version` field**. It starts minimal and grows by adding **optional** fields to existing objects. A song you write today stays valid as the format grows, because new fields are optional and older songs simply omit them. The song-level [`language`](#language) field is the latest such additive option — a song that omits it is still conformant.
 
 Three consequences you can observe as an author:
 
