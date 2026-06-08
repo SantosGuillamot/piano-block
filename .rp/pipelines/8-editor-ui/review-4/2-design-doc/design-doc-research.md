@@ -103,13 +103,19 @@ rows render flush-left at every level. The first cell of each row is the label
 `Button` (`{...cellProps}`, lines 163-174 / 257-272 / 361-368 / 413-428); the second
 cell holds the action buttons (177-222 / 275-319 / 371-385 / 431-489).
 
-**Robustness consideration.** The researcher confirms the **real** WP-core
-`TreeGridRow` does emit `aria-level` on the `<tr>` at runtime (the treegrid ARIA
-model requires it), so a CSS selector `[role="row"][aria-level="2"]` would match in
-the live editor — but `@wordpress/components` is a runtime external not installed in
-this worktree, so that runtime DOM cannot be verified here and the exact installed
-version's emission is an assumption. Keying styling off `aria-level` also couples
-the CSS to the component's ARIA wiring.
+**Robustness consideration.** The researcher confirms with **high confidence (~90%)**
+that the real WP-core `__experimentalTreeGridRow` emits `aria-level` (and
+`aria-posinset`/`aria-setsize`) as literal DOM attributes on its `<tr role="row">`
+at runtime — this is the component's core purpose (a `role="treegrid"` is invalid
+without `aria-level` on its rows), stable across `@wordpress/components` for years,
+and the mechanism the List View itself relies on. Version grounding: this worktree
+pins `@wordpress/scripts` **32.3.0** (`package.json:26`, installed) with block
+`apiVersion: 3` (`block.json:3`) — a current WP 6.7-era component set in which the
+behavior is present. So a CSS selector `[role="row"][aria-level="2"]` **would** match
+in the live editor. The residual ~10% is only that `@wordpress/components` is a
+runtime external not installed in this worktree, so the rendered `<tr>` can't be
+dumped here to confirm the exact installed build — not real doubt about the behavior.
+Keying styling off `aria-level` does couple the CSS to the component's ARIA wiring.
 
 **Decision — inline depth from the `level` prop (hybrid JS-var + SCSS unit).** In
 `StructureTree.js`, set a CSS custom property (e.g. `--pb-tree-depth: {level - 1}`)
@@ -128,13 +134,24 @@ while the label depth reads cleanly.
 - **Separation kept clean.** The depth *number* comes from JS (`level`); the indent
   *unit* and visual live in `style.scss`, matching the "styling lives in style.scss"
   framing.
-The pure-SCSS `[aria-level="N"]` selector is recorded as the fallback (it will most
-likely work) but carries the small unverifiable runtime-DOM assumption above; the
-`level`-prop route carries none, so it is chosen.
+Both routes are acceptable and produce identical visuals; the difference is only
+which signal they key off. The pure-SCSS `[aria-level="N"]` selector is the lighter
+end state (zero JS/markup change) and is **high-confidence correct** per the version
+grounding above — the researcher leads with it as primary. The `level`-prop route is
+chosen here as the recommended primary because it carries **no** runtime-DOM
+assumption at all (depending only on the `level` prop the code already controls),
+which is the strictly safer fit for the brief's explicit goal that indentation
+"actually render in the live editor"; the SCSS-on-`aria-level` route is the
+zero-JS fallback. **Planner's call** — either is sound. If the SCSS route is taken,
+a one-line verification step (eyeball the live editor, or lean on the existing
+`StructureTree.test.js:185-191` assertion that pins `aria-level` on the rows) closes
+the residual 10%.
 
-**Trade-off / risk.** None of substance; visual-only and JS-controlled. No test
-contract changes (tests assert `aria-level` via the mock for ARIA wiring, which is
-unaffected — the indent is a separate inline var).
+**Trade-off / risk.** None of substance; visual-only. The `level`-prop route is
+JS-controlled and assumption-free; the `aria-level` route is high-confidence with a
+cheap live-editor verification. No test contract changes either way (tests assert
+`aria-level` via the mock for ARIA wiring, which is unaffected — the indent is a
+separate concern).
 
 ### Topic 3 — Theme-styled action controls (Req 3 / AC3) — DECIDED
 
@@ -381,10 +398,12 @@ design blocker.
   Option A (single Set + seed-on-selection-change effect) is the acceptable
   single-Set alternative, *only* if the effect is keyed on the derived
   ancestor-identity string (keying on `selection` regresses the bug). See Topic 7.
-- **OQ3 (RESOLVED, Topic 2).** Indentation uses an **inline depth from the `level`
-  prop** (CSS var on the label Button, consumed by one SCSS rule), not a CSS
-  `[aria-level="N"]` selector — robust in the live editor with no runtime-DOM
-  assumption. The `aria-level` selector is the recorded fallback. See Topic 2.
+- **OQ3 (RESOLVED, Topic 2).** Indentation: recommended primary is an **inline depth
+  from the `level` prop** (CSS var on the label Button, consumed by one SCSS rule) —
+  zero runtime-DOM assumption. The pure-SCSS `[role="row"][aria-level="N"]` selector
+  is an acceptable lighter alternative, now **high-confidence** (the real TreeGridRow
+  emits `aria-level`; `@wordpress/scripts` 32.3.0 grounding) with a cheap live-editor
+  verification to close the residual ~10%. Planner's call; both are sound. See Topic 2.
 
 ## Risks
 
