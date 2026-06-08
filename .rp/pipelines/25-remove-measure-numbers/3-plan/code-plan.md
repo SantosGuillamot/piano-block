@@ -67,6 +67,13 @@ need its own small inline wrapping fixture, because the file's local `SONG` is a
   - Delete the `measureNumber` computation block at `:2954-2964` (the
     `const measureNumber = head.number === 1 ? null : { text, x, y }` expression,
     including its two leading comment lines about measure 1 being un-numbered).
+  - Delete the `const head = members[0];` binding at `:2931`. After the
+    `measureNumber` block is removed, `head` has zero consumers: in the live
+    function its only references are `head.number === 1` (`:2957`) and
+    `String(head.number)` (`:2960`), both inside the deleted block; the `tempos`
+    loop (`:2936`) and the `ottavas` loop (`:3009`) iterate `members.forEach(...)`
+    and never read `head`. Removing the block without removing this binding leaves
+    an unused variable (dead code AC6 forbids).
   - Change the return statement at `:3030` from
     `return { tempos, measureNumber, ottavas };` to
     `return { tempos, ottavas };`.
@@ -75,8 +82,8 @@ need its own small inline wrapping fixture, because the file's local `SONG` is a
     bullet (`:2919-2920`), and update the `@return` type at `:2928` from
     `{{ tempos: object[], measureNumber: object, ottavas: object[] }}` to
     `{{ tempos: object[], ottavas: object[] }}`.
-  - Leave the `tempos` and `ottavas` computations and the `const head = members[0]`
-    binding (still used by `members[0]` references) exactly as-is.
+  - Leave the `tempos` and `ottavas` computations (both iterate `members.forEach`,
+    not `head`) exactly as-is.
 - **Depends on:** none.
 - **Traces to:** Spec R1 (renderer has no measure-number value to draw), R5/AC5
   (only the visible-label path is cut — index untouched), AC6 (no dead JSDoc/prose);
@@ -92,6 +99,14 @@ need its own small inline wrapping fixture, because the file's local `SONG` is a
     the same contents as before this change (tempo and ottava computation unchanged).
   - The function's JSDoc no longer mentions a measure number, and its `@return`
     type lists only `tempos` and `ottavas`.
+  - `buildSystemTexts` leaves no variable unused by the removal: in particular the
+    `const head = members[0];` binding — whose only consumers were the deleted
+    measure-number computation (`head.number === 1`, `String(head.number)`) — is
+    gone, and no other reference to `head` remains in the function. (This must be
+    verified by reading the code, not by the lint gate: Biome flags
+    `noUnusedVariables` only at WARNING severity under `recommended: true`, so
+    `npm run lint` exits 0 even if the binding were left behind; Task 7's gate would
+    NOT catch it.)
 
 ### Task 2: Collapse the top-margin number reservation in `topMarginLayout`
 
@@ -143,8 +158,11 @@ need its own small inline wrapping fixture, because the file's local `SONG` is a
   - Delete the entire `if (texts.measureNumber) { … }` block at `:1104-1115`,
     including the `el("text", { … "data-text": "measure-number" … })` creation and
     its `g.appendChild(setText(node, mn.text))`.
-  - In the function's lead comment (`:1089-1093`), drop the "the measure number"
-    mention so it describes only the tempo marks and ottava brackets it still emits.
+  - In the function's lead comment (`:1089-1093`), remove BOTH measure-number
+    mentions — the one at `:1091` (`"…, the measure number, and the ottava
+    brackets."`) and the one at `:1092` (`"Tempo + measure number + ottava labels
+    are plain font text…"`) — so the comment describes only the tempo marks and
+    ottava brackets it still emits.
   - Leave the tempo loop (`:1100-1102`), the ottava loop (`:1117-1119`), the
     `if (!texts) return g;` guard, and the `<g data-system-texts>` wrapper exactly
     as-is.
