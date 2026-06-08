@@ -4,7 +4,7 @@
  * it reuses the very same notation-core render path (the px→sp width rule, the
  * music-font gate, `buildLayoutModel` → `renderInto`, and the rAF-debounced
  * `ResizeObserver`) but renders from a PARSED working object — so the seeded empty
- * song shows an empty grand staff — and layers three editor behaviors on top:
+ * song shows an empty grand staff — and layers two editor behaviors on top:
  *
  *   1. SELECTION hit-testing — a click (or Enter/Space on a focused group) on a
  *      note/rest resolves to a `{ sectionIndex, measureIndex, hand, eventIndex }`
@@ -19,21 +19,18 @@
  *      carries no `data-section`). Event groups are also made focusable. A
  *      measure/section highlight `scrollIntoView`s its group; re-applied on every
  *      redraw, and a stale selection (query matches nothing) decorates nothing.
- *   3. ADD affordances — real HTML `<button>`s layered beside the SVG (not
- *      SVG-embedded, so they get native focus/labels): per hand per measure an
- *      "add note" button (hand = which staff), and one end-of-score "add measure"
- *      button. They only SIGNAL intent (`onAddNote`/`onAddMeasure`); the parent
- *      owns the structural edit + the resulting selection.
+ *
+ * Adding/removing is no longer a canvas affordance: the contextual add/remove note
+ * lives in the `NotePanel` and the section/measure/first-note add-remove lives in the
+ * sidebar `StructureList`. This component is selection + decoration only.
  *
  * Like the old preview, the thin DOM glue here MIRRORS `view.js` rather than
  * importing it, so the editor stays decoupled from the front-end entry. This
  * component owns NO selection state — the parent passes the current `selection`
- * and the working `song` object, and this component emits selection/add intents.
+ * and the working `song` object, and this component emits selection intents only.
  */
 
-import { Button } from "@wordpress/components";
 import { useEffect, useRef, useState } from "@wordpress/element";
-import { __, sprintf } from "@wordpress/i18n";
 import { SP_PX } from "../notation/constants.js";
 import { MUSIC_FONT_FAMILY } from "../notation/glyphs.js";
 import { buildLayoutModel } from "../notation/layout.js";
@@ -49,12 +46,6 @@ import {
 const NARROW_CONTAINER_PX = 480;
 /** The stepped-down sp→px scale used below `NARROW_CONTAINER_PX`. */
 const NARROW_SP_PX = 7;
-
-/** The two hands, paired with their canvas add-note label, in staff order. */
-const HANDS = [
-	{ key: "rightHand", label: __("right hand", "piano-block") },
-	{ key: "leftHand", label: __("left hand", "piano-block") },
-];
 
 /**
  * The available width for the layout, in staff spaces, from a container's live
@@ -239,11 +230,10 @@ function decorateSelection(container, selection, song) {
 
 /**
  * The interactive sheet-music canvas. Renders the working song with the notation
- * core, hit-tests note/rest selection, decorates the current selection, and
- * exposes per-measure add-note (hand = staff) and an end-of-score add-measure
- * affordance. Renders nothing into the SVG host on a build/render failure (the
- * container is left empty), staying defensive even though the parent only mounts
- * it for a valid/seeded working object.
+ * core, hit-tests note/rest selection, and decorates the current selection. Renders
+ * nothing into the SVG host on a build/render failure (the container is left empty),
+ * staying defensive even though the parent only mounts it for a valid/seeded working
+ * object.
  *
  * @param {Object}   props
  * @param {Object}   props.song            The parsed working song object.
@@ -251,18 +241,13 @@ function decorateSelection(container, selection, song) {
  * @param {string}  [props.accessibleName] The SVG `<title>` accessible name.
  * @param {(selection: ?Object) => void} props.onSelect Called with a selection
  *   tuple on a note/rest activation, or `null` on an empty-area activation.
- * @param {(sectionIndex: number, measureIndex: number, hand: string) => void}
- *   props.onAddNote Called to append a note to a measure's hand (hand = staff).
- * @param {() => void} props.onAddMeasure Called to append a measure to the song.
- * @return {Object} The canvas element (the SVG host plus the add affordances).
+ * @return {Object} The canvas element (the SVG host).
  */
 export default function SongCanvas({
 	song,
 	selection = null,
 	accessibleName = "",
 	onSelect,
-	onAddNote,
-	onAddMeasure,
 }) {
 	const containerRef = useRef(null);
 	// A measured-width state whose change re-runs the draw effect on resize. It
@@ -373,10 +358,6 @@ export default function SongCanvas({
 		};
 	}, []);
 
-	// The add-note affordances, one pair per measure (right/left hand), labelled by
-	// their global measure number so the labels are stable and assertable.
-	const coords = measureCoords(song);
-
 	return (
 		<div className="wp-block-piano-block-piano__canvas">
 			{/* The SVG host. The notation core renders into this node; native click /
@@ -388,32 +369,6 @@ export default function SongCanvas({
 				ref={containerRef}
 				className="wp-block-piano-block-piano__canvas-svg"
 			/>
-			<div className="wp-block-piano-block-piano__canvas-actions">
-				{coords.map(({ sectionIndex, measureIndex }, position) => {
-					const measureNumber = position + 1;
-					return HANDS.map(({ key, label }) => (
-						<Button
-							key={`${measureNumber}-${key}`}
-							variant="secondary"
-							className="wp-block-piano-block-piano__add-note"
-							label={sprintf(
-								// translators: 1: hand (e.g. "right hand"), 2: measure number.
-								__("Add note to %1$s in measure %2$d", "piano-block"),
-								label,
-								measureNumber,
-							)}
-							onClick={() => onAddNote?.(sectionIndex, measureIndex, key)}
-						/>
-					));
-				})}
-				<Button
-					variant="secondary"
-					className="wp-block-piano-block-piano__add-measure"
-					onClick={() => onAddMeasure?.()}
-				>
-					{__("Add measure", "piano-block")}
-				</Button>
-			</div>
 		</div>
 	);
 }

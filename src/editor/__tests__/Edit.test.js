@@ -302,13 +302,15 @@ describe("Edit mode container", () => {
 		expect(title.textContent).toBe("Hello by Ada");
 	});
 
-	it("commits a new note and opens the Note panel when the canvas add-note fires", () => {
+	it("seeds a first note from the Structure list and opens the Note panel", () => {
 		const { container, calls } = renderEdit(SONG);
-		// The fixture's lone right-hand event sits in global measure 1; its add-note
-		// affordance appends a default note to that hand.
+		// The first-note entry point lives on the measure row in the Structure list:
+		// the canvas add-grid is gone, so an empty measure is seeded from here. The
+		// fixture's lone measure is global measure 1 in section 1 → its row's
+		// "Add note" seeds a default right-hand note.
 		const addNote = fieldByName(
 			container,
-			"Add note to right hand in measure 1",
+			"Add note to measure 1 of section 1",
 		);
 		expect(addNote).not.toBeNull();
 		click(addNote);
@@ -327,15 +329,16 @@ describe("Edit mode container", () => {
 		expect(panelByTitle(container, "Section")).not.toBeNull();
 	});
 
-	it("inserts the added note right after the selected event in the same hand", () => {
+	it("inserts a contextual note right after the selected event in the same hand", () => {
 		const { container, calls } = renderEdit(SONG);
-		// Select the existing first note, then add to its own hand: the new note must
-		// land at index 1 (right after the selection), not be appended past it.
+		// Select the existing first note, then use the Note panel's contextual "Add
+		// note": the hand is inferred from the selection and the new note lands at
+		// index 1 (right after the selection), not appended past it.
 		const note = container.querySelector('[data-kind="note"]');
 		act(() => {
 			note.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
 		});
-		click(fieldByName(container, "Add note to right hand in measure 1"));
+		click(buttonByText(container, "Add note"));
 
 		const hand = JSON.parse(calls.at(-1)).sections[0].measures[0].rightHand;
 		expect(hand).toHaveLength(2);
@@ -343,19 +346,10 @@ describe("Edit mode container", () => {
 		expect(hand[0].pitches).toEqual([{ step: "C", octave: 5 }]);
 		expect(hand[1].type).toBe("note");
 		expect(validateSong(calls.at(-1))).toEqual([]);
-	});
 
-	it("commits a new measure to the last section when add-measure fires", () => {
-		const { container, calls } = renderEdit(SONG);
-		const addMeasure = buttonByText(container, "Add measure");
-		expect(addMeasure).toBeDefined();
-		click(addMeasure);
-
-		const persisted = JSON.parse(calls.at(-1));
-		// The lone section gains a second (empty-but-conformant) measure.
-		expect(persisted.sections[0].measures).toHaveLength(2);
-		expect(persisted.sections[0].measures[1]).toEqual({});
-		expect(validateSong(calls.at(-1))).toEqual([]);
+		// The new note is auto-selected at eventIndex + 1, so the Note panel stays
+		// open on it (the contextual add re-targets the selection).
+		expect(panelByTitle(container, "Note")).not.toBeNull();
 	});
 
 	it("clears a stale selection after a raw edit removes the selected event", () => {
@@ -450,11 +444,11 @@ describe("Edit — lifted structural mutators", () => {
 		expect(panelByTitle(container, "Section")).toBeNull();
 	});
 
-	it("onAddMeasure targets the section the canvas affordance fires for", () => {
+	it("onAddMeasure targets the section the Structure list fires for", () => {
 		const { container, calls } = renderEdit(SONG);
-		// The canvas add-measure affordance signals onAddMeasure() with no arg, which
-		// defaults to the last section — the lone section here.
-		click(buttonByText(container, "Add measure"));
+		// The Structure list's per-section "Add measure" signals the lifted
+		// onAddMeasure with that section's explicit index — section 1 (the lone one).
+		click(fieldByName(container, "Add measure to section 1"));
 		const persisted = JSON.parse(calls.at(-1));
 		expect(persisted.sections[0].measures).toHaveLength(2);
 		expect(persisted.sections[0].measures[1]).toEqual({});

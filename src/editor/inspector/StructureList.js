@@ -4,10 +4,10 @@
  *
  * Today sections/measures are reachable only by selecting an *event* on the canvas,
  * which leaves an empty measure (or a section with no events) unreachable. This list
- * makes the whole song browsable independent of any event selection, and is the
- * prerequisite for the first-note path (an empty measure has no event to select once
- * the canvas add-grid is gone — that "Add note" entry point lands in T7, wired to the
- * `onAddNote` prop this component already accepts).
+ * makes the whole song browsable independent of any event selection, and carries the
+ * first-note path: with the canvas add-grid gone, an empty measure has no event to
+ * select, so each measure row exposes an "Add note" that seeds a default right-hand
+ * note via `onAddNote` — the only way to bootstrap an empty measure.
  *
  * It is a pure controlled component — it holds no song state. Selecting a row signals
  * a kind-tagged `selection` through `onSelect`; the structural buttons signal intent
@@ -41,12 +41,11 @@ import { AddButton } from "../ListControls.js";
  * @param {Function} props.onRemoveSection Lifted: remove the section at the index.
  * @param {Function} props.onAddMeasure    Lifted: append a measure to a section.
  * @param {Function} props.onRemoveMeasure Lifted: remove the measure at the coords.
- * @param {Function} [props.onAddNote]     Lifted: add a first note to a measure's
+ * @param {Function} props.onAddNote       Lifted: add a first note to a measure's
  *                                         hand — the measure-row "Add note" entry
- *                                         point. Accepted here; its button is wired
- *                                         in T7 (when the canvas add-grid is removed),
- *                                         so an empty measure never loses its only way
- *                                         to add a note.
+ *                                         point, defaulting to the right hand. With
+ *                                         the canvas add-grid gone, this is the only
+ *                                         way to bootstrap an empty measure.
  * @return {Object} The rendered Structure panel.
  */
 export function StructureList({
@@ -57,8 +56,7 @@ export function StructureList({
 	onRemoveSection,
 	onAddMeasure,
 	onRemoveMeasure,
-	// Accepted now, rendered in T7 — see the prop doc above.
-	onAddNote: _onAddNote,
+	onAddNote,
 }) {
 	const sections = Array.isArray(song?.sections) ? song.sections : [];
 
@@ -140,6 +138,21 @@ export function StructureList({
 										isDestructive
 										onClick={() =>
 											onRemoveMeasure?.(sectionIndex, measureIndex)
+										}
+									/>
+									{/* The first-note entry point: seeds a default RIGHT-hand
+									    note (KD2 part 5) into this measure. With the canvas
+									    add-grid gone, this is the only way to add a note to an
+									    empty measure; `onAddNote` tolerates an empty hand. */}
+									<AddButton
+										label={sprintf(
+											// translators: 1: measure number, 2: section number.
+											__("Add note to measure %1$d of section %2$d", "piano-block"),
+											measureNumber,
+											sectionNumber,
+										)}
+										onClick={() =>
+											onAddNote?.(sectionIndex, measureIndex, "rightHand")
 										}
 									/>
 								</div>

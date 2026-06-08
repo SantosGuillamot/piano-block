@@ -5,9 +5,12 @@
  * and their measures (to measure depth — notes are NOT listed) and only signals
  * intent — selecting a row through `onSelect` (kind-tagged), and add/remove through
  * the lifted `onAddSection`/`onRemoveSection`/`onAddMeasure`/`onRemoveMeasure`
- * handlers `edit.js` owns. These tests pin the row inventory, the kind-tagged select
- * payloads, the lifted-handler wiring with the right coords, the `aria-current`
- * active state, and the measure-depth invariant (no event-level rows).
+ * handlers `edit.js` owns. Each measure row also carries the first-note entry point —
+ * an "Add note" that signals `onAddNote(sectionIndex, measureIndex, "rightHand")`,
+ * the only way to add a note to an empty measure once the canvas add-grid is gone.
+ * These tests pin the row inventory, the kind-tagged select payloads, the
+ * lifted-handler wiring with the right coords, the `aria-current` active state, and
+ * the measure-depth invariant (no event-level rows).
  *
  * The panel is presentational, so the tests render it into jsdom and drive the
  * mocked `@wordpress/components` buttons directly — clicking a `<button>` inside
@@ -104,6 +107,7 @@ function renderList({ song = fixtureSong(), selection = null } = {}) {
 		removeSection: [],
 		addMeasure: [],
 		removeMeasure: [],
+		addNote: [],
 	};
 	const { container, unmount } = render(
 		createElement(StructureList, {
@@ -117,6 +121,8 @@ function renderList({ song = fixtureSong(), selection = null } = {}) {
 			onAddMeasure: (sectionIndex) => calls.addMeasure.push(sectionIndex),
 			onRemoveMeasure: (sectionIndex, measureIndex) =>
 				calls.removeMeasure.push([sectionIndex, measureIndex]),
+			onAddNote: (sectionIndex, measureIndex, hand) =>
+				calls.addNote.push([sectionIndex, measureIndex, hand]),
 		}),
 	);
 	return { container, unmount, calls };
@@ -141,10 +147,12 @@ describe("StructureList — inventory", () => {
 
 	it("does not list notes (measure depth only)", () => {
 		const { container, unmount } = renderList();
-		// No control labels the individual events — the deepest rows are measures.
-		const labels = Array.from(container.querySelectorAll("button")).map(
-			(button) => button.textContent || button.getAttribute("aria-label"),
-		);
+		// No control SELECTS an individual event — the deepest selectable rows are
+		// measures. The measure-row "Add note" is an action (a first-note entry
+		// point), not a per-note row, so it is excluded from this invariant.
+		const labels = Array.from(container.querySelectorAll("button"))
+			.map((button) => button.textContent || button.getAttribute("aria-label"))
+			.filter((label) => !/^Add note/.test(label ?? ""));
 		expect(labels.some((label) => /note/i.test(label))).toBe(false);
 		unmount();
 	});
@@ -223,6 +231,16 @@ describe("StructureList — add/remove", () => {
 		const { container, unmount, calls } = renderList();
 		click(buttonByText(container, "Remove measure 2 of section 1"));
 		expect(calls.removeMeasure).toEqual([[0, 1]]);
+		unmount();
+	});
+
+	it("calls onAddNote with the right-hand default from a measure row", () => {
+		// The measure-row "Add note" is the first-note entry point: with the canvas
+		// add-grid gone, it is the only way to seed an empty measure. The hand
+		// defaults to the right hand (KD2 part 5).
+		const { container, unmount, calls } = renderList();
+		click(buttonByText(container, "Add note to measure 1 of section 2"));
+		expect(calls.addNote).toEqual([[1, 0, "rightHand"]]);
 		unmount();
 	});
 });

@@ -15,7 +15,10 @@
  * section → measures → hand path — and reuses the existing constrained leaf
  * editors (`PitchList`, `AnnotationList`) and the `songModel` array helpers, so
  * every emission stays conformant by construction. Removing the event signals up
- * through `onRemove`, which the parent pairs with clearing the selection.
+ * through `onRemove`, which the parent pairs with clearing the selection. Adding a
+ * note signals up through `onAddNote` with the selection's own coords — the hand is
+ * inferred from the selection, never prompted (AC3); the parent inserts the new note
+ * right after the selected one and auto-selects it.
  *
  * The one cross-field rule — switching `note`↔`rest` drops/seeds `pitches` — is
  * reproduced from `EventRow.changeType` verbatim rather than imported, since
@@ -86,9 +89,19 @@ function clampInt(raw, min, max) {
  * @param {"english"|"spanish"} props.system    The per-song note-name system.
  * @param {Function}            props.onChange  Receives the next working song.
  * @param {Function}            props.onRemove  Called to remove the selected event.
+ * @param {Function}            props.onAddNote Called with the selection's
+ *                                              `(sectionIndex, measureIndex, hand)`
+ *                                              to add a note in the same hand.
  * @return {Object} The rendered Note panel.
  */
-export function NotePanel({ song, selection, system, onChange, onRemove }) {
+export function NotePanel({
+	song,
+	selection,
+	system,
+	onChange,
+	onRemove,
+	onAddNote,
+}) {
 	const { event, section, measure, sectionIndex, measureIndex, hand, eventIndex } =
 		selection;
 
@@ -272,6 +285,15 @@ export function NotePanel({ song, selection, system, onChange, onRemove }) {
 				</ToolsPanelItem>
 			</ToolsPanel>
 
+			{/* Add a note in the selection's own hand (inferred, never prompted), then
+			    Remove the selected note. The parent's `onAddNote` inserts right after
+			    the selection and auto-selects the new note (AC3). */}
+			<Button
+				variant="secondary"
+				onClick={() => onAddNote?.(sectionIndex, measureIndex, hand)}
+			>
+				{__("Add note", "piano-block")}
+			</Button>
 			<Button variant="secondary" isDestructive onClick={removeEvent}>
 				{__("Remove note", "piano-block")}
 			</Button>

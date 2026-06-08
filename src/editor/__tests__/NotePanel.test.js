@@ -9,7 +9,9 @@
  * `validateSong`, the conformant-by-construction guarantee the panel rests on.
  * They also cover the structural **Remove note** button, which removes the event
  * from its hand (dropping the hand key when it empties) and signals the parent to
- * clear the now-stale selection.
+ * clear the now-stale selection, and the contextual **Add note** button, which
+ * signals `onAddNote` with the selection's own coords — the hand is inferred from
+ * the selection, never prompted (AC3).
  *
  * The panel is presentational, so the tests render it into jsdom and drive the
  * mocked `@wordpress/components` controls directly — setting an `<input>`/
@@ -122,7 +124,8 @@ function fixtureSong() {
  * @param {Object} [options]
  * @param {Object} [options.song]      The starting working song.
  * @param {Object} [options.selection] The raw selection coordinates.
- * @return {{ container: HTMLElement, calls: Object[], removed: Object }} Handle.
+ * @return {{ container: HTMLElement, calls: Object[], removed: Object,
+ *   added: Object[] }} Handle.
  */
 function renderPanel({
 	song: initialSong = fixtureSong(),
@@ -130,6 +133,7 @@ function renderPanel({
 } = {}) {
 	const calls = [];
 	const removed = { count: 0 };
+	const added = [];
 	let song = initialSong;
 	let handle;
 	const props = () => ({
@@ -139,6 +143,9 @@ function renderPanel({
 		onChange,
 		onRemove: () => {
 			removed.count += 1;
+		},
+		onAddNote: (...args) => {
+			added.push(args);
 		},
 	});
 	function onChange(next) {
@@ -151,7 +158,7 @@ function renderPanel({
 		}
 	}
 	handle = render(createElement(NotePanel, props()));
-	return { container: handle.container, calls, removed };
+	return { container: handle.container, calls, removed, added };
 }
 
 /** Assert the real validator accepts the emitted working song. */
@@ -294,6 +301,45 @@ describe("NotePanel — rest selection", () => {
 		expect(fieldByName(container, "Event type")).not.toBeNull();
 		expect(fieldByName(container, "Duration")).not.toBeNull();
 		expect(container.querySelector('[aria-label="Note name"]')).toBeNull();
+	});
+});
+
+describe("NotePanel — add note", () => {
+	it("calls onAddNote with the selection's coords and inferred hand", () => {
+		const { container, added } = renderPanel();
+		click(buttonByText(container, "Add note"));
+		// The hand is the selection's own hand — inferred, never prompted (AC3).
+		expect(added).toEqual([[0, 0, "rightHand"]]);
+	});
+
+	it("infers the left hand when a left-hand event is selected", () => {
+		const { container, added } = renderPanel({
+			song: {
+				sections: [
+					{
+						measures: [
+							{
+								leftHand: [
+									{
+										type: "note",
+										duration: "quarter",
+										pitches: [{ step: "C", octave: 3 }],
+									},
+								],
+							},
+						],
+					},
+				],
+			},
+			selection: {
+				sectionIndex: 0,
+				measureIndex: 0,
+				hand: "leftHand",
+				eventIndex: 0,
+			},
+		});
+		click(buttonByText(container, "Add note"));
+		expect(added).toEqual([[0, 0, "leftHand"]]);
 	});
 });
 

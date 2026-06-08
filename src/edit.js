@@ -214,10 +214,9 @@ export default function Edit({ attributes, setAttributes }) {
 		}
 	};
 
-	// Append an empty measure to a section. `sectionIndex` defaults to the last
-	// section (the canvas add-measure affordance targets the end of the score); the
-	// Structure list passes an explicit index. The new measure is reachable via the
-	// Structure list, so the selection is left as-is.
+	// Append an empty measure to a section. The Structure list passes an explicit
+	// `sectionIndex`; the default-to-last fallback covers a call with no target. The
+	// new measure is reachable via the Structure list, so the selection is left as-is.
 	const onAddMeasure = (sectionIndex = working.sections.length - 1) => {
 		const section = working.sections[sectionIndex];
 		if (!section) {
@@ -296,8 +295,6 @@ export default function Edit({ attributes, setAttributes }) {
 						accessibleName={accessibleName}
 						selection={resolvedSelection}
 						onSelect={setSelection}
-						onAddNote={onAddNote}
-						onAddMeasure={onAddMeasure}
 					/>
 					<InspectorControls>
 						<SongPanel song={working} system={system} onChange={commit} />
@@ -314,6 +311,7 @@ export default function Edit({ attributes, setAttributes }) {
 							onRemoveSection={onRemoveSection}
 							onAddMeasure={onAddMeasure}
 							onRemoveMeasure={onRemoveMeasure}
+							onAddNote={onAddNote}
 						/>
 						{/* Gate the per-level panels by the selection's kind: every kind
 						    has a section; a measure/event also has a measure; only an
@@ -327,6 +325,7 @@ export default function Edit({ attributes, setAttributes }) {
 								system={system}
 								onChange={commit}
 								onRemove={() => setSelection(null)}
+								onAddNote={onAddNote}
 							/>
 						)}
 						{(resolvedSelection?.kind === "event" ||

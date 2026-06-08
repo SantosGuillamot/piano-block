@@ -2,15 +2,16 @@
  * Smoke tests for the interactive sheet-music canvas.
  *
  * `SongCanvas` reuses the notation core's render path (as the old preview did) but
- * renders from a PARSED working object and layers on selection hit-testing,
- * post-render `is-selected` decoration, and the on-canvas add affordances. These
- * tests pin the load-bearing contracts: an `<svg role="img">` mounts for a valid
- * working object AND for the seeded empty song; a click on a rendered note group
- * fires `onSelect` with the right `{ sectionIndex, measureIndex, hand, eventIndex }`;
- * the `is-selected` class lands on exactly the selected group and on nothing for a
- * stale selection; and the add-note / add-measure buttons render with their
- * accessible names and call their callbacks. The full panel/integration coverage is
- * owned by the later inspector/Edit suites; this is the component-level smoke.
+ * renders from a PARSED working object and layers on selection hit-testing and
+ * post-render `is-selected`/`is-active-*` decoration — it is selection + decoration
+ * only (the on-canvas add-grid moved to the sidebar). These tests pin the
+ * load-bearing contracts: an `<svg role="img">` mounts for a valid working object
+ * AND for the seeded empty song; a click on a rendered note group fires `onSelect`
+ * with the right `{ sectionIndex, measureIndex, hand, eventIndex }`; the
+ * `is-selected` class lands on exactly the selected group and on nothing for a stale
+ * selection; and the canvas renders NO add affordances (those live in the Structure
+ * list and the Note panel now). The full panel/integration coverage is owned by the
+ * later inspector/Edit suites; this is the component-level smoke.
  *
  * Like `SongPreview.test.js`, these render into jsdom (no `@testing-library/react`)
  * and rely on the 0-width tolerance and the no-Font-Loading-API fallback
@@ -353,86 +354,22 @@ describe("SongCanvas", () => {
 		cleanup(container, root);
 	});
 
-	it("renders per-hand add-note buttons that call onAddNote with the coords", () => {
-		const onAddNote = jest.fn();
+	it("renders no on-canvas add affordances (they live in the sidebar now)", () => {
+		// The add-grid moved to the Structure list (add section/measure/first-note)
+		// and the Note panel (contextual add note). The canvas is selection +
+		// decoration only — none of the old add-grid nodes remain.
 		const { container, root } = render(
-			createElement(SongCanvas, { song: SONG, onAddNote }),
+			createElement(SongCanvas, { song: SONG }),
 		);
-		// One pair per measure: 3 measures × 2 hands = 6 add-note buttons.
-		const addNotes = container.querySelectorAll(
-			".wp-block-piano-block-piano__add-note",
-		);
-		expect(addNotes).toHaveLength(6);
-		// "Add note to left hand in measure 1" targets section 0, measure 0, leftHand.
-		const leftMeasure1 = [...addNotes].find(
-			(button) =>
-				button.getAttribute("aria-label") ===
-				"Add note to left hand in measure 1",
-		);
-		expect(leftMeasure1).toBeTruthy();
-		act(() => {
-			leftMeasure1.dispatchEvent(
-				new window.MouseEvent("click", { bubbles: true }),
-			);
-		});
-		expect(onAddNote).toHaveBeenCalledWith(0, 0, "leftHand");
-		cleanup(container, root);
-	});
-
-	it("targets the right hand and later measures with the correct coords", () => {
-		const onAddNote = jest.fn();
-		const { container, root } = render(
-			createElement(SongCanvas, { song: SONG, onAddNote }),
-		);
-		const addNotes = [
-			...container.querySelectorAll(".wp-block-piano-block-piano__add-note"),
-		];
-		// "Add note to right hand in measure 1" targets section 0, measure 0, right.
-		const rightMeasure1 = addNotes.find(
-			(button) =>
-				button.getAttribute("aria-label") ===
-				"Add note to right hand in measure 1",
-		);
-		expect(rightMeasure1).toBeTruthy();
-		act(() => {
-			rightMeasure1.dispatchEvent(
-				new window.MouseEvent("click", { bubbles: true }),
-			);
-		});
-		expect(onAddNote).toHaveBeenCalledWith(0, 0, "rightHand");
-		// "Add note … in measure 3" maps the global number back through the flatten
-		// to section 1, measure 0.
-		const rightMeasure3 = addNotes.find(
-			(button) =>
-				button.getAttribute("aria-label") ===
-				"Add note to right hand in measure 3",
-		);
-		expect(rightMeasure3).toBeTruthy();
-		act(() => {
-			rightMeasure3.dispatchEvent(
-				new window.MouseEvent("click", { bubbles: true }),
-			);
-		});
-		expect(onAddNote).toHaveBeenLastCalledWith(1, 0, "rightHand");
-		cleanup(container, root);
-	});
-
-	it("renders an add-measure button that calls onAddMeasure", () => {
-		const onAddMeasure = jest.fn();
-		const { container, root } = render(
-			createElement(SongCanvas, { song: SONG, onAddMeasure }),
-		);
-		const addMeasure = container.querySelector(
-			".wp-block-piano-block-piano__add-measure",
-		);
-		expect(addMeasure).toBeTruthy();
-		expect(addMeasure.textContent).toBe("Add measure");
-		act(() => {
-			addMeasure.dispatchEvent(
-				new window.MouseEvent("click", { bubbles: true }),
-			);
-		});
-		expect(onAddMeasure).toHaveBeenCalledTimes(1);
+		expect(
+			container.querySelector(".wp-block-piano-block-piano__canvas-actions"),
+		).toBeNull();
+		expect(
+			container.querySelector(".wp-block-piano-block-piano__add-note"),
+		).toBeNull();
+		expect(
+			container.querySelector(".wp-block-piano-block-piano__add-measure"),
+		).toBeNull();
 		cleanup(container, root);
 	});
 
