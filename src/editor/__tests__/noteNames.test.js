@@ -9,11 +9,15 @@
  * pitch's `step` as each option's `value`. Third, `stepInSystem` rewrites an
  * existing `step` into a system's spelling, canonicalizing across systems and
  * staying idempotent. Every option `value` is cross-checked against the shared
- * vocabulary's `isNoteName`.
+ * vocabulary's `isNoteName`. Fourth, `mapSong` rewrites every `pitch.step` of a
+ * whole song into a target system, stamps `language`, leaves `handConfig.alters`
+ * keys English-canonical, tolerates a malformed song, and stays conformant.
  */
 import { isNoteName } from "../../song/normalizeStep.js";
+import validateSong from "../../song/validate.js";
 import {
 	inferNoteNameSystem,
+	mapSong,
 	noteNameOptions,
 	stepInSystem,
 } from "../noteNames.js";
@@ -156,5 +160,121 @@ describe("stepInSystem", () => {
 				expect(stepInSystem(once, system)).toBe(once);
 			}
 		}
+	});
+});
+
+/**
+ * A two-section, two-hand song whose pitches span both staves, plus a
+ * `handConfig.alters` map keyed by an English-canonical letter. Used to prove
+ * `mapSong` rewrites every `pitch.step` across the whole tree while leaving the
+ * alters key untouched.
+ *
+ * @return {Object} A parsed-song-shaped object.
+ */
+function multiHandSong() {
+	return {
+		sections: [
+			{
+				handConfig: { rightHand: { alters: { C: 1 } } },
+				measures: [
+					{
+						rightHand: [
+							{
+								type: "note",
+								duration: "quarter",
+								pitches: [
+									{ step: "C", octave: 4 },
+									{ step: "E", octave: 4 },
+								],
+							},
+						],
+						leftHand: [
+							{
+								type: "note",
+								duration: "quarter",
+								pitches: [{ step: "G", octave: 2 }],
+							},
+						],
+					},
+				],
+			},
+			{
+				measures: [
+					{
+						rightHand: [
+							{
+								type: "note",
+								duration: "quarter",
+								pitches: [{ step: "A", octave: 4 }],
+							},
+						],
+					},
+				],
+			},
+		],
+	};
+}
+
+/** Collect every `pitch.step` of a song in document order. */
+function stepsList(song) {
+	const steps = [];
+	for (const section of song.sections ?? []) {
+		for (const measure of section.measures ?? []) {
+			for (const hand of [measure.rightHand, measure.leftHand]) {
+				for (const event of hand ?? []) {
+					for (const pitch of event.pitches ?? []) {
+						steps.push(pitch.step);
+					}
+				}
+			}
+		}
+	}
+	return steps;
+}
+
+describe("mapSong", () => {
+	it("rewrites every pitch.step into the target system and stamps language", () => {
+		const spanish = mapSong(multiHandSong(), "spanish");
+		// C E (right) G (left) of section 0, then A of section 1.
+		expect(stepsList(spanish)).toEqual(["do", "mi", "sol", "la"]);
+		expect(spanish.language).toBe("spanish");
+	});
+
+	it("round-trips back to English", () => {
+		const there = mapSong(multiHandSong(), "spanish");
+		const back = mapSong(there, "english");
+		expect(stepsList(back)).toEqual(["C", "E", "G", "A"]);
+		expect(back.language).toBe("english");
+	});
+
+	it("is idempotent — mapping to the same system twice equals once", () => {
+		const once = mapSong(multiHandSong(), "spanish");
+		const twice = mapSong(once, "spanish");
+		expect(twice).toEqual(once);
+	});
+
+	it("leaves handConfig.alters keys English-canonical", () => {
+		const spanish = mapSong(multiHandSong(), "spanish");
+		const alters = spanish.sections[0].handConfig.rightHand.alters;
+		expect(alters).toEqual({ C: 1 });
+		expect(alters).not.toHaveProperty("do");
+	});
+
+	it("does not mutate the input song", () => {
+		const song = multiHandSong();
+		const before = JSON.parse(JSON.stringify(song));
+		mapSong(song, "spanish");
+		expect(song).toEqual(before);
+	});
+
+	it("produces a conformant song", () => {
+		const spanish = mapSong(multiHandSong(), "spanish");
+		expect(validateSong(JSON.stringify(spanish))).toEqual([]);
+	});
+
+	it("tolerates a malformed song, returning just the language stamp", () => {
+		expect(mapSong({}, "spanish")).toEqual({ language: "spanish" });
+		expect(() => mapSong(undefined, "english")).not.toThrow();
+		expect(mapSong(undefined, "english")).toEqual({ language: "english" });
 	});
 });

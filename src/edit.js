@@ -123,8 +123,14 @@ export default function Edit({ attributes, setAttributes }) {
 	}, [song, errors]);
 
 	// The per-song note-name system, so the panels edit pitches in the song's own
-	// spelling. Defaults to English for an empty/absent working object.
-	const system = useMemo(() => inferNoteNameSystem(working), [working]);
+	// spelling. A stored `language` field is authoritative; inference from the
+	// pitches is the fallback only when the field is absent (so a language-less
+	// song still reads its system from its spellings, defaulting to English for an
+	// empty/absent working object).
+	const system = useMemo(
+		() => working?.language ?? inferNoteNameSystem(working),
+		[working],
+	);
 
 	// A non-empty song that does not parse-and-validate cannot be edited visually:
 	// route to the invalid state (no canvas, no panels) so the author can fix it in
