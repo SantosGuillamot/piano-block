@@ -454,4 +454,54 @@ describe("Edit — lifted structural mutators", () => {
 		expect(persisted.sections[0].measures[1]).toEqual({});
 		expect(validateSong(calls.at(-1))).toEqual([]);
 	});
+
+	it("onRemoveNote removes the note, drops the emptied hand, and clears the stale selection", () => {
+		const { container, calls } = renderEdit(SONG);
+		// Select the lone note, then use the Note panel's Remove — the panel signals
+		// the lifted onRemoveNote, the single owner of the splice.
+		selectLoneNote(container);
+		expect(panelByTitle(container, "Note")).not.toBeNull();
+		click(buttonByText(container, "Remove note"));
+
+		// The only event in the right hand is gone, so the hand key is dropped,
+		// leaving a conformant empty measure; the now-stale selection is cleared.
+		const persisted = JSON.parse(calls.at(-1));
+		expect(persisted.sections[0].measures[0].rightHand).toBeUndefined();
+		expect(validateSong(calls.at(-1))).toEqual([]);
+		expect(panelByTitle(container, "Note")).toBeNull();
+		expect(panelByTitle(container, "Measure")).toBeNull();
+		expect(panelByTitle(container, "Section")).toBeNull();
+		expect(panelByTitle(container, "Song")).not.toBeNull();
+	});
+
+	it("onRemoveNote keeps the hand when another event remains", () => {
+		// A two-event right hand: removing the selected first note leaves the trailing
+		// rest, so the hand key stays.
+		const TWO_EVENT_SONG = JSON.stringify({
+			sections: [
+				{
+					measures: [
+						{
+							rightHand: [
+								{
+									type: "note",
+									duration: "quarter",
+									pitches: [{ step: "C", octave: 5 }],
+								},
+								{ type: "rest", duration: "quarter" },
+							],
+						},
+					],
+				},
+			],
+		});
+		const { container, calls } = renderEdit(TWO_EVENT_SONG);
+		selectLoneNote(container);
+		click(buttonByText(container, "Remove note"));
+
+		const hand = JSON.parse(calls.at(-1)).sections[0].measures[0].rightHand;
+		expect(hand).toHaveLength(1);
+		expect(hand[0].type).toBe("rest");
+		expect(validateSong(calls.at(-1))).toEqual([]);
+	});
 });

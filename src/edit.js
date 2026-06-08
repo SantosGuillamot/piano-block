@@ -22,6 +22,7 @@ import { inferNoteNameSystem } from "./editor/noteNames.js";
 import { resolveSelection } from "./editor/selection.js";
 import { commitSong } from "./editor/serializeSong.js";
 import {
+	duplicateAt,
 	insertAt,
 	newMeasure,
 	newNote,
@@ -253,6 +254,107 @@ export default function Edit({ attributes, setAttributes }) {
 		}
 	};
 
+	// Remove an event from a measure's hand (the lifted note-level remove the Note
+	// panel signals, so the splice lives in one place). Reproduces
+	// `NotePanel.removeEvent`: drop the `[hand]` key when its list empties, else set
+	// it; rebuild measure → section → song immutably; commit. If the selection
+	// pointed at the removed event, it is now stale, so clear it.
+	const onRemoveNote = (sectionIndex, measureIndex, hand, eventIndex) => {
+		const section = working.sections[sectionIndex];
+		if (!section) {
+			return;
+		}
+		const measure = section.measures[measureIndex];
+		if (!measure?.[hand]) {
+			return;
+		}
+		const nextEvents = removeAt(measure[hand], eventIndex);
+		let nextMeasure;
+		if (nextEvents.length > 0) {
+			nextMeasure = { ...measure, [hand]: nextEvents };
+		} else {
+			const { [hand]: _dropped, ...restMeasure } = measure;
+			nextMeasure = restMeasure;
+		}
+		const nextMeasures = section.measures.map((current, index) =>
+			index === measureIndex ? nextMeasure : current,
+		);
+		const nextSections = working.sections.map((current, index) =>
+			index === sectionIndex ? { ...section, measures: nextMeasures } : current,
+		);
+		commit({ ...working, sections: nextSections });
+		if (
+			selection?.sectionIndex === sectionIndex &&
+			selection?.measureIndex === measureIndex &&
+			selection?.hand === hand &&
+			selection?.eventIndex === eventIndex
+		) {
+			setSelection(null);
+		}
+	};
+
+	// The three duplicate mutators: each inserts a deep copy right after the
+	// original via `duplicateAt` (index + 1) and commits, then selects the copy so
+	// its panel opens on it (mirroring `onAddNote`'s auto-select). Each guards a
+	// missing section/measure/hand so a stale call is a no-op, never a throw.
+
+	// Duplicate a whole section after itself.
+	const onDuplicateSection = (sectionIndex) => {
+		if (!working.sections[sectionIndex]) {
+			return;
+		}
+		commit({
+			...working,
+			sections: duplicateAt(working.sections, sectionIndex),
+		});
+		setSelection({ kind: "section", sectionIndex: sectionIndex + 1 });
+	};
+
+	// Duplicate a measure after itself, within its section.
+	const onDuplicateMeasure = (sectionIndex, measureIndex) => {
+		const section = working.sections[sectionIndex];
+		if (!section?.measures[measureIndex]) {
+			return;
+		}
+		const nextMeasures = duplicateAt(section.measures, measureIndex);
+		const nextSections = working.sections.map((current, index) =>
+			index === sectionIndex ? { ...section, measures: nextMeasures } : current,
+		);
+		commit({ ...working, sections: nextSections });
+		setSelection({
+			kind: "measure",
+			sectionIndex,
+			measureIndex: measureIndex + 1,
+		});
+	};
+
+	// Duplicate an event after itself, within its measure's hand.
+	const onDuplicateNote = (sectionIndex, measureIndex, hand, eventIndex) => {
+		const section = working.sections[sectionIndex];
+		if (!section) {
+			return;
+		}
+		const measure = section.measures[measureIndex];
+		if (!measure?.[hand]?.[eventIndex]) {
+			return;
+		}
+		const nextEvents = duplicateAt(measure[hand], eventIndex);
+		const nextMeasures = section.measures.map((current, index) =>
+			index === measureIndex ? { ...measure, [hand]: nextEvents } : current,
+		);
+		const nextSections = working.sections.map((current, index) =>
+			index === sectionIndex ? { ...section, measures: nextMeasures } : current,
+		);
+		commit({ ...working, sections: nextSections });
+		setSelection({
+			kind: "event",
+			sectionIndex,
+			measureIndex,
+			hand,
+			eventIndex: eventIndex + 1,
+		});
+	};
+
 	return (
 		<div {...useBlockProps()}>
 			<BlockControls>
@@ -302,16 +404,24 @@ export default function Edit({ attributes, setAttributes }) {
 						    with nothing selected (sections → measures, to measure depth),
 						    and selecting a row drives the kind-tagged selection that gates
 						    the panels and the canvas highlight. The lifted structural
-						    mutators are the single owner of `working` + `commit`. */}
+						    mutators are the single owner of `working` + `commit`. The
+						    note-level remove and the three duplicate handlers are threaded
+						    here too so the structure surface owns the full mutator set; the
+						    Structure list ignores the props it does not yet render, and the
+						    tree that replaces it consumes them all. */}
 						<StructureList
 							song={working}
 							selection={resolvedSelection}
 							onSelect={setSelection}
 							onAddSection={onAddSection}
 							onRemoveSection={onRemoveSection}
+							onDuplicateSection={onDuplicateSection}
 							onAddMeasure={onAddMeasure}
 							onRemoveMeasure={onRemoveMeasure}
+							onDuplicateMeasure={onDuplicateMeasure}
 							onAddNote={onAddNote}
+							onRemoveNote={onRemoveNote}
+							onDuplicateNote={onDuplicateNote}
 						/>
 						{/* Gate the per-level panels by the selection's kind: every kind
 						    has a section; a measure/event also has a measure; only an
@@ -324,7 +434,7 @@ export default function Edit({ attributes, setAttributes }) {
 								selection={resolvedSelection}
 								system={system}
 								onChange={commit}
-								onRemove={() => setSelection(null)}
+								onRemoveNote={onRemoveNote}
 								onAddNote={onAddNote}
 							/>
 						)}

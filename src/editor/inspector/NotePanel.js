@@ -15,10 +15,12 @@
  * section → measures → hand path — and reuses the existing constrained leaf
  * editors (`PitchList`, `AnnotationList`) and the `songModel` array helpers, so
  * every emission stays conformant by construction. Removing the event signals up
- * through `onRemove`, which the parent pairs with clearing the selection. Adding a
- * note signals up through `onAddNote` with the selection's own coords — the hand is
- * inferred from the selection, never prompted (AC3); the parent inserts the new note
- * right after the selected one and auto-selects it.
+ * through `onRemoveNote` with the selection's own coords — the parent owns the
+ * splice (dropping the hand key when it empties) and clears the now-stale selection,
+ * so the note-level remove lives in one place. Adding a note signals up through
+ * `onAddNote` with the selection's own coords — the hand is inferred from the
+ * selection, never prompted (AC3); the parent inserts the new note right after the
+ * selected one and auto-selects it.
  *
  * The one cross-field rule — switching `note`↔`rest` drops/seeds `pitches` — is
  * reproduced from `EventRow.changeType` verbatim rather than imported, since
@@ -43,7 +45,6 @@ import {
 	DYNAMICS,
 	EVENT_TYPES,
 	newPitch,
-	removeAt,
 	replaceAt,
 	SPAN_STATES,
 } from "../songModel.js";
@@ -87,11 +88,16 @@ function clampInt(raw, min, max) {
  *                                              and `sectionIndex`/`measureIndex`/
  *                                              `hand`/`eventIndex` coords.
  * @param {"english"|"spanish"} props.system    The per-song note-name system.
- * @param {Function}            props.onChange  Receives the next working song.
- * @param {Function}            props.onRemove  Called to remove the selected event.
- * @param {Function}            props.onAddNote Called with the selection's
- *                                              `(sectionIndex, measureIndex, hand)`
- *                                              to add a note in the same hand.
+ * @param {Function}            props.onChange      Receives the next working song.
+ * @param {Function}            props.onRemoveNote  Called with the selection's
+ *                                                  `(sectionIndex, measureIndex,
+ *                                                  hand, eventIndex)` to remove the
+ *                                                  selected event; the parent owns
+ *                                                  the splice and selection clear.
+ * @param {Function}            props.onAddNote     Called with the selection's
+ *                                                  `(sectionIndex, measureIndex,
+ *                                                  hand)` to add a note in the same
+ *                                                  hand.
  * @return {Object} The rendered Note panel.
  */
 export function NotePanel({
@@ -99,7 +105,7 @@ export function NotePanel({
 	selection,
 	system,
 	onChange,
-	onRemove,
+	onRemoveNote,
 	onAddNote,
 }) {
 	const { event, section, measure, sectionIndex, measureIndex, hand, eventIndex } =
@@ -119,29 +125,6 @@ export function NotePanel({
 			...song,
 			sections: replaceAt(song.sections, sectionIndex, nextSection),
 		});
-	};
-
-	/**
-	 * Remove the selected event from its hand, dropping the hand key when the list
-	 * empties (as `MeasureEditor.changeHand` did), then emit the next whole `song`
-	 * and signal the parent so it clears the now-stale selection.
-	 */
-	const removeEvent = () => {
-		const nextEvents = removeAt(measure[hand], eventIndex);
-		let nextMeasure;
-		if (nextEvents.length > 0) {
-			nextMeasure = { ...measure, [hand]: nextEvents };
-		} else {
-			const { [hand]: _dropped, ...restMeasure } = measure;
-			nextMeasure = restMeasure;
-		}
-		const nextMeasures = replaceAt(section.measures, measureIndex, nextMeasure);
-		const nextSection = { ...section, measures: nextMeasures };
-		onChange({
-			...song,
-			sections: replaceAt(song.sections, sectionIndex, nextSection),
-		});
-		onRemove?.();
 	};
 
 	/**
@@ -287,14 +270,21 @@ export function NotePanel({
 
 			{/* Add a note in the selection's own hand (inferred, never prompted), then
 			    Remove the selected note. The parent's `onAddNote` inserts right after
-			    the selection and auto-selects the new note (AC3). */}
+			    the selection and auto-selects the new note (AC3); the parent's
+			    `onRemoveNote` owns the splice and clears the now-stale selection. */}
 			<Button
 				variant="secondary"
 				onClick={() => onAddNote?.(sectionIndex, measureIndex, hand)}
 			>
 				{__("Add note", "piano-block")}
 			</Button>
-			<Button variant="secondary" isDestructive onClick={removeEvent}>
+			<Button
+				variant="secondary"
+				isDestructive
+				onClick={() =>
+					onRemoveNote?.(sectionIndex, measureIndex, hand, eventIndex)
+				}
+			>
 				{__("Remove note", "piano-block")}
 			</Button>
 		</PanelBody>

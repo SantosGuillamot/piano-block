@@ -7,11 +7,11 @@
  * rule; optional keys appear only when set and drop when cleared; the chord is
  * edited through `PitchList`) AND that every emitted song is accepted by the real
  * `validateSong`, the conformant-by-construction guarantee the panel rests on.
- * They also cover the structural **Remove note** button, which removes the event
- * from its hand (dropping the hand key when it empties) and signals the parent to
- * clear the now-stale selection, and the contextual **Add note** button, which
- * signals `onAddNote` with the selection's own coords — the hand is inferred from
- * the selection, never prompted (AC3).
+ * They also cover the structural **Remove note** button, which signals
+ * `onRemoveNote` with the selection's own coords — the parent owns the splice and
+ * the selection clear — and the contextual **Add note** button, which signals
+ * `onAddNote` with the selection's own coords — the hand is inferred from the
+ * selection, never prompted (AC3).
  *
  * The panel is presentational, so the tests render it into jsdom and drive the
  * mocked `@wordpress/components` controls directly — setting an `<input>`/
@@ -124,7 +124,7 @@ function fixtureSong() {
  * @param {Object} [options]
  * @param {Object} [options.song]      The starting working song.
  * @param {Object} [options.selection] The raw selection coordinates.
- * @return {{ container: HTMLElement, calls: Object[], removed: Object,
+ * @return {{ container: HTMLElement, calls: Object[], removed: Object[],
  *   added: Object[] }} Handle.
  */
 function renderPanel({
@@ -132,7 +132,7 @@ function renderPanel({
 	selection = { sectionIndex: 0, measureIndex: 0, hand: "rightHand", eventIndex: 0 },
 } = {}) {
 	const calls = [];
-	const removed = { count: 0 };
+	const removed = [];
 	const added = [];
 	let song = initialSong;
 	let handle;
@@ -141,8 +141,8 @@ function renderPanel({
 		selection: resolveSelection(song, selection),
 		system: "english",
 		onChange,
-		onRemove: () => {
-			removed.count += 1;
+		onRemoveNote: (...args) => {
+			removed.push(args);
 		},
 		onAddNote: (...args) => {
 			added.push(args);
@@ -344,40 +344,46 @@ describe("NotePanel — add note", () => {
 });
 
 describe("NotePanel — remove note", () => {
-	it("removes the event, keeping the hand when others remain, and clears selection", () => {
+	it("signals onRemoveNote with the selection's coords (the parent owns the splice)", () => {
+		// The panel no longer splices locally: Remove note signals the lifted
+		// handler with the selection's `(sectionIndex, measureIndex, hand,
+		// eventIndex)`; the parent removes the event, drops an emptied hand, and
+		// clears the now-stale selection (covered in `Edit.test.js`).
 		const { container, calls, removed } = renderPanel();
 		click(buttonByText(container, "Remove note"));
-		const hand = calls.at(-1).sections[0].measures[0].rightHand;
-		// The note was at index 0; the trailing rest remains as the only event.
-		expect(hand).toHaveLength(1);
-		expect(hand[0].type).toBe("rest");
-		expect(removed.count).toBe(1);
-		expectConformant(calls.at(-1));
+		expect(removed).toEqual([[0, 0, "rightHand", 0]]);
+		// No song is emitted from the panel — the remove flows through the parent.
+		expect(calls).toHaveLength(0);
 	});
 
-	it("drops the hand key when the removed event was the last in its hand", () => {
-		const { container, calls } = renderPanel({
+	it("signals onRemoveNote with a left-hand event's own coords", () => {
+		const { container, removed } = renderPanel({
 			song: {
 				sections: [
 					{
 						measures: [
 							{
-								rightHand: [
+								leftHand: [
 									{
 										type: "note",
 										duration: "quarter",
-										pitches: [{ step: "C", octave: 4 }],
+										pitches: [{ step: "C", octave: 3 }],
 									},
+									{ type: "rest", duration: "quarter" },
 								],
 							},
 						],
 					},
 				],
 			},
+			selection: {
+				sectionIndex: 0,
+				measureIndex: 0,
+				hand: "leftHand",
+				eventIndex: 1,
+			},
 		});
 		click(buttonByText(container, "Remove note"));
-		const measure = calls.at(-1).sections[0].measures[0];
-		expect(measure.rightHand).toBeUndefined();
-		expectConformant(calls.at(-1));
+		expect(removed).toEqual([[0, 0, "leftHand", 1]]);
 	});
 });
