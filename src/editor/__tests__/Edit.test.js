@@ -4,10 +4,10 @@
  * field.
  *
  * `Edit` owns two pieces of editor-only UI state, the `mode` (`"visual"` |
- * `"json"`) and the canvas `selection`, computes the memoized
- * `errors = validateSong(song)` once (empty string → `[]`), and renders one of
- * three surfaces. These tests pin that:
- *   - the default surface is the visual editor: the interactive `SongCanvas`
+ * `"json"`) and the `selection` (driven by the structure tree, not the canvas),
+ * computes the memoized `errors = validateSong(song)` once (empty string → `[]`),
+ * and renders one of three surfaces. These tests pin that:
+ *   - the default surface is the visual editor: the display-only `SongCanvas`
  *     (its rendered `<svg>`) plus the always-present `SongPanel` inside the
  *     `InspectorControls` sidebar, with the "Song (JSON)" textarea NOT in the
  *     DOM;
@@ -213,22 +213,6 @@ describe("Edit mode container", () => {
 		expect(panelByTitle(container, "Section")).toBeNull();
 	});
 
-	it("reveals the Note/Measure/Section panels when a note is selected on the canvas", () => {
-		const { container } = renderEdit(SONG);
-		// Click the rendered note group the conformant fixture emits on the canvas;
-		// the container's native click handler resolves it to a selection, which
-		// reveals the per-level panels alongside the always-present Song panel.
-		const note = container.querySelector('[data-kind="note"]');
-		expect(note).not.toBeNull();
-		act(() => {
-			note.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
-		});
-		expect(panelByTitle(container, "Song")).not.toBeNull();
-		expect(panelByTitle(container, "Note")).not.toBeNull();
-		expect(panelByTitle(container, "Measure")).not.toBeNull();
-		expect(panelByTitle(container, "Section")).not.toBeNull();
-	});
-
 	it("toggling the toolbar switch shows the raw-JSON textarea with its exact label", () => {
 		const { container } = renderEdit(SONG);
 		const toggle = buttonByText(container, "Edit as JSON");
@@ -351,13 +335,11 @@ describe("Edit mode container", () => {
 
 	it("inserts a contextual note right after the selected event in the same hand", () => {
 		const { container, calls } = renderEdit(SONG);
-		// Select the existing first note, then use the Note panel's contextual "Add
-		// note": the hand is inferred from the selection and the new note lands at
-		// index 1 (right after the selection), not appended past it.
-		const note = container.querySelector('[data-kind="note"]');
-		act(() => {
-			note.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
-		});
+		// Select the existing first note (via the structure tree), then use the Note
+		// panel's contextual "Add note": the hand is inferred from the selection and
+		// the new note lands at index 1 (right after the selection), not appended past
+		// it.
+		selectLoneNote(container);
 		click(buttonByText(container, "Add note"));
 
 		const hand = JSON.parse(calls.at(-1)).sections[0].measures[0].rightHand;
@@ -374,11 +356,8 @@ describe("Edit mode container", () => {
 
 	it("clears a stale selection after a raw edit removes the selected event", () => {
 		const { container } = renderEdit(SONG);
-		// Select the only note, revealing the per-level panels.
-		const note = container.querySelector('[data-kind="note"]');
-		act(() => {
-			note.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
-		});
+		// Select the only note (via the structure tree), revealing the per-level panels.
+		selectLoneNote(container);
 		expect(panelByTitle(container, "Note")).not.toBeNull();
 
 		// Drop into JSON mode and replace the song with one whose selected event no
@@ -398,19 +377,24 @@ describe("Edit mode container", () => {
 	});
 });
 
-/** Click the lone rendered note group to set an event selection. */
+/**
+ * Select the SONG fixture's lone right-hand note through the structure tree (the
+ * selection surface — the canvas no longer hit-tests). Opens the tree, drills down
+ * to the note row, and clicks it. The fixture note is a C5 → its row label is "C".
+ */
 function selectLoneNote(container) {
-	const note = container.querySelector('[data-kind="note"]');
-	act(() => {
-		note.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
-	});
+	click(buttonByText(container, "Structure"));
+	clickByText(container, "Section 1");
+	clickByText(container, "Measure 1");
+	clickByText(container, "Right hand");
+	clickByText(container, "C");
 }
 
 describe("Edit — kind-tagged panel gating", () => {
-	it("shows all three per-level panels for an event-kind canvas selection", () => {
+	it("shows all three per-level panels for an event-kind tree selection", () => {
 		const { container } = renderEdit(SONG);
 		selectLoneNote(container);
-		// A canvas selection is kind:"event": every panel gates open.
+		// A note-row selection is kind:"event": every panel gates open.
 		expect(panelByTitle(container, "Section")).not.toBeNull();
 		expect(panelByTitle(container, "Measure")).not.toBeNull();
 		expect(panelByTitle(container, "Note")).not.toBeNull();

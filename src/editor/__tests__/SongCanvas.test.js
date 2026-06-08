@@ -1,17 +1,16 @@
 /**
- * Smoke tests for the interactive sheet-music canvas.
+ * Smoke tests for the sheet-music canvas.
  *
  * `SongCanvas` reuses the notation core's render path (as the old preview did) but
- * renders from a PARSED working object and layers on selection hit-testing and
- * post-render `is-selected`/`is-active-*` decoration — it is selection + decoration
- * only (the on-canvas add-grid moved to the sidebar). These tests pin the
- * load-bearing contracts: an `<svg role="img">` mounts for a valid working object
- * AND for the seeded empty song; a click on a rendered note group fires `onSelect`
- * with the right `{ sectionIndex, measureIndex, hand, eventIndex }`; the
- * `is-selected` class lands on exactly the selected group and on nothing for a stale
- * selection; and the canvas renders NO add affordances (those live in the Structure
- * list and the Note panel now). The full panel/integration coverage is owned by the
- * later inspector/Edit suites; this is the component-level smoke.
+ * renders from a PARSED working object and layers on post-render
+ * `is-selected`/`is-active-*` decoration only — it is selection-decoration only, it
+ * does NOT hit-test or set selection (selection is driven by the structure tree).
+ * These tests pin the load-bearing contracts: an `<svg role="img">` mounts for a
+ * valid working object AND for the seeded empty song; the `is-selected`/`is-active-*`
+ * classes land on exactly the selected group and on nothing for a stale selection;
+ * and the canvas renders NO add affordances (those live in the structure tree and the
+ * Note panel now). The full panel/integration coverage is owned by the later
+ * inspector/Edit suites; this is the component-level smoke.
  *
  * Like `SongPreview.test.js`, these render into jsdom (no `@testing-library/react`)
  * and rely on the 0-width tolerance and the no-Font-Loading-API fallback
@@ -98,18 +97,6 @@ function cleanup(container, root) {
 	container.remove();
 }
 
-/** The SVG host node (the inner container the core renders into). */
-function svgHost(container) {
-	return container.querySelector(".wp-block-piano-block-piano__canvas-svg");
-}
-
-/** Dispatch a bubbling click whose target is `node`, inside `act`. */
-function clickNode(node) {
-	act(() => {
-		node.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
-	});
-}
-
 describe("SongCanvas", () => {
 	it("mounts an <svg role='img'> for a valid working object", () => {
 		const { container, root } = render(
@@ -128,179 +115,6 @@ describe("SongCanvas", () => {
 			createElement(SongCanvas, { song: newSong() }),
 		);
 		expect(container.querySelector("svg")).toBeTruthy();
-		cleanup(container, root);
-	});
-
-	it("fires onSelect with the resolved coords when a note group is clicked", () => {
-		const onSelect = jest.fn();
-		const { container, root } = render(
-			createElement(SongCanvas, { song: SONG, onSelect }),
-		);
-		// The second right-hand event of measure 1 is the rest at eventIndex 1.
-		const group = svgHost(container).querySelector(
-			'[data-measure="1"] [data-hand="rightHand"][data-event-index="1"]',
-		);
-		expect(group).toBeTruthy();
-		// Click a descendant of the group, as a real pointer would.
-		clickNode(group.firstChild ?? group);
-		expect(onSelect).toHaveBeenCalledTimes(1);
-		expect(onSelect).toHaveBeenCalledWith({
-			kind: "event",
-			sectionIndex: 0,
-			measureIndex: 0,
-			hand: "rightHand",
-			eventIndex: 1,
-		});
-		cleanup(container, root);
-	});
-
-	it("fires onSelect(null) when an empty staff area is clicked", () => {
-		const onSelect = jest.fn();
-		const { container, root } = render(
-			createElement(SongCanvas, { song: SONG, onSelect }),
-		);
-		// The SVG root is not inside any note/rest group.
-		clickNode(container.querySelector("svg"));
-		expect(onSelect).toHaveBeenCalledWith(null);
-		cleanup(container, root);
-	});
-
-	it("fires onSelect for a clicked rest group, not just a note", () => {
-		const onSelect = jest.fn();
-		const { container, root } = render(
-			createElement(SongCanvas, { song: SONG, onSelect }),
-		);
-		// The rest at eventIndex 1 of measure 1 is a `data-kind="rest"` group —
-		// the hit-test reads rests exactly as it reads notes.
-		const rest = svgHost(container).querySelector(
-			'[data-measure="1"][data-kind="rest"], [data-measure="1"] [data-kind="rest"]',
-		);
-		expect(rest).toBeTruthy();
-		expect(rest.getAttribute("data-kind")).toBe("rest");
-		clickNode(rest.firstChild ?? rest);
-		expect(onSelect).toHaveBeenCalledWith({
-			kind: "event",
-			sectionIndex: 0,
-			measureIndex: 0,
-			hand: "rightHand",
-			eventIndex: 1,
-		});
-		cleanup(container, root);
-	});
-
-	it("fires onSelect when the per-event hit-rect (not the ink) is the click target", () => {
-		// SongCanvas passes `interactive: true`, so each note/rest group has a
-		// transparent first-child hit-rect covering its column. A real off-ink click in
-		// the column lands on THAT rect — the bug today is that a gap-click hits no ink
-		// and resolves to nothing. Targeting the rect proves the column is selectable.
-		const onSelect = jest.fn();
-		const { container, root } = render(
-			createElement(SongCanvas, { song: SONG, onSelect }),
-		);
-		// The lone note of global measure 3 (section 1, measure 0).
-		const group = svgHost(container).querySelector(
-			'[data-measure="3"] [data-hand="rightHand"][data-event-index="0"]',
-		);
-		expect(group).toBeTruthy();
-		const hit = group.querySelector("[data-hit]");
-		expect(hit).toBeTruthy();
-		// The rect carries no data-kind/data-hand/data-event-index of its own; selection
-		// must resolve by walking up to the enclosing group.
-		expect(hit.hasAttribute("data-hand")).toBe(false);
-		expect(hit.hasAttribute("data-event-index")).toBe(false);
-		clickNode(hit);
-		expect(onSelect).toHaveBeenCalledWith({
-			kind: "event",
-			sectionIndex: 1,
-			measureIndex: 0,
-			hand: "rightHand",
-			eventIndex: 0,
-		});
-		cleanup(container, root);
-	});
-
-	it("resolves a click in a later section through the measure flatten", () => {
-		const onSelect = jest.fn();
-		const { container, root } = render(
-			createElement(SongCanvas, { song: SONG, onSelect }),
-		);
-		// The lone note of global measure 3 lives in section 1, measure 0 — the
-		// click must translate `data-measure="3"` back through `measureCoords`.
-		const group = svgHost(container).querySelector(
-			'[data-measure="3"] [data-hand="rightHand"][data-event-index="0"]',
-		);
-		expect(group).toBeTruthy();
-		clickNode(group.firstChild ?? group);
-		expect(onSelect).toHaveBeenCalledWith({
-			kind: "event",
-			sectionIndex: 1,
-			measureIndex: 0,
-			hand: "rightHand",
-			eventIndex: 0,
-		});
-		cleanup(container, root);
-	});
-
-	it("fires onSelect on Enter/Space over a focused note group", () => {
-		const onSelect = jest.fn();
-		const { container, root } = render(
-			createElement(SongCanvas, { song: SONG, onSelect }),
-		);
-		const group = svgHost(container).querySelector(
-			'[data-measure="3"] [data-hand="rightHand"][data-event-index="0"]',
-		);
-		expect(group).toBeTruthy();
-		// Enter on the focused group activates the same selection a click would.
-		act(() => {
-			group.dispatchEvent(
-				new window.KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
-			);
-		});
-		expect(onSelect).toHaveBeenCalledWith({
-			kind: "event",
-			sectionIndex: 1,
-			measureIndex: 0,
-			hand: "rightHand",
-			eventIndex: 0,
-		});
-		// Space behaves the same.
-		onSelect.mockClear();
-		act(() => {
-			group.dispatchEvent(
-				new window.KeyboardEvent("keydown", { key: " ", bubbles: true }),
-			);
-		});
-		expect(onSelect).toHaveBeenCalledWith({
-			kind: "event",
-			sectionIndex: 1,
-			measureIndex: 0,
-			hand: "rightHand",
-			eventIndex: 0,
-		});
-		cleanup(container, root);
-	});
-
-	it("ignores keydowns that are neither Enter nor Space, and those off a group", () => {
-		const onSelect = jest.fn();
-		const { container, root } = render(
-			createElement(SongCanvas, { song: SONG, onSelect }),
-		);
-		const group = svgHost(container).querySelector('[data-kind="note"]');
-		// A non-activation key over a group does nothing.
-		act(() => {
-			group.dispatchEvent(
-				new window.KeyboardEvent("keydown", { key: "a", bubbles: true }),
-			);
-		});
-		// Enter off any group (on the bare SVG root) does nothing either.
-		act(() => {
-			container
-				.querySelector("svg")
-				.dispatchEvent(
-					new window.KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
-				);
-		});
-		expect(onSelect).not.toHaveBeenCalled();
 		cleanup(container, root);
 	});
 
@@ -344,20 +158,10 @@ describe("SongCanvas", () => {
 		cleanup(container, root);
 	});
 
-	it("makes note/rest groups focusable for keyboard selection", () => {
-		const { container, root } = render(
-			createElement(SongCanvas, { song: SONG }),
-		);
-		const group = svgHost(container).querySelector('[data-kind="note"]');
-		expect(group.getAttribute("tabindex")).toBe("0");
-		expect(group.getAttribute("role")).toBe("button");
-		cleanup(container, root);
-	});
-
 	it("renders no on-canvas add affordances (they live in the sidebar now)", () => {
-		// The add-grid moved to the Structure list (add section/measure/first-note)
-		// and the Note panel (contextual add note). The canvas is selection +
-		// decoration only — none of the old add-grid nodes remain.
+		// The add-grid moved to the structure tree (add section/measure/first-note)
+		// and the Note panel (contextual add note). The canvas is decoration only —
+		// none of the old add-grid nodes remain.
 		const { container, root } = render(
 			createElement(SongCanvas, { song: SONG }),
 		);

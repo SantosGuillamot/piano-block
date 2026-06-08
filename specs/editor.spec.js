@@ -3,14 +3,16 @@
  *
  * These tests drive the real built block in the editor via wp-env and verify
  * its authoring + persistence behavior. The CANVAS-FIRST visual editor is the
- * DEFAULT surface: a freshly inserted block shows an interactive sheet-music
- * canvas — seeded with an empty grand staff so it is ready for notes without
- * any raw JSON — that the author both reads and edits on. Selecting a note on
- * the canvas reveals the block's settings sidebar panels (the always-present
- * Song panel plus the Note/Measure/Section panels bound to the selection);
- * song- and event-level settings are edited there, not on the canvas. A
- * non-empty-but-invalid song shows an invalid state that routes to the raw
- * JSON editor.
+ * DEFAULT surface: a freshly inserted block shows a sheet-music canvas — seeded
+ * with an empty grand staff so it is ready for notes without any raw JSON — that
+ * the author reads while editing through the sidebar. The canvas is display +
+ * highlight only: it does NOT hit-test, so clicking it never changes the
+ * selection. Selection is driven by the left structure tree, and selecting a tree
+ * row reveals the block's settings sidebar panels (the always-present Song panel
+ * plus the Note/Measure/Section panels bound to the selection) and highlights the
+ * matching group on the canvas; song- and event-level settings are edited there,
+ * not on the canvas. A non-empty-but-invalid song shows an invalid state that
+ * routes to the raw JSON editor.
  *
  * Authoring no longer happens with on-canvas add buttons. The always-present
  * sidebar **Structure** panel browses the song's sections and measures (to
@@ -372,7 +374,7 @@ test.describe("Piano block — editor authoring, persistence and validation", ()
 		await expect(noteGroups(editor).first()).toBeVisible();
 	});
 
-	test("selecting a note reveals the Note, Measure and Section panels", async ({
+	test("clicking a note on the canvas does not change the selection", async ({
 		editor,
 		page,
 	}) => {
@@ -382,52 +384,23 @@ test.describe("Piano block — editor authoring, persistence and validation", ()
 		await seedSongViaJson(editor, CONFORMANT_SONG);
 		await switchToVisualMode(editor);
 
-		// With nothing selected, only the always-present Song + Structure panels
-		// are shown; the selection-gated panels are absent.
+		// With nothing selected, only the always-present panels are shown; the
+		// selection-gated panels are absent.
 		const sidebar = await openSettingsSidebar(editor, page);
 		await expect(inspectorPanel(sidebar, "Song")).toBeVisible();
-		await expect(inspectorPanel(sidebar, "Structure")).toBeVisible();
+		await expect(inspectorPanel(sidebar, "Note")).toHaveCount(0);
+
+		// The canvas is display + highlight only — it no longer hit-tests. Clicking a
+		// rendered note group must NOT set a selection: no per-level panel appears and
+		// no group is marked selected (AC3). Selection comes only from the structure
+		// tree (the tree-driven selection is covered by its own test).
+		const note = noteGroups(editor).first();
+		await note.click();
+
 		await expect(inspectorPanel(sidebar, "Note")).toHaveCount(0);
 		await expect(inspectorPanel(sidebar, "Measure")).toHaveCount(0);
 		await expect(inspectorPanel(sidebar, "Section")).toHaveCount(0);
-
-		// Click the rendered note on the staff to select it.
-		await noteGroups(editor).first().click();
-
-		// The selection-bound panels appear alongside the always-present ones.
-		await expect(inspectorPanel(sidebar, "Song")).toBeVisible();
-		await expect(inspectorPanel(sidebar, "Note")).toBeVisible();
-		await expect(inspectorPanel(sidebar, "Measure")).toBeVisible();
-		await expect(inspectorPanel(sidebar, "Section")).toBeVisible();
-	});
-
-	test("clicking a note off its ink (in-column gap) still selects it", async ({
-		editor,
-		page,
-	}) => {
-		await editor.insertBlock({ name: "piano-block/piano" });
-
-		// Seed a conformant single-note song, return to the canvas, open the sidebar.
-		await seedSongViaJson(editor, CONFORMANT_SONG);
-		await switchToVisualMode(editor);
-		const sidebar = await openSettingsSidebar(editor, page);
-
-		// The single C4 quarter note. Its only ink is a thin stem + a tiny notehead; the
-		// rest of the group's bounding box is transparent gap. Click an explicit
-		// position in the column but OFF the notehead/stem — the staff-gap a few px above
-		// the notehead, i.e. the bbox-center-ish point a plain `.click()` lands on and
-		// that fails today (the click passes through to the staff lines, selecting
-		// nothing). The editor-only hit-rect makes that empty interior selectable.
-		const note = noteGroups(editor).first();
-		const box = await note.boundingBox();
-		await note.click({
-			position: { x: box.width / 2, y: Math.min(6, box.height / 4) },
-		});
-
-		// The Note panel populates and the group is marked selected — proving the
-		// off-ink, in-column point now resolves to the note.
-		await expect(inspectorPanel(sidebar, "Note")).toBeVisible();
-		await expect(note).toHaveClass(/is-selected/);
+		await expect(note).not.toHaveClass(/is-selected/);
 	});
 
 	test("the Note panel adds a sibling note in the same hand, then removes it", async ({

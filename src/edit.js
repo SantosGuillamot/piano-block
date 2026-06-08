@@ -452,7 +452,6 @@ export default function Edit({ attributes, setAttributes }) {
 							song={working}
 							accessibleName={accessibleName}
 							selection={resolvedSelection}
-							onSelect={setSelection}
 						/>
 					</div>
 					<InspectorControls>
