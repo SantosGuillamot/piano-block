@@ -144,7 +144,6 @@ function renderTree({
 		select: [],
 		toggle: [],
 		toggleOverride: [],
-		addSection: 0,
 		removeSection: [],
 		duplicateSection: [],
 		addMeasure: [],
@@ -164,9 +163,6 @@ function renderTree({
 			collapsedOverride,
 			onToggleCollapsedOverride: (path) => calls.toggleOverride.push(path),
 			onSelect: (next) => calls.select.push(next),
-			onAddSection: () => {
-				calls.addSection += 1;
-			},
 			onRemoveSection: (si) => calls.removeSection.push(si),
 			onDuplicateSection: (si) => calls.duplicateSection.push(si),
 			onAddMeasure: (si) => calls.addMeasure.push(si),
@@ -332,17 +328,6 @@ describe("StructureTree — select", () => {
 });
 
 describe("StructureTree — add/remove/duplicate", () => {
-	it("adds a section from the trailing Add section button", () => {
-		const { container, unmount, calls } = renderTree();
-		// The trailing Add section is a text-labeled Button (not an icon-only one).
-		const addSection = Array.from(container.querySelectorAll("button")).find(
-			(button) => button.textContent === "Add section",
-		);
-		click(addSection);
-		expect(calls.addSection).toBe(1);
-		unmount();
-	});
-
 	it("removes and duplicates a section with its index", () => {
 		const { container, unmount, calls } = renderTree();
 		click(buttonByLabel(container, "Remove section 2"));

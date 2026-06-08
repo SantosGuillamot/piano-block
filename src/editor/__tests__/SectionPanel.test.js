@@ -6,9 +6,9 @@
  * pin two things at once — the exact emitted shape (a context override appears
  * only when set and drops when reset) AND that every emitted song is accepted by
  * the real `validateSong`, the conformant-by-construction guarantee the panel
- * rests on. They also cover the structural **Add section** and **Remove section**
- * buttons, including the validator-backed fact that `sections` may be empty — so
- * removing the only section is allowed and needs no min-one guard.
+ * rests on. They also cover the structural **Remove section** button, including the
+ * validator-backed fact that `sections` may be empty — so removing the only section
+ * is allowed and needs no min-one guard.
  *
  * The panel is presentational, so the tests render it into jsdom and drive the
  * mocked `@wordpress/components` controls directly — setting an input/`<select>`
@@ -128,7 +128,7 @@ function fixtureSong() {
  * @param {Object} [options.song]      The starting working song.
  * @param {Object} [options.selection] The raw selection coordinates.
  * @return {{ container: HTMLElement, calls: Object[], removed: Object,
- *   addSection: Object, removeSection: Object }} Handle.
+ *   removeSection: Object }} Handle.
  */
 function renderPanel({
 	song: initialSong = fixtureSong(),
@@ -143,7 +143,6 @@ function renderPanel({
 	const removed = { count: 0 };
 	// The structural mutators are now lifted to `edit.js`; the panel only signals
 	// intent through these props. Record each invocation for the assertions.
-	const addSection = { count: 0 };
 	const removeSection = { count: 0, args: null };
 	let song = initialSong;
 	let handle;
@@ -153,9 +152,6 @@ function renderPanel({
 		onChange,
 		onRemove: () => {
 			removed.count += 1;
-		},
-		onAddSection: () => {
-			addSection.count += 1;
 		},
 		onRemoveSection: (sectionIndex) => {
 			removeSection.count += 1;
@@ -176,7 +172,6 @@ function renderPanel({
 		container: handle.container,
 		calls,
 		removed,
-		addSection,
 		removeSection,
 	};
 }
@@ -250,17 +245,6 @@ describe("SectionPanel — context overrides (omit-when-unset)", () => {
 		expect(calls.at(-1).sections[1].tempo).toBeUndefined();
 		expect(calls.at(-1).sections[0].measures).toHaveLength(1);
 		expectConformant(calls.at(-1));
-	});
-});
-
-describe("SectionPanel — add section", () => {
-	it("calls the lifted onAddSection handler (no local mutation)", () => {
-		const { container, addSection, calls } = renderPanel();
-		click(buttonByText(container, "Add section"));
-		// The panel only signals intent; the lifted handler in `edit.js` owns the
-		// splice, so the panel emits nothing through onChange itself.
-		expect(addSection.count).toBe(1);
-		expect(calls).toHaveLength(0);
 	});
 });
 

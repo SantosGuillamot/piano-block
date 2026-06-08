@@ -21,6 +21,7 @@
  * so the panel is conformant by construction.
  */
 import {
+	Button,
 	__experimentalNumberControl as NumberControl,
 	PanelBody,
 	SelectControl,
@@ -115,11 +116,12 @@ function emitContextMember(song, context, key, value, onChange) {
  *
  * @param {Object}              props
  * @param {Object}              props.song     The current working song object.
- * @param {"english"|"spanish"} props.system   The per-song note-name system.
- * @param {Function}            props.onChange Receives the next working song.
+ * @param {"english"|"spanish"} props.system       The per-song note-name system.
+ * @param {Function}            props.onChange      Receives the next working song.
+ * @param {Function}            props.onAddSection  Lifted: append a section.
  * @return {Object} The rendered Song panel.
  */
-export function SongPanel({ song, system, onChange }) {
+export function SongPanel({ song, system, onChange, onAddSection }) {
 	const context = song.defaults ?? {};
 
 	// Local drafts for the two sub-objects with required fields, so a half-filled
@@ -273,6 +275,10 @@ export function SongPanel({ song, system, onChange }) {
 					/>
 				</ToolsPanelItem>
 			</ToolsPanel>
+
+			<Button variant="secondary" onClick={() => onAddSection?.()}>
+				{__("Add section", "piano-block")}
+			</Button>
 		</PanelBody>
 	);
 }

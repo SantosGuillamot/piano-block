@@ -53,6 +53,20 @@ function fieldByName(container, name) {
 	return container.querySelector(`[aria-label="${name}"]`);
 }
 
+/** Find a button by its visible text content. */
+function buttonByText(container, text) {
+	return Array.from(container.querySelectorAll("button")).find(
+		(button) => button.textContent === text,
+	);
+}
+
+/** Click a node inside `act`. */
+function click(node) {
+	act(() => {
+		node.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+	});
+}
+
 /**
  * Set a controlled field's value and dispatch a change event inside `act`. The
  * value is set through the native prototype setter React's tracker observes, so
@@ -79,13 +93,15 @@ function change(node, value) {
  * the initial system), mirroring `edit.js`'s `working.language ?? infer`
  * resolution so a language switch re-renders the selector with its new value.
  *
- * @param {Object} [initialSong] The starting working song.
- * @param {string} [system]      The initial note-name system.
+ * @param {Object}    [initialSong]  The starting working song.
+ * @param {string}    [system]       The initial note-name system.
+ * @param {?Function} [onAddSection] The lifted add-section handler, if any.
  * @return {{ container: HTMLElement, calls: Object[] }} The render handle.
  */
 function renderPanel(
 	initialSong = { sections: [{ measures: [{}] }] },
 	system = "english",
+	onAddSection,
 ) {
 	const calls = [];
 	let song = initialSong;
@@ -98,10 +114,13 @@ function renderPanel(
 				song,
 				system: song.language ?? system,
 				onChange,
+				onAddSection,
 			}),
 		);
 	};
-	handle = render(createElement(SongPanel, { song, system, onChange }));
+	handle = render(
+		createElement(SongPanel, { song, system, onChange, onAddSection }),
+	);
 	return { container: handle.container, calls };
 }
 
@@ -296,5 +315,23 @@ describe("SongPanel — note language selector", () => {
 			"C",
 		);
 		expectConformant(emitted);
+	});
+});
+
+describe("SongPanel — add section", () => {
+	it("calls the lifted onAddSection handler", () => {
+		let count = 0;
+		const { container, calls } = renderPanel(
+			{ sections: [{ measures: [{}] }] },
+			"english",
+			() => {
+				count += 1;
+			},
+		);
+		click(buttonByText(container, "Add section"));
+		// The button only signals intent; the lifted handler in `edit.js` owns the
+		// splice, so the panel emits nothing through onChange itself.
+		expect(count).toBe(1);
+		expect(calls).toHaveLength(0);
 	});
 });

@@ -503,6 +503,7 @@ test.describe("Piano block — editor authoring, persistence and validation", ()
 
 	test("the structure tree adds, removes and duplicates sections and measures", async ({
 		editor,
+		page,
 	}) => {
 		await editor.insertBlock({ name: "piano-block/piano" });
 
@@ -510,6 +511,7 @@ test.describe("Piano block — editor authoring, persistence and validation", ()
 		// default, so expand the section so its measures' row controls are reachable.
 		await seedSongViaJson(editor, CONFORMANT_SONG);
 		await switchToVisualMode(editor);
+		const sidebar = await openSettingsSidebar(editor, page);
 		await assertStructureTreeOpen(editor);
 		await treeRow(editor, "Section 1").click();
 
@@ -532,9 +534,11 @@ test.describe("Piano block — editor authoring, persistence and validation", ()
 			})
 			.toBe(3);
 
-		// Add a section (the tree's footer "Add section") → the song now has two
-		// sections.
-		await treeAction(editor, "Add section").click();
+		// Add a section (the Song panel's "Add section" in the settings sidebar) →
+		// the song now has two sections.
+		await sidebar
+			.getByRole("button", { name: "Add section", exact: true })
+			.click();
 		await expect
 			.poll(async () => (await storedSongObject(editor)).sections.length)
 			.toBe(2);

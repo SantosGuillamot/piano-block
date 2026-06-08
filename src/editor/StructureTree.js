@@ -105,7 +105,6 @@ function isSelectionAncestor(path, selection) {
  *                                           veto auto-reveal (only consulted for selection-ancestor rows).
  * @param {Function} props.onToggleCollapsedOverride Toggle a path's manual-collapse veto.
  * @param {Function} props.onSelect          Receives a kind-tagged selection.
- * @param {Function} props.onAddSection      Lifted: append a section.
  * @param {Function} props.onRemoveSection   Lifted: remove the section at the index.
  * @param {Function} props.onDuplicateSection Lifted: duplicate the section after itself.
  * @param {Function} props.onAddMeasure      Lifted: append a measure to a section.
@@ -125,7 +124,6 @@ export function StructureTree({
 	collapsedOverride,
 	onToggleCollapsedOverride,
 	onSelect,
-	onAddSection,
 	onRemoveSection,
 	onDuplicateSection,
 	onAddMeasure,
@@ -539,13 +537,6 @@ export function StructureTree({
 	return (
 		<div className="wp-block-piano-block-piano__tree">
 			<TreeGrid label={__("Song structure", "piano-block")}>{rows}</TreeGrid>
-			<Button
-				variant="secondary"
-				icon="plus"
-				onClick={() => onAddSection?.()}
-			>
-				{__("Add section", "piano-block")}
-			</Button>
 		</div>
 	);
 }

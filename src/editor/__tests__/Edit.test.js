@@ -404,9 +404,8 @@ describe("Edit — kind-tagged panel gating", () => {
 describe("Edit — lifted structural mutators", () => {
 	it("onAddSection appends an empty-but-conformant section through commit", () => {
 		const { container, calls } = renderEdit(SONG);
-		// The Section panel (reachable once an event is selected) drives the lifted
-		// onAddSection handler that owns the splice.
-		selectLoneNote(container);
+		// The always-present Song panel hosts "Add section" (reachable with nothing
+		// selected); it drives the lifted onAddSection handler that owns the splice.
 		click(buttonByText(container, "Add section"));
 
 		const persisted = JSON.parse(calls.at(-1));

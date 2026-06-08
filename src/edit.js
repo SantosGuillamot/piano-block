@@ -463,7 +463,6 @@ export default function Edit({ attributes, setAttributes }) {
 								collapsedOverride={collapsedOverride}
 								onToggleCollapsedOverride={onToggleCollapsedOverride}
 								onSelect={setSelection}
-								onAddSection={onAddSection}
 								onRemoveSection={onRemoveSection}
 								onDuplicateSection={onDuplicateSection}
 								onAddMeasure={onAddMeasure}
@@ -513,11 +512,15 @@ export default function Edit({ attributes, setAttributes }) {
 								song={working}
 								selection={resolvedSelection}
 								onChange={commit}
-								onAddSection={onAddSection}
 								onRemoveSection={onRemoveSection}
 							/>
 						)}
-						<SongPanel song={working} system={system} onChange={commit} />
+						<SongPanel
+							song={working}
+							system={system}
+							onChange={commit}
+							onAddSection={onAddSection}
+						/>
 					</InspectorControls>
 				</>
 			)}

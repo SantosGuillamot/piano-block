@@ -17,11 +17,10 @@
  * projection `SectionEditor` used — so every emission stays conformant by
  * construction and an unset override drops its key (clean round-trip).
  *
- * The structural **Add section** / **Remove section** buttons only signal intent
- * through the lifted `onAddSection` / `onRemoveSection(sectionIndex)` props — the
- * splice and the selection-fallout are owned once in `edit.js` (the single owner of
- * `working` + `commit`), shared with the Structure list. `song.sections` is
- * `required` but unbounded — a song with **zero** sections validates — so removing
+ * The structural **Remove section** button only signals intent through the lifted
+ * `onRemoveSection(sectionIndex)` prop — the splice and the selection-fallout are
+ * owned once in `edit.js` (the single owner of `working` + `commit`). `song.sections`
+ * is `required` but unbounded — a song with **zero** sections validates — so removing
  * the only section is allowed and needs no min-one guard.
  */
 import {
@@ -63,17 +62,10 @@ function projectOverrides(section) {
  * @param {Object}   props.selection       The resolved selection — the live
  *                                         `section` with its `sectionIndex` coord.
  * @param {Function} props.onChange        Receives the next working song.
- * @param {Function} props.onAddSection    Lifted: append a section.
  * @param {Function} props.onRemoveSection Lifted: remove the section at the index.
  * @return {Object} The rendered Section panel.
  */
-export function SectionPanel({
-	song,
-	selection,
-	onChange,
-	onAddSection,
-	onRemoveSection,
-}) {
+export function SectionPanel({ song, selection, onChange, onRemoveSection }) {
 	const { section, sectionIndex } = selection;
 
 	/** Splice `nextSection` back into the whole `song` at its index and emit it. */
@@ -142,9 +134,6 @@ export function SectionPanel({
 				</ToolsPanelItem>
 			</ToolsPanel>
 
-			<Button variant="secondary" onClick={() => onAddSection?.()}>
-				{__("Add section", "piano-block")}
-			</Button>
 			<Button
 				variant="secondary"
 				isDestructive
