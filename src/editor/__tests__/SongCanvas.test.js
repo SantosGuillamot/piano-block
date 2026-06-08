@@ -163,6 +163,108 @@ describe("SongCanvas", () => {
 		cleanup(container, root);
 	});
 
+	it("fires onSelect for a clicked rest group, not just a note", () => {
+		const onSelect = jest.fn();
+		const { container, root } = render(
+			createElement(SongCanvas, { song: SONG, onSelect }),
+		);
+		// The rest at eventIndex 1 of measure 1 is a `data-kind="rest"` group —
+		// the hit-test reads rests exactly as it reads notes.
+		const rest = svgHost(container).querySelector(
+			'[data-measure="1"][data-kind="rest"], [data-measure="1"] [data-kind="rest"]',
+		);
+		expect(rest).toBeTruthy();
+		expect(rest.getAttribute("data-kind")).toBe("rest");
+		clickNode(rest.firstChild ?? rest);
+		expect(onSelect).toHaveBeenCalledWith({
+			sectionIndex: 0,
+			measureIndex: 0,
+			hand: "rightHand",
+			eventIndex: 1,
+		});
+		cleanup(container, root);
+	});
+
+	it("resolves a click in a later section through the measure flatten", () => {
+		const onSelect = jest.fn();
+		const { container, root } = render(
+			createElement(SongCanvas, { song: SONG, onSelect }),
+		);
+		// The lone note of global measure 3 lives in section 1, measure 0 — the
+		// click must translate `data-measure="3"` back through `measureCoords`.
+		const group = svgHost(container).querySelector(
+			'[data-measure="3"] [data-hand="rightHand"][data-event-index="0"]',
+		);
+		expect(group).toBeTruthy();
+		clickNode(group.firstChild ?? group);
+		expect(onSelect).toHaveBeenCalledWith({
+			sectionIndex: 1,
+			measureIndex: 0,
+			hand: "rightHand",
+			eventIndex: 0,
+		});
+		cleanup(container, root);
+	});
+
+	it("fires onSelect on Enter/Space over a focused note group", () => {
+		const onSelect = jest.fn();
+		const { container, root } = render(
+			createElement(SongCanvas, { song: SONG, onSelect }),
+		);
+		const group = svgHost(container).querySelector(
+			'[data-measure="3"] [data-hand="rightHand"][data-event-index="0"]',
+		);
+		expect(group).toBeTruthy();
+		// Enter on the focused group activates the same selection a click would.
+		act(() => {
+			group.dispatchEvent(
+				new window.KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
+			);
+		});
+		expect(onSelect).toHaveBeenCalledWith({
+			sectionIndex: 1,
+			measureIndex: 0,
+			hand: "rightHand",
+			eventIndex: 0,
+		});
+		// Space behaves the same.
+		onSelect.mockClear();
+		act(() => {
+			group.dispatchEvent(
+				new window.KeyboardEvent("keydown", { key: " ", bubbles: true }),
+			);
+		});
+		expect(onSelect).toHaveBeenCalledWith({
+			sectionIndex: 1,
+			measureIndex: 0,
+			hand: "rightHand",
+			eventIndex: 0,
+		});
+		cleanup(container, root);
+	});
+
+	it("ignores keydowns that are neither Enter nor Space, and those off a group", () => {
+		const onSelect = jest.fn();
+		const { container, root } = render(
+			createElement(SongCanvas, { song: SONG, onSelect }),
+		);
+		const group = svgHost(container).querySelector('[data-kind="note"]');
+		// A non-activation key over a group does nothing.
+		act(() => {
+			group.dispatchEvent(
+				new window.KeyboardEvent("keydown", { key: "a", bubbles: true }),
+			);
+		});
+		// Enter off any group (on the bare SVG root) does nothing either.
+		act(() => {
+			container.querySelector("svg").dispatchEvent(
+				new window.KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
+			);
+		});
+		expect(onSelect).not.toHaveBeenCalled();
+		cleanup(container, root);
+	});
+
 	it("decorates exactly the selected group with is-selected", () => {
 		const { container, root } = render(
 			createElement(SongCanvas, {
@@ -236,6 +338,46 @@ describe("SongCanvas", () => {
 			);
 		});
 		expect(onAddNote).toHaveBeenCalledWith(0, 0, "leftHand");
+		cleanup(container, root);
+	});
+
+	it("targets the right hand and later measures with the correct coords", () => {
+		const onAddNote = jest.fn();
+		const { container, root } = render(
+			createElement(SongCanvas, { song: SONG, onAddNote }),
+		);
+		const addNotes = [
+			...container.querySelectorAll(
+				".wp-block-piano-block-piano__add-note",
+			),
+		];
+		// "Add note to right hand in measure 1" targets section 0, measure 0, right.
+		const rightMeasure1 = addNotes.find(
+			(button) =>
+				button.getAttribute("aria-label") ===
+				"Add note to right hand in measure 1",
+		);
+		expect(rightMeasure1).toBeTruthy();
+		act(() => {
+			rightMeasure1.dispatchEvent(
+				new window.MouseEvent("click", { bubbles: true }),
+			);
+		});
+		expect(onAddNote).toHaveBeenCalledWith(0, 0, "rightHand");
+		// "Add note … in measure 3" maps the global number back through the flatten
+		// to section 1, measure 0.
+		const rightMeasure3 = addNotes.find(
+			(button) =>
+				button.getAttribute("aria-label") ===
+				"Add note to right hand in measure 3",
+		);
+		expect(rightMeasure3).toBeTruthy();
+		act(() => {
+			rightMeasure3.dispatchEvent(
+				new window.MouseEvent("click", { bubbles: true }),
+			);
+		});
+		expect(onAddNote).toHaveBeenLastCalledWith(1, 0, "rightHand");
 		cleanup(container, root);
 	});
 

@@ -252,6 +252,49 @@ describe("NotePanel — advanced disclosure (omit-when-unset)", () => {
 		expect(event.annotations).toHaveLength(1);
 		expectConformant(calls.at(-1));
 	});
+
+	it("adds the numeric dots key when set and drops it at zero", () => {
+		const { container, calls } = renderPanel();
+
+		// The dots NumberControl is a numeric (not enum) optional field: a nonzero
+		// value sets the key, and clamping back to zero drops it (omit-when-unset).
+		change(fieldByName(container, "Dots"), "1");
+		expect(calls.at(-1).sections[0].measures[0].rightHand[0].dots).toBe(1);
+		expectConformant(calls.at(-1));
+
+		change(fieldByName(container, "Dots"), "0");
+		expect(
+			calls.at(-1).sections[0].measures[0].rightHand[0].dots,
+		).toBeUndefined();
+		expectConformant(calls.at(-1));
+	});
+
+	it("clamps an over-range dots value to the schema max", () => {
+		const { container, calls } = renderPanel();
+		// A value past the max clamps into range so the control can never emit a
+		// non-conformant number.
+		change(fieldByName(container, "Dots"), "9");
+		expect(calls.at(-1).sections[0].measures[0].rightHand[0].dots).toBe(2);
+		expectConformant(calls.at(-1));
+	});
+});
+
+describe("NotePanel — rest selection", () => {
+	it("omits the pitch list for a rest event", () => {
+		const { container } = renderPanel({
+			selection: {
+				sectionIndex: 0,
+				measureIndex: 0,
+				hand: "rightHand",
+				eventIndex: 1,
+			},
+		});
+		// A rest still shows type/duration but has no chord, so PitchList's
+		// per-pitch note-name select is absent.
+		expect(fieldByName(container, "Event type")).not.toBeNull();
+		expect(fieldByName(container, "Duration")).not.toBeNull();
+		expect(container.querySelector('[aria-label="Note name"]')).toBeNull();
+	});
 });
 
 describe("NotePanel — remove note", () => {

@@ -124,6 +124,19 @@ describe("SongPanel — metadata", () => {
 		expect(calls.at(-1).metadata).toBeUndefined();
 		expectConformant(calls.at(-1));
 	});
+
+	it("sets metadata.composer and keeps the title alongside it", () => {
+		const { container, calls } = renderPanel({
+			metadata: { title: "Sonata" },
+			sections: [{ measures: [{}] }],
+		});
+		change(fieldByName(container, "Composer"), "Clara");
+		expect(calls.at(-1).metadata).toEqual({
+			title: "Sonata",
+			composer: "Clara",
+		});
+		expectConformant(calls.at(-1));
+	});
 });
 
 describe("SongPanel — common context fields", () => {
@@ -183,6 +196,18 @@ describe("SongPanel — advanced disclosure", () => {
 			bpm: 90,
 			beatUnit: "quarter",
 		});
+		expectConformant(calls.at(-1));
+	});
+
+	it("drops beatUnit but keeps bpm when the beat unit is cleared", () => {
+		const { container, calls } = renderPanel();
+		change(fieldByName(container, "Tempo (BPM)"), "90");
+		change(fieldByName(container, "Beat unit"), "quarter");
+
+		// Clearing the advanced beatUnit drops only that key — the required bpm
+		// stays, so the tempo remains conformant.
+		change(fieldByName(container, "Beat unit"), "");
+		expect(calls.at(-1).defaults.tempo).toEqual({ bpm: 90 });
 		expectConformant(calls.at(-1));
 	});
 });

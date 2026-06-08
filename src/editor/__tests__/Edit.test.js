@@ -301,4 +301,85 @@ describe("Edit mode container", () => {
 		expect(title).not.toBeNull();
 		expect(title.textContent).toBe("Hello by Ada");
 	});
+
+	it("commits a new note and opens the Note panel when the canvas add-note fires", () => {
+		const { container, calls } = renderEdit(SONG);
+		// The fixture's lone right-hand event sits in global measure 1; its add-note
+		// affordance appends a default note to that hand.
+		const addNote = fieldByName(
+			container,
+			"Add note to right hand in measure 1",
+		);
+		expect(addNote).not.toBeNull();
+		click(addNote);
+
+		// The add is persisted through commitSong (the raw string round-trips through
+		// validateSong) — the hand now carries two events, the second a default note.
+		const persisted = JSON.parse(calls.at(-1));
+		const hand = persisted.sections[0].measures[0].rightHand;
+		expect(hand).toHaveLength(2);
+		expect(hand[1].type).toBe("note");
+		expect(validateSong(calls.at(-1))).toEqual([]);
+
+		// The new note is selected, so the per-level panels open on it.
+		expect(panelByTitle(container, "Note")).not.toBeNull();
+		expect(panelByTitle(container, "Measure")).not.toBeNull();
+		expect(panelByTitle(container, "Section")).not.toBeNull();
+	});
+
+	it("inserts the added note right after the selected event in the same hand", () => {
+		const { container, calls } = renderEdit(SONG);
+		// Select the existing first note, then add to its own hand: the new note must
+		// land at index 1 (right after the selection), not be appended past it.
+		const note = container.querySelector('[data-kind="note"]');
+		act(() => {
+			note.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+		});
+		click(fieldByName(container, "Add note to right hand in measure 1"));
+
+		const hand = JSON.parse(calls.at(-1)).sections[0].measures[0].rightHand;
+		expect(hand).toHaveLength(2);
+		// The original note is still first; the seeded one follows it.
+		expect(hand[0].pitches).toEqual([{ step: "C", octave: 5 }]);
+		expect(hand[1].type).toBe("note");
+		expect(validateSong(calls.at(-1))).toEqual([]);
+	});
+
+	it("commits a new measure to the last section when add-measure fires", () => {
+		const { container, calls } = renderEdit(SONG);
+		const addMeasure = buttonByText(container, "Add measure");
+		expect(addMeasure).toBeDefined();
+		click(addMeasure);
+
+		const persisted = JSON.parse(calls.at(-1));
+		// The lone section gains a second (empty-but-conformant) measure.
+		expect(persisted.sections[0].measures).toHaveLength(2);
+		expect(persisted.sections[0].measures[1]).toEqual({});
+		expect(validateSong(calls.at(-1))).toEqual([]);
+	});
+
+	it("clears a stale selection after a raw edit removes the selected event", () => {
+		const { container } = renderEdit(SONG);
+		// Select the only note, revealing the per-level panels.
+		const note = container.querySelector('[data-kind="note"]');
+		act(() => {
+			note.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+		});
+		expect(panelByTitle(container, "Note")).not.toBeNull();
+
+		// Drop into JSON mode and replace the song with one whose selected event no
+		// longer exists (an empty measure). Back on the canvas, the now-stale
+		// selection resolves to null, so the sidebar falls back to Song-only.
+		click(buttonByText(container, "Edit as JSON"));
+		change(
+			fieldByName(container, "Song (JSON)"),
+			JSON.stringify({ sections: [{ measures: [{}] }] }),
+		);
+		click(buttonByText(container, "Visual editor"));
+
+		expect(panelByTitle(container, "Song")).not.toBeNull();
+		expect(panelByTitle(container, "Note")).toBeNull();
+		expect(panelByTitle(container, "Measure")).toBeNull();
+		expect(panelByTitle(container, "Section")).toBeNull();
+	});
 });
