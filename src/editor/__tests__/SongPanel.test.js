@@ -74,12 +74,19 @@ function change(node, value) {
 
 /**
  * Render a `SongPanel` that feeds its own emitted song back in (so it behaves
- * like a controlled control across edits) while recording every emission.
+ * like a controlled control across edits) while recording every emission. The
+ * `system` prop follows the emitted song's stored `language` (falling back to
+ * the initial system), mirroring `edit.js`'s `working.language ?? infer`
+ * resolution so a language switch re-renders the selector with its new value.
  *
  * @param {Object} [initialSong] The starting working song.
+ * @param {string} [system]      The initial note-name system.
  * @return {{ container: HTMLElement, calls: Object[] }} The render handle.
  */
-function renderPanel(initialSong = { sections: [{ measures: [{}] }] }) {
+function renderPanel(
+	initialSong = { sections: [{ measures: [{}] }] },
+	system = "english",
+) {
 	const calls = [];
 	let song = initialSong;
 	let handle;
@@ -87,12 +94,14 @@ function renderPanel(initialSong = { sections: [{ measures: [{}] }] }) {
 		song = next;
 		calls.push(next);
 		handle.rerender(
-			createElement(SongPanel, { song, system: "english", onChange }),
+			createElement(SongPanel, {
+				song,
+				system: song.language ?? system,
+				onChange,
+			}),
 		);
 	};
-	handle = render(
-		createElement(SongPanel, { song, system: "english", onChange }),
-	);
+	handle = render(createElement(SongPanel, { song, system, onChange }));
 	return { container: handle.container, calls };
 }
 
@@ -209,5 +218,83 @@ describe("SongPanel — advanced disclosure", () => {
 		change(fieldByName(container, "Beat unit"), "");
 		expect(calls.at(-1).defaults.tempo).toEqual({ bpm: 90 });
 		expectConformant(calls.at(-1));
+	});
+});
+
+describe("SongPanel — note language selector", () => {
+	/** A conformant one-note English song the conversion can rewrite end to end. */
+	const SINGLE_C = {
+		sections: [
+			{
+				measures: [
+					{
+						rightHand: [
+							{
+								type: "note",
+								duration: "quarter",
+								pitches: [{ step: "C", octave: 4 }],
+							},
+						],
+					},
+				],
+			},
+		],
+	};
+
+	it("shows the current system and is a top-level control (not advanced)", () => {
+		const { container } = renderPanel(SINGLE_C);
+		const select = fieldByName(container, "Note language");
+		expect(select).not.toBeNull();
+		expect(select.value).toBe("english");
+
+		// The selector is a common Song-level control, not buried in the Advanced
+		// ToolsPanel — assert it is not a descendant of that disclosure region
+		// (the ToolsPanel mock exposes its label as the region's aria-label).
+		const advanced = container.querySelector('[aria-label="Advanced"]');
+		expect(advanced).not.toBeNull();
+		expect(advanced.contains(select)).toBe(false);
+	});
+
+	it("converts every pitch and stores the language on switch to Spanish", () => {
+		const { container, calls } = renderPanel(SINGLE_C);
+		change(fieldByName(container, "Note language"), "spanish");
+
+		const emitted = calls.at(-1);
+		expect(emitted.language).toBe("spanish");
+		expect(emitted.sections[0].measures[0].rightHand[0].pitches[0].step).toBe(
+			"do",
+		);
+		expectConformant(emitted);
+	});
+
+	it("reverses the conversion when switched back to English", () => {
+		const spanishSong = {
+			language: "spanish",
+			sections: [
+				{
+					measures: [
+						{
+							rightHand: [
+								{
+									type: "note",
+									duration: "quarter",
+									pitches: [{ step: "do", octave: 4 }],
+								},
+							],
+						},
+					],
+				},
+			],
+		};
+		const { container, calls } = renderPanel(spanishSong, "spanish");
+		expect(fieldByName(container, "Note language").value).toBe("spanish");
+
+		change(fieldByName(container, "Note language"), "english");
+		const emitted = calls.at(-1);
+		expect(emitted.language).toBe("english");
+		expect(emitted.sections[0].measures[0].rightHand[0].pitches[0].step).toBe(
+			"C",
+		);
+		expectConformant(emitted);
 	});
 });

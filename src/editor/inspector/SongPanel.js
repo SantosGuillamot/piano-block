@@ -31,8 +31,20 @@ import { useState } from "@wordpress/element";
 import { __ } from "@wordpress/i18n";
 import { HandConfigEditor } from "../HandConfigEditor.js";
 import { MetadataEditor } from "../MetadataEditor.js";
+import { mapSong } from "../noteNames.js";
 import { BEAT_TYPES, BEATS_MIN, DURATIONS } from "../songModel.js";
 import { emitBlock } from "./emit.js";
+
+/**
+ * The note-language `SelectControl` options. Each `value` is a recognised
+ * note-name system key (matching `inferNoteNameSystem`'s return and `mapSong`'s
+ * `targetSystem`), so the selected value composes directly with the stored
+ * `language` and the pitch controls' `system` with no translation.
+ */
+const LANGUAGES = [
+	{ label: __("English", "piano-block"), value: "english" },
+	{ label: __("Spanish", "piano-block"), value: "spanish" },
+];
 
 /** Parse a numeric-input string to a finite number, or `null` when empty/invalid. */
 function toNumber(raw) {
@@ -107,7 +119,7 @@ function emitContextMember(song, context, key, value, onChange) {
  * @param {Function}            props.onChange Receives the next working song.
  * @return {Object} The rendered Song panel.
  */
-export function SongPanel({ song, system: _system, onChange }) {
+export function SongPanel({ song, system, onChange }) {
 	const context = song.defaults ?? {};
 
 	// Local drafts for the two sub-objects with required fields, so a half-filled
@@ -149,6 +161,14 @@ export function SongPanel({ song, system: _system, onChange }) {
 			<MetadataEditor
 				metadata={song.metadata}
 				onChange={(metadata) => emitBlock(song, "metadata", metadata, onChange)}
+			/>
+
+			<SelectControl
+				label={__("Note language", "piano-block")}
+				value={system}
+				options={LANGUAGES}
+				onChange={(target) => onChange(mapSong(song, target))}
+				__nextHasNoMarginBottom
 			/>
 
 			<NumberControl
