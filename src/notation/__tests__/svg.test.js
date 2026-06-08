@@ -983,6 +983,72 @@ describe("renderSvg — structure", () => {
 	});
 });
 
+describe("renderSvg — editor-only per-event hit-rect (interactive flag)", () => {
+	it("emits NO hit-rect in any note/rest group with no options (the front-end call shape)", () => {
+		// view.js renders with no `interactive` flag, so the published SVG must carry
+		// zero hit-rects — the front-end byte-identity guard.
+		const svg = renderSvg(modelFor());
+		expect(svg.querySelectorAll("[data-hit]")).toHaveLength(0);
+		for (const group of svg.querySelectorAll(
+			'[data-kind="note"], [data-kind="rest"]',
+		)) {
+			expect(group.querySelector("[data-hit]")).toBeNull();
+		}
+	});
+
+	it("emits NO hit-rect when interactive is explicitly false", () => {
+		const svg = renderSvg(modelFor(), { interactive: false });
+		expect(svg.querySelectorAll("[data-hit]")).toHaveLength(0);
+	});
+
+	it("makes each note/rest group's FIRST child a transparent data-hit <rect> when interactive", () => {
+		const svg = renderSvg(modelFor(), { interactive: true });
+		const groups = svg.querySelectorAll(
+			'[data-kind="note"], [data-kind="rest"]',
+		);
+		expect(groups.length).toBeGreaterThan(0);
+		for (const group of groups) {
+			const first = group.firstChild;
+			expect(first.tagName.toLowerCase()).toBe("rect");
+			// Filled transparent (a genuine hit target) and marked for observability.
+			expect(first.getAttribute("fill")).toBe("transparent");
+			expect(first.hasAttribute("data-hit")).toBe(true);
+			// Exactly one hit-rect per group.
+			expect(group.querySelectorAll("[data-hit]")).toHaveLength(1);
+		}
+	});
+
+	it("keeps the hit-rect free of data-kind/data-hand/data-event-index so closest() resolves to the group", () => {
+		const svg = renderSvg(modelFor(), { interactive: true });
+		const rects = [...svg.querySelectorAll("[data-hit]")];
+		expect(rects.length).toBeGreaterThan(0);
+		for (const rect of rects) {
+			// No selection-duplicating attributes — the <g> alone carries them.
+			expect(rect.hasAttribute("data-kind")).toBe(false);
+			expect(rect.hasAttribute("data-hand")).toBe(false);
+			expect(rect.hasAttribute("data-event-index")).toBe(false);
+			// `closest('[data-kind]')` walks up from the rect to its own event group.
+			const group = rect.closest("[data-kind]");
+			expect(group).not.toBeNull();
+			expect(group).toBe(rect.parentElement);
+			expect(group.getAttribute("data-kind")).toMatch(/^(note|rest)$/);
+		}
+	});
+
+	it("sizes the hit-rect conservatively (~2 sp) centered on the event column X", () => {
+		const svg = renderSvg(modelFor(), { interactive: true });
+		// The first RH note's hit-rect spans [columnX − 1, columnX + 1] (width 2 sp).
+		const noteGroup = svg.querySelector("#rightHand-note-0");
+		const head = noteGroup.querySelector("[data-notehead]");
+		const columnX = Number(head.getAttribute("cx"));
+		const rect = noteGroup.querySelector("[data-hit]");
+		const width = Number(rect.getAttribute("width"));
+		const x = Number(rect.getAttribute("x"));
+		expect(width).toBeCloseTo(2, 6);
+		expect(x + width / 2).toBeCloseTo(columnX, 6);
+	});
+});
+
 describe("renderInto", () => {
 	it("replaces the container's contents with the fresh SVG", () => {
 		const container = document.createElement("div");

@@ -185,6 +185,36 @@ describe("SongCanvas", () => {
 		cleanup(container, root);
 	});
 
+	it("fires onSelect when the per-event hit-rect (not the ink) is the click target", () => {
+		// SongCanvas passes `interactive: true`, so each note/rest group has a
+		// transparent first-child hit-rect covering its column. A real off-ink click in
+		// the column lands on THAT rect — the bug today is that a gap-click hits no ink
+		// and resolves to nothing. Targeting the rect proves the column is selectable.
+		const onSelect = jest.fn();
+		const { container, root } = render(
+			createElement(SongCanvas, { song: SONG, onSelect }),
+		);
+		// The lone note of global measure 3 (section 1, measure 0).
+		const group = svgHost(container).querySelector(
+			'[data-measure="3"] [data-hand="rightHand"][data-event-index="0"]',
+		);
+		expect(group).toBeTruthy();
+		const hit = group.querySelector("[data-hit]");
+		expect(hit).toBeTruthy();
+		// The rect carries no data-kind/data-hand/data-event-index of its own; selection
+		// must resolve by walking up to the enclosing group.
+		expect(hit.hasAttribute("data-hand")).toBe(false);
+		expect(hit.hasAttribute("data-event-index")).toBe(false);
+		clickNode(hit);
+		expect(onSelect).toHaveBeenCalledWith({
+			sectionIndex: 1,
+			measureIndex: 0,
+			hand: "rightHand",
+			eventIndex: 0,
+		});
+		cleanup(container, root);
+	});
+
 	it("resolves a click in a later section through the measure flatten", () => {
 		const onSelect = jest.fn();
 		const { container, root } = render(

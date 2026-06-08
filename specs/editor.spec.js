@@ -326,6 +326,35 @@ test.describe("Piano block — editor authoring, persistence and validation", ()
 		await expect(inspectorPanel(sidebar, "Section")).toBeVisible();
 	});
 
+	test("clicking a note off its ink (in-column gap) still selects it", async ({
+		editor,
+		page,
+	}) => {
+		await editor.insertBlock({ name: "piano-block/piano" });
+
+		// Seed a conformant single-note song, return to the canvas, open the sidebar.
+		await seedSongViaJson(editor, CONFORMANT_SONG);
+		await switchToVisualMode(editor);
+		const sidebar = await openSettingsSidebar(editor, page);
+
+		// The single C4 quarter note. Its only ink is a thin stem + a tiny notehead; the
+		// rest of the group's bounding box is transparent gap. Click an explicit
+		// position in the column but OFF the notehead/stem — the staff-gap a few px above
+		// the notehead, i.e. the bbox-center-ish point a plain `.click()` lands on and
+		// that fails today (the click passes through to the staff lines, selecting
+		// nothing). The editor-only hit-rect makes that empty interior selectable.
+		const note = noteGroups(editor).first();
+		const box = await note.boundingBox();
+		await note.click({
+			position: { x: box.width / 2, y: Math.min(6, box.height / 4) },
+		});
+
+		// The Note panel populates and the group is marked selected — proving the
+		// off-ink, in-column point now resolves to the note.
+		await expect(inspectorPanel(sidebar, "Note")).toBeVisible();
+		await expect(note).toHaveClass(/is-selected/);
+	});
+
 	test("a sidebar edit is reflected in the stored song", async ({
 		editor,
 		page,

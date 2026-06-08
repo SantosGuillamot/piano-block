@@ -230,7 +230,10 @@ export default function SongCanvas({
 			// rather than throw (mirrors the old preview's try/catch).
 			try {
 				const model = buildLayoutModel(song, availableWidthInSp(container));
-				renderInto(container, model, { accessibleName });
+				// `interactive: true` adds the editor-only per-event hit-rect so a click in
+				// a note/rest column (not just on its thin ink) resolves to the group. The
+				// front-end `view.js` omits the flag, keeping the published SVG identical.
+				renderInto(container, model, { accessibleName, interactive: true });
 			} catch {
 				container.replaceChildren();
 				return;

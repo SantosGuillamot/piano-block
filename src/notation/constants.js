@@ -24,6 +24,15 @@ export const STAFF_LINE_COUNT = 5;
 /** Height of one 5-line staff, in sp (4 spaces between the 5 lines). */
 export const STAFF_HEIGHT_SP = 4;
 
+/**
+ * Generous vertical margin, in sp, the editor-only per-event hit-rect extends ABOVE
+ * and BELOW the staff (added to the `STAFF_HEIGHT_SP` staff span on each side), so a
+ * ledgered note, its stem, and a stack of accidentals all fall inside the clickable
+ * zone. Used only by the `interactive` hit-rect emit in `svg.js`; the front-end emit
+ * never reads it. Tunable.
+ */
+export const HIT_RECT_VERTICAL_MARGIN_SP = 4;
+
 // ── Noteheads / stems / flags / beams ──────────────────────────────────────────
 
 /** Notehead ellipse horizontal radius (≈ 1.18 sp wide notehead). */
