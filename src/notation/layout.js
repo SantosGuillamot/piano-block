@@ -1413,8 +1413,8 @@ export function systemScale(contentSp, availSp, { isLast = false } = {}) {
 // measure's two hands onto the union grid, packs measures into systems,
 // and assembles the positioned-primitive model: systems → grand-staff bands
 // → (staff lines, clefs, key sig, time sig, barlines, brace) + per-event primitives
-// + spans (ties/slurs) + texts (dynamics, notes, tempo, measure numbers,
-// ottava). Everything is in sp units — NO DOM, NO sp→px. Resize re-runs only the
+// + spans (ties/slurs) + texts (dynamics, notes, tempo, ottava).
+// Everything is in sp units — NO DOM, NO sp→px. Resize re-runs only the
 // packing/justify because the per-measure intrinsic widths and pitch Ys are
 // sp-relative invariants.
 
@@ -1708,7 +1708,7 @@ export function collectStandaloneAnnotations(measureNotes, ctx) {
  * `{ systems }`, where each system carries its Y band layout, leading reserve
  * (brace + clefs + key sig + optional time sig), per-measure barlines, both hands'
  * per-event primitives + beams, the resolved spans (ties/slurs), and the texts
- * (tempo, measure number, dynamics, notes, ottava). Resize need only re-run
+ * (tempo, dynamics, notes, ottava). Resize need only re-run
  * the packing/justify — the intrinsic widths and pitch Ys are sp-relative invariants.
  *
  * @param {{ defaults?: object, sections?: object[] }} song The parsed, conformant
@@ -2131,7 +2131,7 @@ export function buildLayoutModel(song, availableWidthInSp) {
 			x += scaledContent + trailingPad;
 		});
 
-		// ── System-level texts: tempo + measure number + ottava. ────────────────────
+		// ── System-level texts: tempo + ottava. ─────────────────────────────────────
 		const texts = buildSystemTexts(members, measureModels, band);
 
 		systems.push({
