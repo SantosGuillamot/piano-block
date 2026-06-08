@@ -12,6 +12,16 @@
  * non-empty-but-invalid song shows an invalid state that routes to the raw
  * JSON editor.
  *
+ * Authoring no longer happens with on-canvas add buttons. The always-present
+ * sidebar **Structure** panel browses the song's sections and measures (to
+ * measure depth) and carries the structural add/remove controls; an empty
+ * measure's first note is seeded from its Structure row's "Add note" (the
+ * canvas add-grid is gone). Once an event is selected, the Note panel's
+ * contextual "Add note" inserts a sibling in the same hand (inferred from the
+ * selection) and "Remove note" deletes it. The Song panel's "Note language"
+ * selector converts the whole song between English and Spanish spellings and
+ * stores the choice in an additive `language` field.
+ *
  * The raw `Song (JSON)` textarea is reached by switching the block into JSON
  * mode from the block toolbar; in that mode the raw string persists
  * unconditionally — conformant input shows no error and is stored verbatim,
@@ -65,6 +75,33 @@ const CONFORMANT_SONG = JSON.stringify(
 // spelling intact.
 const SPANISH_SONG = JSON.stringify(
 	{
+		sections: [
+			{
+				measures: [
+					{
+						rightHand: [
+							{
+								type: "note",
+								duration: "quarter",
+								pitches: [{ step: "do", octave: 4 }],
+							},
+						],
+					},
+				],
+			},
+		],
+	},
+	null,
+	2,
+);
+
+// A conformant song carrying an explicit `language` field, used to prove the
+// additive field round-trips through JSON mode unchanged and never blocks
+// saving (AC11/AC13/AC14). Its pitch is already Spanish-spelled, matching the
+// stored `language`.
+const LANGUAGE_TAGGED_SONG = JSON.stringify(
+	{
+		language: "spanish",
 		sections: [
 			{
 				measures: [
@@ -158,7 +195,8 @@ function canvasSvg(editor) {
 /**
  * The note groups the notation core emits on the canvas — each a `<g>` carrying
  * `data-kind="note"` (src/notation/svg.js). Selectable: a click resolves to a
- * `{ section, measure, hand, event }` selection that reveals the sidebar panels.
+ * kind-tagged `{ section, measure, hand, event }` selection that reveals the
+ * sidebar panels.
  */
 function noteGroups(editor) {
 	return editor.canvas.locator('[data-kind="note"]');
@@ -177,10 +215,10 @@ async function openSettingsSidebar(editor, page) {
 
 /**
  * A sidebar inspector panel located by its `PanelBody` title. The block's
- * panels are "Song" (always present) and "Note"/"Measure"/"Section" (only when
- * an event is selected) — each rendered as a `PanelBody` whose title toggles the
- * panel, so it surfaces as a button with that accessible name in the settings
- * region (src/editor/inspector/*).
+ * panels are "Song" and "Structure" (always present) and
+ * "Note"/"Measure"/"Section" (gated by the selection's kind) — each rendered as
+ * a `PanelBody` whose title toggles the panel, so it surfaces as a button with
+ * that accessible name in the settings region (src/editor/inspector/*).
  */
 function inspectorPanel(sidebar, title) {
 	return sidebar.getByRole("button", { name: title, exact: true });
@@ -193,6 +231,27 @@ function inspectorPanel(sidebar, title) {
  */
 function titleField(sidebar) {
 	return sidebar.getByLabel("Title", { exact: true });
+}
+
+/**
+ * The Song panel's "Note language" select (src/editor/inspector/SongPanel.js).
+ * A `SelectControl` whose accessible name is its label; changing it runs
+ * `mapSong` and commits, converting every pitch spelling and storing the
+ * `language` field.
+ */
+function languageSelect(sidebar) {
+	return sidebar.getByLabel("Note language", { exact: true });
+}
+
+/**
+ * The sidebar Structure panel's section/measure row select button, by its
+ * 1-based ordinal label (src/editor/inspector/StructureList.js). Each row is a
+ * plain `Button` whose accessible name is "Section N" / "Measure M"; clicking it
+ * drives the kind-tagged selection. `exact` so "Section 1" never matches the
+ * "Remove section 1" / "Add … section 1" controls.
+ */
+function structureRow(sidebar, name) {
+	return sidebar.getByRole("button", { name, exact: true });
 }
 
 /**
@@ -228,6 +287,11 @@ async function seedSongViaJson(editor, raw) {
 async function storedSong(editor) {
 	const blocks = await editor.getBlocks();
 	return blocks[0].attributes.song;
+}
+
+/** Parse the single Piano block's stored `song` attribute. */
+async function storedSongObject(editor) {
+	return JSON.parse(await storedSong(editor));
 }
 
 test.describe("Piano block — editor authoring, persistence and validation", () => {
@@ -278,24 +342,33 @@ test.describe("Piano block — editor authoring, persistence and validation", ()
 		await expect(songField(editor)).toHaveValue("");
 	});
 
-	test("adding a note on the canvas stores it in the chosen hand", async ({
+	test("the seeded empty measure adds its first note from the Structure panel", async ({
 		editor,
+		page,
 	}) => {
 		await editor.insertBlock({ name: "piano-block/piano" });
 
-		// The seeded empty song exposes a per-hand add-note affordance per measure.
-		// Click the right-hand one for the first (only) measure.
-		await editor.canvas
-			.getByRole("button", { name: "Add note to right hand in measure 1" })
+		// The seeded empty song has no on-canvas add affordance — the canvas
+		// add-grid is gone. The first note is bootstrapped from the always-present
+		// Structure panel: open the sidebar, select the seeded empty measure, and
+		// click its "Add note" (the only first-note entry point for an empty
+		// measure; it seeds a default RIGHT-hand note).
+		const sidebar = await openSettingsSidebar(editor, page);
+		await expect(inspectorPanel(sidebar, "Structure")).toBeVisible();
+		await structureRow(sidebar, "Measure 1").click();
+		await sidebar
+			.getByRole("button", { name: "Add note to measure 1 of section 1" })
 			.click();
 
-		// The stored song now carries a right-hand event in that measure, and the
-		// canvas re-rendered it as a note group.
-		const parsed = JSON.parse(await storedSong(editor));
+		// The stored song now carries a right-hand note in that measure (the
+		// default hand), and only that hand…
+		const parsed = await storedSongObject(editor);
 		expect(Array.isArray(parsed.sections)).toBe(true);
 		expect(parsed.sections[0].measures[0].rightHand).toHaveLength(1);
 		expect(parsed.sections[0].measures[0].rightHand[0].type).toBe("note");
 		expect(parsed.sections[0].measures[0].leftHand).toBeUndefined();
+
+		// …and the canvas re-rendered it as a note group.
 		await expect(noteGroups(editor).first()).toBeVisible();
 	});
 
@@ -309,9 +382,11 @@ test.describe("Piano block — editor authoring, persistence and validation", ()
 		await seedSongViaJson(editor, CONFORMANT_SONG);
 		await switchToVisualMode(editor);
 
-		// With nothing selected, only the always-present Song panel is shown.
+		// With nothing selected, only the always-present Song + Structure panels
+		// are shown; the selection-gated panels are absent.
 		const sidebar = await openSettingsSidebar(editor, page);
 		await expect(inspectorPanel(sidebar, "Song")).toBeVisible();
+		await expect(inspectorPanel(sidebar, "Structure")).toBeVisible();
 		await expect(inspectorPanel(sidebar, "Note")).toHaveCount(0);
 		await expect(inspectorPanel(sidebar, "Measure")).toHaveCount(0);
 		await expect(inspectorPanel(sidebar, "Section")).toHaveCount(0);
@@ -319,7 +394,7 @@ test.describe("Piano block — editor authoring, persistence and validation", ()
 		// Click the rendered note on the staff to select it.
 		await noteGroups(editor).first().click();
 
-		// The selection-bound panels appear alongside the Song panel.
+		// The selection-bound panels appear alongside the always-present ones.
 		await expect(inspectorPanel(sidebar, "Song")).toBeVisible();
 		await expect(inspectorPanel(sidebar, "Note")).toBeVisible();
 		await expect(inspectorPanel(sidebar, "Measure")).toBeVisible();
@@ -355,6 +430,213 @@ test.describe("Piano block — editor authoring, persistence and validation", ()
 		await expect(note).toHaveClass(/is-selected/);
 	});
 
+	test("the Note panel adds a sibling note in the same hand, then removes it", async ({
+		editor,
+		page,
+	}) => {
+		await editor.insertBlock({ name: "piano-block/piano" });
+
+		// Seed the single right-hand C4 note and select it on the canvas.
+		await seedSongViaJson(editor, CONFORMANT_SONG);
+		await switchToVisualMode(editor);
+		const sidebar = await openSettingsSidebar(editor, page);
+		await noteGroups(editor).first().click();
+		await expect(inspectorPanel(sidebar, "Note")).toBeVisible();
+
+		// The Note panel's contextual "Add note" inserts a sibling in the selected
+		// note's hand (inferred — never prompted). `exact` so it never matches the
+		// Structure row's "Add note to measure …" label.
+		await sidebar.getByRole("button", { name: "Add note", exact: true }).click();
+
+		// A second right-hand note now exists in that same measure/hand, and the
+		// canvas re-rendered both note groups.
+		await expect
+			.poll(async () => {
+				const parsed = await storedSongObject(editor);
+				return parsed.sections[0].measures[0].rightHand.length;
+			})
+			.toBe(2);
+		await expect(noteGroups(editor)).toHaveCount(2);
+
+		// The newly added note is auto-selected, so the Note panel's "Remove note"
+		// deletes it, returning to a single note.
+		await sidebar
+			.getByRole("button", { name: "Remove note", exact: true })
+			.click();
+		await expect
+			.poll(async () => {
+				const parsed = await storedSongObject(editor);
+				return parsed.sections[0].measures[0].rightHand.length;
+			})
+			.toBe(1);
+	});
+
+	test("the Structure panel adds and removes a section and a measure", async ({
+		editor,
+		page,
+	}) => {
+		await editor.insertBlock({ name: "piano-block/piano" });
+
+		// Seed a single-section, single-measure song and open the Structure panel.
+		await seedSongViaJson(editor, CONFORMANT_SONG);
+		await switchToVisualMode(editor);
+		const sidebar = await openSettingsSidebar(editor, page);
+		await expect(inspectorPanel(sidebar, "Structure")).toBeVisible();
+
+		// Add a measure to section 1 → that section now has two measures.
+		await sidebar
+			.getByRole("button", { name: "Add measure to section 1" })
+			.click();
+		await expect
+			.poll(async () => {
+				const parsed = await storedSongObject(editor);
+				return parsed.sections[0].measures.length;
+			})
+			.toBe(2);
+
+		// Add a section → the song now has two sections.
+		await sidebar.getByRole("button", { name: "Add section" }).click();
+		await expect
+			.poll(async () => (await storedSongObject(editor)).sections.length)
+			.toBe(2);
+
+		// Remove the second measure of section 1 → back to one measure there.
+		await sidebar
+			.getByRole("button", { name: "Remove measure 2 of section 1" })
+			.click();
+		await expect
+			.poll(async () => {
+				const parsed = await storedSongObject(editor);
+				return parsed.sections[0].measures.length;
+			})
+			.toBe(1);
+
+		// Remove the second (empty) section → back to one section.
+		await sidebar
+			.getByRole("button", { name: "Remove section 2" })
+			.click();
+		await expect
+			.poll(async () => (await storedSongObject(editor)).sections.length)
+			.toBe(1);
+	});
+
+	test("selecting Structure rows reveals the right panels and highlights the canvas", async ({
+		editor,
+		page,
+	}) => {
+		await editor.insertBlock({ name: "piano-block/piano" });
+
+		// Seed a conformant single-note song and open the Structure panel.
+		await seedSongViaJson(editor, CONFORMANT_SONG);
+		await switchToVisualMode(editor);
+		const sidebar = await openSettingsSidebar(editor, page);
+
+		// Selecting the SECTION row reveals the Section panel only (every kind has a
+		// section), not the Measure/Note panels, and highlights the section's
+		// measure group(s) on the canvas with `is-active-section`.
+		await structureRow(sidebar, "Section 1").click();
+		await expect(inspectorPanel(sidebar, "Section")).toBeVisible();
+		await expect(inspectorPanel(sidebar, "Measure")).toHaveCount(0);
+		await expect(inspectorPanel(sidebar, "Note")).toHaveCount(0);
+		await expect(
+			editor.canvas.locator('[data-measure].is-active-section'),
+		).not.toHaveCount(0);
+
+		// Selecting the MEASURE row reveals Measure + Section (a measure has both),
+		// still not the Note panel, and highlights exactly that measure group with
+		// `is-active-measure`.
+		await structureRow(sidebar, "Measure 1").click();
+		await expect(inspectorPanel(sidebar, "Measure")).toBeVisible();
+		await expect(inspectorPanel(sidebar, "Section")).toBeVisible();
+		await expect(inspectorPanel(sidebar, "Note")).toHaveCount(0);
+		await expect(
+			editor.canvas.locator('[data-measure].is-active-measure'),
+		).toHaveCount(1);
+	});
+
+	test("the Note-language selector converts pitches and stores the language", async ({
+		editor,
+		page,
+	}) => {
+		await editor.insertBlock({ name: "piano-block/piano" });
+
+		// Seed an English single-`C` song and return to the canvas.
+		await seedSongViaJson(editor, CONFORMANT_SONG);
+		await switchToVisualMode(editor);
+		const sidebar = await openSettingsSidebar(editor, page);
+
+		// The selector reads the per-song system: an English-spelled song shows
+		// "english" (inference, no stored field yet).
+		await expect(languageSelect(sidebar)).toHaveValue("english");
+
+		// Switch to Spanish → every pitch step is rewritten to its Spanish spelling
+		// (`C` → `do`) and the choice is stored in the additive `language` field.
+		await languageSelect(sidebar).selectOption("spanish");
+		await expect
+			.poll(async () => {
+				const parsed = await storedSongObject(editor);
+				return [
+					parsed.language,
+					parsed.sections[0].measures[0].rightHand[0].pitches[0].step,
+				];
+			})
+			.toEqual(["spanish", "do"]);
+		await expect(languageSelect(sidebar)).toHaveValue("spanish");
+
+		// Switch back to English → the round-trip restores the English spelling and
+		// language.
+		await languageSelect(sidebar).selectOption("english");
+		await expect
+			.poll(async () => {
+				const parsed = await storedSongObject(editor);
+				return [
+					parsed.language,
+					parsed.sections[0].measures[0].rightHand[0].pitches[0].step,
+				];
+			})
+			.toEqual(["english", "C"]);
+	});
+
+	test("the Note-language selector infers Spanish for a language-less Spanish song", async ({
+		editor,
+		page,
+	}) => {
+		await editor.insertBlock({ name: "piano-block/piano" });
+
+		// Seed a Spanish-spelled song with NO `language` field, return to the canvas.
+		await seedSongViaJson(editor, SPANISH_SONG);
+		await switchToVisualMode(editor);
+		const sidebar = await openSettingsSidebar(editor, page);
+
+		// With no stored `language`, the selector reflects the inferred system: a
+		// `do`-spelled song reads as Spanish.
+		await expect(languageSelect(sidebar)).toHaveValue("spanish");
+	});
+
+	test("the language field round-trips through JSON mode and never blocks saving", async ({
+		editor,
+	}) => {
+		await editor.insertBlock({ name: "piano-block/piano" });
+
+		// A song that already carries `language: "spanish"` is conformant: JSON mode
+		// shows no error and stores the exact bytes verbatim — the additive field
+		// validates and never blocks saving (AC11/AC13/AC14).
+		await switchToJsonMode(editor);
+		const field = songField(editor);
+		await field.fill(LANGUAGE_TAGGED_SONG);
+		await field.blur();
+		await expect(errorNotice(editor)).toHaveCount(0);
+		expect(await storedSong(editor)).toBe(LANGUAGE_TAGGED_SONG);
+
+		// The stored field survives a round trip to the visual editor and back: it
+		// is preserved (the visual editor reads `language` as authoritative) and the
+		// raw JSON still parses to the same shape with the field intact.
+		await switchToVisualMode(editor);
+		await switchToJsonMode(editor);
+		const parsed = await storedSongObject(editor);
+		expect(parsed.language).toBe("spanish");
+	});
+
 	test("a sidebar edit is reflected in the stored song", async ({
 		editor,
 		page,
@@ -372,7 +654,7 @@ test.describe("Piano block — editor authoring, persistence and validation", ()
 		await title.blur();
 
 		// The stored song reflects the change made through the sidebar controls.
-		const parsed = JSON.parse(await storedSong(editor));
+		const parsed = await storedSongObject(editor);
 		expect(parsed.metadata.title).toBe("Moonlight");
 	});
 
@@ -483,7 +765,7 @@ test.describe("Piano block — editor authoring, persistence and validation", ()
 		await title.blur();
 
 		// The untouched pitch keeps its Spanish spelling in the stored song.
-		const parsed = JSON.parse(await storedSong(editor));
+		const parsed = await storedSongObject(editor);
 		expect(parsed.metadata.title).toBe("Estudio");
 		expect(parsed.sections[0].measures[0].rightHand[0].pitches[0].step).toBe(
 			"do",
