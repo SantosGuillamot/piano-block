@@ -186,22 +186,37 @@ untouched), and causes no layout shift.
    ~1 CSS px hairline; `outline-offset: 0.25px` ⇒ ~2 CSS px gap. Gives the
    conventional ENCLOSING mark, thin at displayed scale, CSS-only, no JS, no
    layout shift, editor-only, test-neutral.
-5. **Color RECOLOR of the selected glyphs** — CHOSEN as a reinforcing floor. Color
-   has no length, so it is scale-invariant by construction and works on EVERY
-   engine (including Safari, where `outline` on `<g>` is reported to no-op). Used
-   alongside option 4 so no engine shows nothing.
+5. **Color RECOLOR of the selected glyphs** — CHOSEN as the cross-engine FLOOR
+   (primary). Color has no length, so it is scale-invariant by construction and
+   works on EVERY engine, INCLUDING Safari (where `outline` on `<g>` is reported
+   to no-op and is not provably fixed). Safari is in WordPress's default
+   browserslist (`@wordpress/browserslist-config` lists `last 2 Safari versions`
+   + `last 2 iOS versions`) and the project's Playwright e2e is chromium-only
+   (the `@wordpress/scripts` base config has a single `chromium` project), so a
+   Safari-only outline no-op would ship UNCAUGHT — making the recolor floor
+   warranted, not optional. The outline hairline (option 4) rides on top as the
+   nicer ENCLOSING mark where supported (Chrome/Firefox).
 
-**Decision.** A single CSS-only `.is-selected` rule combining (a) the enclosing
-`outline: 0.125px` hairline (primary, conventional "selected" box, thin via the
-÷8 scale division) and (b) a safe color recolor of the selected event's glyphs
-(reinforcing floor that also covers Safari's `<g>`-outline no-op). NO JS change
-(`decorateSelection`/`SongCanvas` keep only adding the `.is-selected` class), NO
-`svg.js`/`render.php`/schema change. Replaces `style.scss:92-95`.
+**Decision.** A single CSS-only `.is-selected` rule combining (a) a safe color
+recolor of the selected event's glyphs as the cross-engine FLOOR (the always-
+visible signal, including Safari) and (b) the enclosing `outline: 0.125px`
+hairline as the conventional "selected box" reinforcement on engines that paint
+`outline` on `<g>` (Chrome/Firefox). NO JS change (`decorateSelection`/
+`SongCanvas` keep only adding the `.is-selected` class), NO `svg.js`/`render.php`/
+schema change. Replaces `style.scss:92-95`.
 
-The recolor must preserve each glyph's filled/open identity — verified safe split:
-recolor `stroke` on every child, but recolor `fill` ONLY where fill is the paint,
-guarded by `:not([fill="none"])` so an OPEN notehead's transparent center
-(`<ellipse fill="none">`, `svg.js:205-213`) is NOT filled into a solid blob.
+The recolor must preserve each glyph's filled/open identity AND must NOT introduce
+a (viewBox-magnified) stroke where there was none — verified safe split:
+- recolor `fill` wherever fill is the paint, guarded by `:not([fill="none"])` so an
+  OPEN notehead's transparent center (`<ellipse fill="none">`, `svg.js:205-213`)
+  is NOT filled into a solid blob;
+- recolor `stroke` ONLY on already-stroked geometry — the stems/ledgers (`<line>`)
+  and the open-notehead ring (`<ellipse fill="none">`). Do NOT blanket `stroke`
+  with `*`: the font glyphs (clefs/rests/accidentals/flags via `fontGlyph`,
+  `svg.js:154-163`) are `<text fill=INK>` with NO stroke (default `stroke:none`);
+  forcing a stroke on them would, at the 8× scale, paint a fat ~8px blue outline
+  around the letterforms — the exact magnified-stroke failure we are removing.
+
 Within a note/rest `<g>` the only `fill="none"` child is the open notehead
 (ties/slurs/hairpins are system/measure-level spans, never children of a note
 `<g>`, so the rule never reaches them). All paints are real DOM attributes (set
@@ -209,38 +224,43 @@ via `el()`→`setAttribute`), so `fill="none"` is attribute-selectable.
 
 ```scss
 .is-selected {
-  /* Enclosing hairline: outline lengths resolve in the staff-space user system,
+  /* Cross-engine FLOOR: recolor the selected event's ink. Fill wherever fill is
+     the paint (filled heads, dots, text glyphs, rest bodies); :not([fill="none"])
+     preserves an OPEN notehead's hole. Stroke ONLY already-stroked geometry —
+     stems/ledgers <line> and the open-notehead ring — NEVER <text> (default
+     stroke:none; a forced stroke would render a fat ~8x-scaled outline around the
+     glyph). Color-only => no layout shift; editor-only (class added by SongCanvas
+     post-render; view.js never sets it) => front-end SVG byte-identical (AC4). */
+  *:not([fill="none"]) { fill: #007cba; }   /* filled heads, dots, text, rest bodies */
+  line { stroke: #007cba; }                  /* stems + ledger lines */
+  ellipse[fill="none"] { stroke: #007cba; }  /* open-notehead ring (keeps its hole) */
+
+  /* Enclosing hairline (Chrome/Firefox; may no-op on Safari for a <g>, hence the
+     recolor floor above). Outline lengths resolve in the staff-space user system,
      which the root viewBox scales 1 sp -> SP_PX (8) CSS px, so divide by 8:
      0.125 sp x 8 = ~1 CSS px line, 0.25 sp x 8 = ~2 CSS px gap. COUPLED to
-     SP_PX=8 by design (one commented line). May no-op on Safari for a <g>; the
-     recolor below is the cross-engine floor. */
+     SP_PX=8 by design (this one commented line must be re-divided if SP_PX is
+     retuned). */
   outline: 0.125px solid #007cba;
   outline-offset: 0.25px;
-
-  /* Cross-engine floor + reinforcing signal: recolor the selected event's ink.
-     Stroke everywhere (stems/ledgers/rings); fill only where fill is the paint —
-     :not([fill="none"]) preserves an OPEN notehead's hole. Color-only => no
-     layout shift; editor-only (class added by SongCanvas post-render; view.js
-     never sets it) => front-end SVG byte-identical (AC4). */
-  * { stroke: #007cba; }
-  *:not([fill="none"]) { fill: #007cba; }
 }
 ```
 
-**Traces to.** Req 3 / AC3 (thin enclosing line, no layout change), Req 4 / AC4
-(front-end output unchanged — editor-only class, CSS-only), Req 5 / AC5 (`outline`
-+ `fill`/`stroke` are plain CSS/SVG, no dependency).
+**Traces to.** Req 3 / AC3 (thin enclosing line + always-visible signal, no
+layout change), Req 4 / AC4 (front-end output unchanged — editor-only class,
+CSS-only), Req 5 / AC5 (`outline` + `fill`/`stroke` are plain CSS/SVG, no
+dependency).
 
-**Rationale.** The enclosing outline is the conventional "selected" signal the
-analyst argued for and is a one-line minimal diff from review-4 (change `1px` →
-`0.125px`); the recolor is a cheap, scale-invariant floor that guarantees a
-visible selection on every engine and reinforces the mark. The cost is a
-deliberate, well-commented coupling of the hairline width to `SP_PX=8`; if
-`SP_PX` is ever retuned, this one line must be re-divided (a documented,
-localized coupling, acceptable for a 1-line polish rule). Both the outline-only
-and recolor-only sub-options remain on the table if implementation prefers a
-single mechanism: outline-only is the smallest diff but Safari-degraded; recolor-
-only is the most robust but a weaker "different-color-note" signal.
+**Rationale.** The recolor is the scale-invariant, every-engine floor that
+guarantees a visible selection even in Safari (in-target, with no WebKit e2e to
+catch an outline-on-`<g>` no-op); the enclosing outline is the conventional
+"selected box" the analyst argued for, layered on where supported, as a one-line
+minimal diff from review-4 (change `1px` → `0.125px`). The cost is the outline's
+deliberate, well-commented coupling to `SP_PX=8` (re-divide if retuned;
+localized, acceptable for a 1-line polish rule). If implementation prefers a
+single mechanism: recolor-only is the most robust (every engine, no SP_PX
+coupling) but a weaker "different-color-note" signal; outline-only is the
+smallest diff but Safari-degraded. The combined rule is recommended.
 
 ## Components, interfaces & data flow
 
@@ -260,7 +280,8 @@ mutators, and the render pipeline are unchanged.
   (`:520`). The `onAddSection` HANDLER (`:240-249`) and all other lifted mutators
   are unchanged. Selection/commit data flow is untouched.
 - **`style.scss`** — replace the `.is-selected` rule (`:92-95`) with the combined
-  outline-hairline + safe-recolor rule (Topic 3). No other selector changes.
+  safe-recolor (cross-engine floor) + outline-hairline (Chrome/FF reinforcement)
+  rule (Topic 3). No other selector changes.
 - **`SongCanvas.js` / `svg.js`** — UNCHANGED. `decorateSelection` still only adds
   the `.is-selected` class; the shared renderer's front-end output is identical
   (AC4). No `render.php`/schema change (Req 4).
@@ -277,11 +298,19 @@ no outside runtime dependency is added.
   tree each draw (`renderInto` → `replaceChildren`), and `.is-selected` is a CSS
   class, so the highlight re-applies cleanly with no stale buildup. A stale
   selection (query matches nothing) decorates nothing — unchanged.
-- **Open-notehead recolor.** Guarded by `:not([fill="none"])` so a half/whole
-  note's open head keeps its hole (verified the only `fill="none"` child of a
-  note `<g>` is the open notehead).
-- **Safari `<g>` outline no-op.** Covered by the recolor floor so the selection
-  is still visible; the enclosing hairline is the enhanced read where supported.
+- **Open-notehead recolor.** `fill` is guarded by `:not([fill="none"])` so a
+  half/whole note's open head keeps its hole (verified the only `fill="none"`
+  child of a note `<g>` is the open notehead).
+- **Text-glyph stroke (corrected).** `stroke` is scoped to `line` (stems/ledgers)
+  and `ellipse[fill="none"]` (open-notehead ring) — NOT a `*` wildcard — because
+  the font glyphs are `<text>` with default `stroke:none`; a forced stroke would
+  paint a fat ~8×-scaled blue outline around each clef/rest/accidental letterform
+  (the magnified-stroke failure we are removing). `<text>` is recolored by `fill`
+  only.
+- **Safari `<g>` outline no-op.** Safari is in WP's default browserslist and the
+  e2e is chromium-only, so a no-op would ship uncaught. Covered by the recolor
+  FLOOR (color is scale-invariant and engine-independent) so the selection is
+  always visible; the enclosing hairline is the enhanced read on Chrome/FF.
 - **Add-section reachable in every state.** SongPanel is always mounted, so
   add-section works with nothing selected (the case the tree button used to
   cover) — closing the gap the selection-gated SectionPanel left.
@@ -315,9 +344,12 @@ no outside runtime dependency is added.
   Add-section presence).
 - **Q3 / crux (resolved).** `getBBox()` throws in this repo's jsdom (empirically
   verified), so the JS enclosing-rect path is rejected; `non-scaling-stroke` is
-  unreliable against viewBox scaling, so it is not load-bearing. The chosen fix is
-  the CSS-only enclosing `outline: 0.125px` hairline (review-4's rule ÷ the 8×
-  scale) plus a scale-invariant recolor floor (Safari-safe). See Topic 3.
+  unreliable against viewBox scaling, so it is not load-bearing. Safari is
+  in-target (WP browserslist) with chromium-only e2e, so the chosen fix leads
+  with a scale-invariant recolor FLOOR (every engine, incl. Safari) and adds the
+  CSS-only enclosing `outline: 0.125px` hairline (review-4's rule ÷ the 8× scale)
+  as the Chrome/FF reinforcement. The recolor's `stroke` is scoped to already-
+  stroked geometry (not `<text>`) to avoid a magnified text outline. See Topic 3.
 
 ## Risks
 
@@ -339,9 +371,10 @@ no outside runtime dependency is added.
   chips), remove keeps `isDestructive`. ✓
 - **Req 2 / AC2** — Topic 2: tree Add-section removed; SongPanel (always-present)
   gains an Add-section control wired to `onAddSection`. ✓
-- **Req 3 / AC3** — Topic 3: enclosing `outline: 0.125px` hairline + scale-
-  invariant recolor; thin, no layout shift; root cause (8× viewBox magnification
-  of a user-unit outline on the `<g>`) confirmed. ✓
+- **Req 3 / AC3** — Topic 3: scale-invariant recolor floor (every engine) +
+  enclosing `outline: 0.125px` hairline (Chrome/FF); thin, no layout shift;
+  `stroke` scoped off `<text>` to avoid a magnified text outline; root cause (8×
+  viewBox magnification of a user-unit outline on the `<g>`) confirmed. ✓
 - **Req 4 / AC4** — Editor-only: `svg.js`/`render.php`/schema unchanged;
   `.is-selected` decoration is editor-only; front-end SVG byte-identical. ✓
 - **Req 5 / AC5** — `@wordpress/*`/stock CSS only; no outside dependency. ✓
