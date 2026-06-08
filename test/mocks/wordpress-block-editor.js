@@ -3,10 +3,11 @@
  *
  * `@wordpress/block-editor` is externalized by the build and absent from
  * `node_modules`, so Jest maps it here. The mode container (`edit.js`) wraps the
- * block in `useBlockProps()` and exposes a toolbar mode switch via
- * `BlockControls`; the tests need both rendered into jsdom so they can assert on
- * the produced DOM. The mocks are deliberately generic so they carry no behavior
- * beyond passing props/children through.
+ * block in `useBlockProps()`, exposes a toolbar mode switch via `BlockControls`,
+ * and renders the canvas-first editor's settings into the block sidebar via
+ * `InspectorControls`; the tests need all three rendered into jsdom so they can
+ * assert on the produced DOM. The mocks are deliberately generic so they carry no
+ * behavior beyond passing props/children through.
  */
 const { createElement } = require("@wordpress/element");
 
@@ -33,4 +34,17 @@ const useBlockProps = (props = {}) => props;
 const BlockControls = ({ children }) =>
 	createElement("div", { "data-block-controls": true }, children);
 
-module.exports = { useBlockProps, BlockControls };
+/**
+ * Minimal `InspectorControls` stand-in. The real component portals its children
+ * into the block settings sidebar; here it renders them inline inside a marked
+ * container so the sidebar's panels are present in the DOM under test (located
+ * via the `data-inspector-controls` marker).
+ *
+ * @param {Object} props          InspectorControls props.
+ * @param {Object} props.children The sidebar panels.
+ * @return {Object} A React element wrapping the children.
+ */
+const InspectorControls = ({ children }) =>
+	createElement("div", { "data-inspector-controls": true }, children);
+
+module.exports = { useBlockProps, BlockControls, InspectorControls };
