@@ -520,8 +520,13 @@ describe("beamGeometry", () => {
 		// All stems end at the same (flat) beam Y.
 		expect(geo.stems.every((s) => s.y2 === geo.beamY)).toBe(true);
 		expect(new Set(geo.stems.map((s) => s.y2)).size).toBe(1);
-		// Primary beam spans the group.
-		expect(geo.beams[0]).toMatchObject({ level: 1, x1: 0, x2: 4 });
+		// Primary beam spans the group (shifted to notehead edge).
+		expect(geo.beams[0]).toMatchObject({ level: 1, x1: 0 + NOTEHEAD_RX, x2: 4 + NOTEHEAD_RX });
+		// Stems sit at the notehead edge (same rule as standalone renderStem).
+		expect(geo.stems.map((s) => s.x)).toEqual([0 + NOTEHEAD_RX, 4 + NOTEHEAD_RX]);
+		// Primary beam endpoints equal the first and last shifted stem X.
+		expect(geo.beams[0].x1).toBe(geo.stems[0].x);
+		expect(geo.beams[0].x2).toBe(geo.stems.at(-1).x);
 	});
 
 	it("adds a secondary beam only where both notes share it", () => {
