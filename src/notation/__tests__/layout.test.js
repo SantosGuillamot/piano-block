@@ -529,6 +529,21 @@ describe("beamGeometry", () => {
 		expect(geo.beams[0].x2).toBe(geo.stems.at(-1).x);
 	});
 
+	it("shifts stems to the left notehead edge for a stem-down group", () => {
+		const members = [
+			{ x: 0, topStep: 6, bottomStep: 6, beamCount: 1 },
+			{ x: 4, topStep: 6, bottomStep: 6, beamCount: 1 },
+		];
+		const geo = beamGeometry(members);
+		expect(geo.direction).toBe("down");
+		// Stems sit at the left notehead edge (negative offset, same rule as standalone renderStem).
+		expect(geo.stems.map((s) => s.x)).toEqual([0 - NOTEHEAD_RX, 4 - NOTEHEAD_RX]);
+		// Primary beam matches the first and last shifted stem X.
+		expect(geo.beams[0]).toMatchObject({ level: 1, x1: 0 - NOTEHEAD_RX, x2: 4 - NOTEHEAD_RX });
+		expect(geo.beams[0].x1).toBe(geo.stems[0].x);
+		expect(geo.beams[0].x2).toBe(geo.stems.at(-1).x);
+	});
+
 	it("adds a secondary beam only where both notes share it", () => {
 		const members = [
 			{ x: 0, topStep: 1, bottomStep: 1, beamCount: 2 },
@@ -537,6 +552,10 @@ describe("beamGeometry", () => {
 		const geo = beamGeometry(members);
 		const levels = geo.beams.map((b) => b.level).sort();
 		expect(levels).toEqual([1, 2]);
+		// Level-2 segment spans the shifted adjacent stem X values.
+		const seg2 = geo.beams.find((b) => b.level === 2);
+		expect(seg2.x1).toBe(0 + NOTEHEAD_RX);
+		expect(seg2.x2).toBe(4 + NOTEHEAD_RX);
 	});
 
 	it("adds a stub for an isolated shorter note", () => {
@@ -548,6 +567,10 @@ describe("beamGeometry", () => {
 		const stub = geo.beams.find((b) => b.stub);
 		expect(stub).toBeDefined();
 		expect(stub.level).toBe(2);
+		// Stub's kept endpoint is at the shifted stem X of the note it belongs to.
+		expect(stub.x2).toBe(4 + NOTEHEAD_RX);
+		// Stub length is unchanged from the original NOTEHEAD_RX * 1.5 rule.
+		expect(stub.x2 - stub.x1).toBe(NOTEHEAD_RX * 1.5);
 	});
 });
 
