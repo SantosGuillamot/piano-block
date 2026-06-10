@@ -511,6 +511,14 @@ export function beamGeometry(members, bottomLineY = 0) {
 	}
 	const direction = stemDirectionForChord(allSteps);
 
+	// Shift every stem and beam segment to the notehead edge — the same rule that
+	// standalone notes use in renderStem: right edge (+NOTEHEAD_RX) for stem-up,
+	// left edge (−NOTEHEAD_RX) for stem-down. Because stem direction is uniform
+	// per group, this is a rigid horizontal translation of the whole beam assembly;
+	// beam Y, flatness, and length are unchanged.
+	const stemDx = direction === "up" ? NOTEHEAD_RX : -NOTEHEAD_RX;
+	const shiftedMembers = members.map((m) => ({ ...m, x: m.x + stemDx }));
+
 	// The notehead each stem attaches to depends on direction: stem-up starts at
 	// the LOWEST notehead and rises; stem-down starts at the HIGHEST and falls.
 	const headStepFor = (m) => (direction === "up" ? m.bottomStep : m.topStep);
@@ -521,12 +529,12 @@ export function beamGeometry(members, bottomLineY = 0) {
 	// stem-down ends are BELOW (larger Y).
 	let beamY;
 	if (direction === "up") {
-		beamY = Math.min(...members.map((m) => headYFor(m) - STEM_LENGTH));
+		beamY = Math.min(...shiftedMembers.map((m) => headYFor(m) - STEM_LENGTH));
 	} else {
-		beamY = Math.max(...members.map((m) => headYFor(m) + STEM_LENGTH));
+		beamY = Math.max(...shiftedMembers.map((m) => headYFor(m) + STEM_LENGTH));
 	}
 
-	const stems = members.map((m) => ({
+	const stems = shiftedMembers.map((m) => ({
 		x: m.x,
 		y1: headYFor(m),
 		y2: beamY,
@@ -534,38 +542,38 @@ export function beamGeometry(members, bottomLineY = 0) {
 
 	// Primary beam across the full group; secondary beams between adjacent notes.
 	const beams = [];
-	if (members.length >= 2) {
+	if (shiftedMembers.length >= 2) {
 		beams.push({
 			level: 1,
-			x1: members[0].x,
-			x2: members[members.length - 1].x,
+			x1: shiftedMembers[0].x,
+			x2: shiftedMembers[shiftedMembers.length - 1].x,
 		});
-		for (let i = 0; i < members.length - 1; i++) {
-			const shared = Math.min(members[i].beamCount, members[i + 1].beamCount);
+		for (let i = 0; i < shiftedMembers.length - 1; i++) {
+			const shared = Math.min(shiftedMembers[i].beamCount, shiftedMembers[i + 1].beamCount);
 			for (let level = 2; level <= shared; level++) {
-				beams.push({ level, x1: members[i].x, x2: members[i + 1].x });
+				beams.push({ level, x1: shiftedMembers[i].x, x2: shiftedMembers[i + 1].x });
 			}
 		}
 		// Stubs for an isolated shorter note (its beamCount exceeds both neighbours'
 		// shared beams). Stub points toward the beat (toward the previous note when
 		// possible, else the next).
-		for (let i = 0; i < members.length; i++) {
+		for (let i = 0; i < shiftedMembers.length; i++) {
 			const leftShared =
-				i > 0 ? Math.min(members[i - 1].beamCount, members[i].beamCount) : 0;
+				i > 0 ? Math.min(shiftedMembers[i - 1].beamCount, shiftedMembers[i].beamCount) : 0;
 			const rightShared =
-				i < members.length - 1
-					? Math.min(members[i].beamCount, members[i + 1].beamCount)
+				i < shiftedMembers.length - 1
+					? Math.min(shiftedMembers[i].beamCount, shiftedMembers[i + 1].beamCount)
 					: 0;
 			const neighbourShared = Math.max(leftShared, rightShared);
 			for (
 				let level = neighbourShared + 1;
-				level <= members[i].beamCount;
+				level <= shiftedMembers[i].beamCount;
 				level++
 			) {
 				const stubLen = NOTEHEAD_RX * 1.5;
 				const towardPrev = i > 0;
-				const x1 = towardPrev ? members[i].x - stubLen : members[i].x;
-				const x2 = towardPrev ? members[i].x : members[i].x + stubLen;
+				const x1 = towardPrev ? shiftedMembers[i].x - stubLen : shiftedMembers[i].x;
+				const x2 = towardPrev ? shiftedMembers[i].x : shiftedMembers[i].x + stubLen;
 				beams.push({ level, x1, x2, stub: true });
 			}
 		}
