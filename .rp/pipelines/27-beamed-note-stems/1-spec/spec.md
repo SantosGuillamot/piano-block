@@ -79,10 +79,13 @@ given by the group's stem direction, using the same rule as standalone notes:
 - stem-down group: stem X = `note.x − NOTEHEAD_RX` (left edge)
 
 This matches the standalone rule in `renderStem` (`src/notation/svg.js`). The
-natural fix point is `beamGeometry` in `src/notation/layout.js`, where the
-stems are built from raw `m.x` and the group direction is already known.
-Applying the offset at emit time in `renderBeam` (`src/notation/svg.js`) is an
-acceptable alternative, provided that stems and beam segments shift together.
+offset MUST be applied inside `beamGeometry` in `src/notation/layout.js`, where
+the stems are built from raw `m.x` and the group direction is already known.
+Applying it at this single point keeps stems, primary beams, secondary beams,
+and partial-beam stubs shifting together, and makes `beamGeometry`'s output
+itself reflect the edge offset (which the test changes in R6 assert against).
+The emit layer (`renderBeam` in `src/notation/svg.js`) MUST continue to draw
+the X values it receives verbatim, with no offset applied there.
 
 ### R2 — Beam segments move with the stems
 
@@ -124,7 +127,12 @@ editor (`src/edit.js`), PHP (`src/render.php`), or the view bootstrap
    - each `stems[i].x === members[i].x ± NOTEHEAD_RX`, with the sign
      determined by the group direction — covering both an up-group and a
      down-group;
-   - beam segment `x1`/`x2` equal the first/last shifted stem X.
+   - the **primary** (level-1) beam's `x1`/`x2` equal the first/last shifted
+     stem X. This first/last-stem equality applies only to the level-1 beam.
+     Secondary (level-2) beams span the shifted X's of the adjacent stems they
+     connect, and partial-beam stubs keep one endpoint at a shifted stem X with
+     their stub length unchanged; if assertions cover these, they must use those
+     per-kind expectations rather than the first/last-stem rule.
 3. **No other existing tests change.** The rest of `layout.test.js`,
    `svg.test.js`, `constants.test.js`, and both Playwright specs are
    unaffected. No screenshot or snapshot baselines exist in the repo, so there
