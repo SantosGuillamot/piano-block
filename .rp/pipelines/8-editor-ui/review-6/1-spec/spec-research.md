@@ -339,15 +339,24 @@ BURIED in leaf editors a naive flatten could silently drop:**
   defaults); tempo `beatUnit`; and the required-field constraints (tempo needs `bpm`;
   timeSignature needs both `beats`+`beatType`) — i.e. valid-by-construction must hold.
 
-**Reachability GAP to fix (caveat, not just a field):** today Section/Measure/Note
-settings only render when an EVENT is selected (the panels are written off an event
-selection; the trio shows together). The `StructureTree` already emits
-`{kind:"section"}`/`{kind:"measure"}` and the panels gate on those kinds, so the
-plumbing exists — but the prompt's "select any section/measure/note … edit all
-per-kind settings" means the redesign must guarantee **selecting a section row reaches
-section settings and a measure row reaches measure settings independent of any event
-selection.** The spec should state: *each selectable node's settings are reachable by
-selecting that node* (not only via the event-anchored path).
+**Per-kind reachability — already CORRECT today (preserve-don't-regress, NOT a gap).**
+_(Corrected: an earlier A4 caveat claimed section/measure settings were only reachable
+via an event selection, based on stale panel HEADER COMMENTS. Re-verified against the
+actual gating in `edit.js` lines 491-523 — the comments are out of date; the real
+behavior is per-kind correct.)_ The panels gate on `resolvedSelection.kind`:
+- `kind === "event"` → NotePanel + MeasurePanel + SectionPanel + SongPanel
+- `kind === "measure"` → MeasurePanel + SectionPanel + SongPanel
+  (MeasurePanel's condition is `kind === "event" || kind === "measure"`)
+- `kind === "section"` → SectionPanel + SongPanel
+  (`{resolvedSelection && <SectionPanel/>}` — any non-null selection shows it)
+- nothing selected → SongPanel only
+
+And `resolveSelection` (`selection.js` 116-162) resolves each kind to the right live
+object. So selecting a section row already reaches section settings and a measure row
+already reaches measure settings — INDEPENDENT of any event selection. This is a
+working invariant to PRESERVE, not a defect to fix. The honest requirement: *each
+selectable node kind (section/measure/event) reaches its own settings when selected,
+with Song always available* (E6).
 
 ## 6. Open feasibility questions (driving the Q&A)
 
@@ -384,7 +393,9 @@ lever is the duplicated emit/projection/splice/clamp/omit mechanism (SongPanel c
 ContextEditor verbatim; `clampInt` 3×; per-panel splice chains) — consolidate into
 shared helpers, visual-change-independent. Navigator is shippable but a model change
 with sync risk — leave panel-shape open, don't mandate it. Full reachable-field map +
-buried-field watchlist + the section/measure reachability gap captured. Full detail in
+buried-field watchlist captured. Per-kind selection→settings reachability already
+works today (a follow-up correction confirmed it against `edit.js`; the earlier "gap"
+caveat was wrong) — it's a preserve-don't-regress invariant, not a fix. Full detail in
 §5 F4.
 
 ## 8. Requirements for review 6 (complete)
@@ -490,10 +501,13 @@ the design may deviate from with justification; "MAY" = explicitly allowed latit
   `text`/`placement`/`staff`; handConfig `clef`/`octaveShift`/`alters`-map; SECTION
   OVERRIDE tempo/timeSignature/hand-configs (distinct from song defaults); tempo
   `beatUnit`; barlines; dots; dynamic; the four spans; names; note language (F4).
-- **E6 (MUST).** Each selectable node's settings are reachable by selecting THAT node —
+- **E6 (MUST).** Each selectable node kind reaches its own settings when selected —
   selecting a section row reaches section settings, a measure row reaches measure
-  settings — independent of any event selection (fixing today's event-anchored-only
-  reachability gap — F4).
+  settings, an event reaches note settings — with Song always available, independent
+  of any event selection. This already works correctly today (verified against
+  `edit.js`'s kind-gating; the panels' "only when an event is selected" header
+  comments are stale), so E6 is a PRESERVE-DON'T-REGRESS invariant, not a gap to fix
+  (F4).
 - **E7 (MUST).** Raw-JSON mode behind the toolbar toggle, with its non-blocking
   validation, unchanged in behavior (prompt).
 - **E8 (MUST).** Keyboard operability / accessibility at least as good as today's
