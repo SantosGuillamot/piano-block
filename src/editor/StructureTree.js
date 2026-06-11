@@ -57,33 +57,10 @@ import {
 	moreVertical,
 } from "@wordpress/icons";
 import { noteLabel } from "./noteNames.js";
+import { expansionKey } from "./selection.js";
 
 /** The two hands, in render order, with their display labels' translator keys. */
 const HANDS = ["rightHand", "leftHand"];
-
-/**
- * The coordinate-derived expansion key for an expandable row (section, measure or
- * hand group). It doubles as the row's React `key`: a per-row string built inline
- * from the coordinates, never stored in app state. Notes are leaves (never
- * expandable, never in the `expanded` Set), so they get a React key directly from
- * their own coordinates and never call this.
- *
- * @param {Object}  coords             The row's coordinates.
- * @param {number}  coords.sectionIndex The section's index.
- * @param {number}  [coords.measureIndex] The measure's index (measure/hand rows).
- * @param {string}  [coords.hand]      The hand key (hand rows): `rightHand`/`leftHand`.
- * @return {string} The expansion/React key (`s0`, `s0m1`, `s0m1rightHand`).
- */
-function expansionKey({ sectionIndex, measureIndex, hand }) {
-	let key = `s${sectionIndex}`;
-	if (measureIndex !== undefined) {
-		key += `m${measureIndex}`;
-	}
-	if (hand !== undefined) {
-		key += hand;
-	}
-	return key;
-}
 
 /**
  * The non-focusable stock disclosure chevron shown beside an expandable row's

@@ -135,6 +135,27 @@ function expandRow(container, text) {
 	click(expander);
 }
 
+/**
+ * How many structure-tree label rows currently render with the exact text. A row
+ * is present only when its ancestors are expanded, so a count rising after an
+ * add/duplicate (with no manual expand in between) proves the mutation-site seed
+ * opened the new node's branch.
+ */
+function countTreeRows(container, text) {
+	return [
+		...container.querySelectorAll(".wp-block-piano-block-piano__tree-label"),
+	].filter((label) => (label.textContent ?? "") === text).length;
+}
+
+/** Open a row's actions menu (by its exact `aria-label`) and click a MenuItem. */
+function clickRowAction(container, menuLabel, itemText) {
+	const menu = fieldByName(container, menuLabel).closest("td");
+	const item = [...menu.querySelectorAll("button")].find(
+		(button) => button.textContent === itemText,
+	);
+	click(item);
+}
+
 /** The mocked `InspectorControls` sidebar region (the panels' host), or null. */
 function inspector(container) {
 	return container.querySelector("[data-inspector-controls]");
@@ -528,6 +549,93 @@ describe("Edit — lifted structural mutators", () => {
 		expect(hand).toHaveLength(1);
 		expect(hand[0].type).toBe("rest");
 		expect(validateSong(calls.at(-1))).toEqual([]);
+	});
+});
+
+describe("Edit — mutation-site ancestor seeding", () => {
+	// Auto-reveal-on-select is dropped, so a deep node an add/duplicate auto-selects
+	// is visible in the tree ONLY because the mutator seeds its ancestor expansion
+	// keys into the one `expanded` Set. Each test reaches the action through the
+	// already-open ancestors it needs, mutates, then asserts the new deep node's row
+	// renders (its branch stayed/became open) and its ancestor rows report
+	// `aria-expanded="true"` — proof the seed, not a stale expansion, opened it.
+
+	/** The `aria-expanded` of the row whose label is `text`, or `undefined`. */
+	function rowExpanded(container, text) {
+		return treeRowButton(container, text)
+			?.closest("tr")
+			?.getAttribute("aria-expanded");
+	}
+
+	it("onAddNote seeds the section/measure/hand so the new note row renders", () => {
+		const { container } = renderEdit(SONG);
+		// Reach the per-hand "Add note": expand section → measure → right hand.
+		expandRow(container, "Section 1");
+		expandRow(container, "Measure 1");
+		expandRow(container, "Right hand");
+		// One note row ("C") before the add.
+		expect(countTreeRows(container, "C")).toBe(1);
+
+		click(
+			fieldByName(
+				container,
+				"Add note to Right hand of measure 1 of section 1",
+			),
+		);
+
+		// The seed keeps the section/measure/hand open, so the new (default C) note
+		// row renders alongside the original — two "C" rows now.
+		expect(countTreeRows(container, "C")).toBe(2);
+		expect(rowExpanded(container, "Section 1")).toBe("true");
+		expect(rowExpanded(container, "Measure 1")).toBe("true");
+		expect(rowExpanded(container, "Right hand")).toBe("true");
+		// The new note is selected, so its panels open on it.
+		expect(panelByTitle(container, "Note")).not.toBeNull();
+	});
+
+	it("onDuplicateMeasure seeds the section so the new measure row renders", () => {
+		const { container } = renderEdit(SONG);
+		// Expand the section to reach the measure's actions menu.
+		expandRow(container, "Section 1");
+		expect(countTreeRows(container, "Measure 1")).toBe(1);
+
+		clickRowAction(
+			container,
+			"Actions for Measure 1 of section 1",
+			"Duplicate",
+		);
+
+		// The seed keeps the section open, so both the original and the new measure
+		// row ("Measure 2") render under it.
+		expect(countTreeRows(container, "Measure 1")).toBe(1);
+		expect(countTreeRows(container, "Measure 2")).toBe(1);
+		expect(rowExpanded(container, "Section 1")).toBe("true");
+		// The copy is selected, so the Measure panel opens on it.
+		expect(panelByTitle(container, "Measure")).not.toBeNull();
+	});
+
+	it("onDuplicateNote seeds the section/measure/hand so the copy's row renders", () => {
+		const { container } = renderEdit(SONG);
+		// Expand down to the note row to reach its actions menu.
+		expandRow(container, "Section 1");
+		expandRow(container, "Measure 1");
+		expandRow(container, "Right hand");
+		expect(countTreeRows(container, "C")).toBe(1);
+
+		clickRowAction(
+			container,
+			"Actions for Note 1 of Right hand of measure 1 of section 1",
+			"Duplicate",
+		);
+
+		// The seed keeps the branch open, so the copy's row renders beside the
+		// original — two "C" rows now.
+		expect(countTreeRows(container, "C")).toBe(2);
+		expect(rowExpanded(container, "Section 1")).toBe("true");
+		expect(rowExpanded(container, "Measure 1")).toBe("true");
+		expect(rowExpanded(container, "Right hand")).toBe("true");
+		// The copy is selected, so the Note panel opens on it.
+		expect(panelByTitle(container, "Note")).not.toBeNull();
 	});
 });
 

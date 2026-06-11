@@ -24,6 +24,31 @@
  */
 
 /**
+ * The coordinate-derived expansion key for an expandable tree row (section,
+ * measure or hand group) — the single string both the structure tree (for its
+ * `expanded`-Set membership and its row React key) and `edit.js` (when it seeds a
+ * new deep node's ancestors at the mutation site) build, so the two sides can
+ * never drift on the key shape. Notes are leaves (never expandable, never in the
+ * Set), so they never call this.
+ *
+ * @param {Object} coords               The row's coordinates.
+ * @param {number} coords.sectionIndex  The section's index.
+ * @param {number} [coords.measureIndex] The measure's index (measure/hand rows).
+ * @param {string} [coords.hand]        The hand key (hand rows): `rightHand`/`leftHand`.
+ * @return {string} The expansion/React key (`s0`, `s0m1`, `s0m1rightHand`).
+ */
+export function expansionKey({ sectionIndex, measureIndex, hand }) {
+	let key = `s${sectionIndex}`;
+	if (measureIndex !== undefined) {
+		key += `m${measureIndex}`;
+	}
+	if (hand !== undefined) {
+		key += hand;
+	}
+	return key;
+}
+
+/**
  * The ordered `(sectionIndex, measureIndex)` of every measure, indexed by its
  * **0-based global position** — the same flatten the notation core numbers from.
  *

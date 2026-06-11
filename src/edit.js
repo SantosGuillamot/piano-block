@@ -20,7 +20,7 @@ import { SongPanel } from "./editor/inspector/SongPanel.js";
 import { inferNoteNameSystem } from "./editor/noteNames.js";
 import SongCanvas from "./editor/SongCanvas.js";
 import { StructureTree } from "./editor/StructureTree.js";
-import { resolveSelection } from "./editor/selection.js";
+import { expansionKey, resolveSelection } from "./editor/selection.js";
 import { commitSong } from "./editor/serializeSong.js";
 import {
 	duplicateAt,
@@ -96,49 +96,38 @@ export default function Edit({ attributes, setAttributes }) {
 	const [selection, setSelection] = useState(null);
 
 	// Editor-only UI state: whether the left structure tree is shown (open by
-	// default on mount), which tree rows are manually expanded (by index-path
-	// string), and which selection-ancestor rows the author has manually collapsed.
-	// None is persisted; the toolbar toggle closes and reopens the tree and a manual
-	// close sticks for the session (nothing re-forces it open). The expanded Set is
-	// layered with auto-expand of the selection's ancestors in the tree; the
-	// `collapsedOverride` Set is the manual-collapse veto over that auto-reveal, so a
-	// deliberate collapse of a selected node's ancestor sticks (it does not spring
-	// back open). Both Sets are index-path-keyed best-effort, so their staleness
-	// after a structural edit is best-effort (same wart, not new).
+	// default on mount) and which expandable tree rows are open. Neither is
+	// persisted; the toolbar toggle closes and reopens the tree and a manual close
+	// sticks for the session (nothing re-forces it open). Expansion is a single Set
+	// of coordinate-derived keys (`expansionKey`): membership alone decides whether a
+	// row is open — no ancestor auto-reveal, no manual-collapse veto. The only place
+	// expansion is opened programmatically is at the add/duplicate mutators that
+	// auto-select a new deep node: they seed that node's ancestor keys into the Set at
+	// the same commit (below), so the new branch is visible. The keys are best-effort
+	// across a structural edit (same wart as before, not new).
 	const [showTree, setShowTree] = useState(true);
-	const [expandedPaths, setExpandedPaths] = useState(() => new Set());
-	const [_collapsedOverride, setCollapsedOverride] = useState(() => new Set());
+	const [expanded, setExpanded] = useState(() => new Set());
 
-	// Toggle a tree row's manual expansion by its index-path string. A new Set is
-	// built each call so React sees a fresh reference and re-renders the tree.
-	const onToggleExpanded = (path) => {
-		setExpandedPaths((current) => {
+	// Toggle a tree row's expansion by its coordinate-derived key. A new Set is built
+	// each call so React sees a fresh reference and re-renders the tree.
+	const onToggleExpanded = (key) => {
+		setExpanded((current) => {
 			const next = new Set(current);
-			if (next.has(path)) {
-				next.delete(path);
+			if (next.has(key)) {
+				next.delete(key);
 			} else {
-				next.add(path);
+				next.add(key);
 			}
 			return next;
 		});
 	};
 
-	// Dead since the StructureTree redesign dropped the dual-Set/veto regime (the
-	// tree now takes a single `expanded` Set and no longer accepts this toggle).
-	// Kept (underscore-prefixed to satisfy no-unused-vars) only as the harmless
-	// bridge while edit.js's own state collapse waits for T5, which deletes this
-	// function and the now-dead `collapsedOverride` state outright.
-	const _onToggleCollapsedOverride = (path) => {
-		setCollapsedOverride((current) => {
-			const next = new Set(current);
-			if (next.has(path)) {
-				next.delete(path);
-			} else {
-				next.add(path);
-			}
-			return next;
-		});
-	};
+	// Open a new deep node's ancestor rows by adding their expansion keys to the one
+	// Set, so a node an add/duplicate just auto-selected is visible in the tree.
+	// Auto-reveal-on-select is dropped, so the seed (not the selection) is what
+	// reveals the branch.
+	const revealAncestors = (...keys) =>
+		setExpanded((current) => new Set([...current, ...keys]));
 
 	// Pure, presentational validation: re-run only when the text changes. The
 	// empty string is the "no song" state and is never validated.
@@ -227,6 +216,12 @@ export default function Edit({ attributes, setAttributes }) {
 		);
 		commit({ ...working, sections: nextSections });
 		setSelection({ sectionIndex, measureIndex, hand, eventIndex: insertIndex });
+		// Open the new note's branch (section → measure → hand) so it is visible.
+		revealAncestors(
+			expansionKey({ sectionIndex }),
+			expansionKey({ sectionIndex, measureIndex }),
+			expansionKey({ sectionIndex, measureIndex, hand }),
+		);
 	};
 
 	// The four structural mutators, lifted here as the single owner of `working` +
@@ -371,6 +366,8 @@ export default function Edit({ attributes, setAttributes }) {
 			sectionIndex,
 			measureIndex: measureIndex + 1,
 		});
+		// Open the section so the new measure row is visible.
+		revealAncestors(expansionKey({ sectionIndex }));
 	};
 
 	// Duplicate an event after itself, within its measure's hand.
@@ -398,6 +395,12 @@ export default function Edit({ attributes, setAttributes }) {
 			hand,
 			eventIndex: eventIndex + 1,
 		});
+		// Open the copy's branch (section → measure → hand) so it is visible.
+		revealAncestors(
+			expansionKey({ sectionIndex }),
+			expansionKey({ sectionIndex, measureIndex }),
+			expansionKey({ sectionIndex, measureIndex, hand }),
+		);
 	};
 
 	return (
@@ -458,7 +461,7 @@ export default function Edit({ attributes, setAttributes }) {
 								song={working}
 								selection={resolvedSelection}
 								system={system}
-								expanded={expandedPaths}
+								expanded={expanded}
 								onToggleExpanded={onToggleExpanded}
 								onSelect={setSelection}
 								onRemoveSection={onRemoveSection}
