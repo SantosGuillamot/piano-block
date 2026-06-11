@@ -25,8 +25,8 @@
 import { createElement } from "@wordpress/element";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
-import { resolveSelection } from "../selection.js";
 import { StructureTree } from "../StructureTree.js";
+import { resolveSelection } from "../selection.js";
 
 // Mark this as a React act-capable environment so React flushes work inside `act`.
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
@@ -62,8 +62,8 @@ function buttonByLabel(container, label) {
  * select control.
  */
 function selectButtonByText(container, text) {
-	return Array.from(container.querySelectorAll("button")).find((button) =>
-		(button.textContent ?? "").replace(/^[▸▾]\s*/, "") === text,
+	return Array.from(container.querySelectorAll("button")).find(
+		(button) => (button.textContent ?? "").replace(/^[▸▾]\s*/, "") === text,
 	);
 }
 
@@ -131,12 +131,7 @@ function fixtureSong() {
 function renderTree({
 	song = fixtureSong(),
 	selection = null,
-	expandedPaths = new Set([
-		"s0",
-		"s0/m0",
-		"s0/m0/rightHand",
-		"s0/m0/leftHand",
-	]),
+	expandedPaths = new Set(["s0", "s0/m0", "s0/m0/rightHand", "s0/m0/leftHand"]),
 	collapsedOverride = new Set(),
 	system = "english",
 } = {}) {
@@ -181,7 +176,8 @@ function renderTree({
 describe("StructureTree — inventory", () => {
 	it("renders section, measure, hand and note rows at the right levels", () => {
 		const { container, unmount } = renderTree();
-		const rowLevel = (text) => selectButtonByText(container, text).closest("tr");
+		const rowLevel = (text) =>
+			selectButtonByText(container, text).closest("tr");
 		expect(rowLevel("Section 1").getAttribute("aria-level")).toBe("1");
 		expect(rowLevel("Measure 1").getAttribute("aria-level")).toBe("2");
 		expect(rowLevel("Right hand").getAttribute("aria-level")).toBe("3");
@@ -221,10 +217,16 @@ describe("StructureTree — inventory", () => {
 		const { container, unmount } = renderTree({
 			expandedPaths: new Set(["s0", "s0/m1"]),
 		});
-		const measureTwoRow = selectButtonByText(container, "Measure 2").closest("tr");
+		const measureTwoRow = selectButtonByText(container, "Measure 2").closest(
+			"tr",
+		);
 		// Both hand rows follow measure 2 in the flattened order.
-		expect(selectButtonsByText(container, "Right hand").length).toBeGreaterThan(0);
-		expect(selectButtonsByText(container, "Left hand").length).toBeGreaterThan(0);
+		expect(selectButtonsByText(container, "Right hand").length).toBeGreaterThan(
+			0,
+		);
+		expect(selectButtonsByText(container, "Left hand").length).toBeGreaterThan(
+			0,
+		);
 		expect(measureTwoRow).toBeTruthy();
 		unmount();
 	});
@@ -505,7 +507,9 @@ describe("StructureTree — expansion", () => {
 describe("StructureTree — a11y wiring", () => {
 	it("carries aria-posinset/aria-setsize on sibling rows", () => {
 		const { container, unmount } = renderTree();
-		const sectionTwoRow = selectButtonByText(container, "Section 2").closest("tr");
+		const sectionTwoRow = selectButtonByText(container, "Section 2").closest(
+			"tr",
+		);
 		expect(sectionTwoRow.getAttribute("aria-posinset")).toBe("2");
 		expect(sectionTwoRow.getAttribute("aria-setsize")).toBe("2");
 		unmount();
@@ -514,8 +518,12 @@ describe("StructureTree — a11y wiring", () => {
 	it("carries aria-expanded on an expandable row reflecting its state", () => {
 		const { container, unmount } = renderTree();
 		// Section 0 is expanded in the default fixture; section 1 is not.
-		const sectionOneRow = selectButtonByText(container, "Section 1").closest("tr");
-		const sectionTwoRow = selectButtonByText(container, "Section 2").closest("tr");
+		const sectionOneRow = selectButtonByText(container, "Section 1").closest(
+			"tr",
+		);
+		const sectionTwoRow = selectButtonByText(container, "Section 2").closest(
+			"tr",
+		);
 		expect(sectionOneRow.getAttribute("aria-expanded")).toBe("true");
 		expect(sectionTwoRow.getAttribute("aria-expanded")).toBe("false");
 		unmount();

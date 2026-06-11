@@ -39,18 +39,16 @@
  * @param {?Object} song The working song object.
  * @return {{ sectionIndex: number, measureIndex: number }[]} The per-global-measure coords.
  */
-export function measureCoords( song ) {
-	const sections = Array.isArray( song?.sections ) ? song.sections : [];
+export function measureCoords(song) {
+	const sections = Array.isArray(song?.sections) ? song.sections : [];
 	const coords = [];
 	// Sections outer, measures inner — the order `buildLayoutModel` numbers from.
-	sections.forEach( ( section, sectionIndex ) => {
-		const measures = Array.isArray( section?.measures )
-			? section.measures
-			: [];
-		measures.forEach( ( _measure, measureIndex ) => {
-			coords.push( { sectionIndex, measureIndex } );
-		} );
-	} );
+	sections.forEach((section, sectionIndex) => {
+		const measures = Array.isArray(section?.measures) ? section.measures : [];
+		measures.forEach((_measure, measureIndex) => {
+			coords.push({ sectionIndex, measureIndex });
+		});
+	});
 	return coords;
 }
 
@@ -65,12 +63,12 @@ export function measureCoords( song ) {
  * @return {?number} The 1-based global measure number, or `null` when the coords
  *   are out of range.
  */
-export function globalMeasureNumber( song, sectionIndex, measureIndex ) {
-	const coords = measureCoords( song );
+export function globalMeasureNumber(song, sectionIndex, measureIndex) {
+	const coords = measureCoords(song);
 	const position = coords.findIndex(
-		( coord ) =>
+		(coord) =>
 			coord.sectionIndex === sectionIndex &&
-			coord.measureIndex === measureIndex
+			coord.measureIndex === measureIndex,
 	);
 	return position === -1 ? null : position + 1;
 }
@@ -113,8 +111,8 @@ export function globalMeasureNumber( song, sectionIndex, measureIndex ) {
  *   eventIndex?: number,
  * }} The resolved selection, or `null` when stale/absent.
  */
-export function resolveSelection( song, selection ) {
-	if ( ! selection ) {
+export function resolveSelection(song, selection) {
+	if (!selection) {
 		return null;
 	}
 	const { sectionIndex, measureIndex, hand, eventIndex } = selection;
@@ -122,40 +120,40 @@ export function resolveSelection( song, selection ) {
 	// an untagged partial has no kind, so it stays malformed below.
 	const kind =
 		selection.kind ??
-		( sectionIndex !== undefined &&
+		(sectionIndex !== undefined &&
 		measureIndex !== undefined &&
 		hand !== undefined &&
 		eventIndex !== undefined
-			? 'event'
-			: undefined );
-	if ( kind === undefined || sectionIndex === undefined ) {
+			? "event"
+			: undefined);
+	if (kind === undefined || sectionIndex === undefined) {
 		return null;
 	}
 
-	const section = song?.sections?.[ sectionIndex ];
-	if ( ! section ) {
+	const section = song?.sections?.[sectionIndex];
+	if (!section) {
 		return null;
 	}
-	if ( kind === 'section' ) {
+	if (kind === "section") {
 		return { kind, section, sectionIndex };
 	}
 
-	if ( measureIndex === undefined ) {
+	if (measureIndex === undefined) {
 		return null;
 	}
-	const measure = section.measures?.[ measureIndex ];
-	if ( ! measure ) {
+	const measure = section.measures?.[measureIndex];
+	if (!measure) {
 		return null;
 	}
-	if ( kind === 'measure' ) {
+	if (kind === "measure") {
 		return { kind, section, sectionIndex, measure, measureIndex };
 	}
 
-	if ( hand === undefined || eventIndex === undefined ) {
+	if (hand === undefined || eventIndex === undefined) {
 		return null;
 	}
-	const event = measure[ hand ]?.[ eventIndex ];
-	if ( ! event ) {
+	const event = measure[hand]?.[eventIndex];
+	if (!event) {
 		return null;
 	}
 	return {
@@ -182,6 +180,6 @@ export function resolveSelection( song, selection ) {
  * @param {number} target.eventIndex    The event's per-measure index.
  * @return {string} The scoped CSS attribute selector.
  */
-export function selectionQuery( { measureNumber, hand, eventIndex } ) {
-	return `[data-measure="${ measureNumber }"] [data-hand="${ hand }"][data-event-index="${ eventIndex }"]`;
+export function selectionQuery({ measureNumber, hand, eventIndex }) {
+	return `[data-measure="${measureNumber}"] [data-hand="${hand}"][data-event-index="${eventIndex}"]`;
 }

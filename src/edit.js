@@ -18,6 +18,8 @@ import { NotePanel } from "./editor/inspector/NotePanel.js";
 import { SectionPanel } from "./editor/inspector/SectionPanel.js";
 import { SongPanel } from "./editor/inspector/SongPanel.js";
 import { inferNoteNameSystem } from "./editor/noteNames.js";
+import SongCanvas from "./editor/SongCanvas.js";
+import { StructureTree } from "./editor/StructureTree.js";
 import { resolveSelection } from "./editor/selection.js";
 import { commitSong } from "./editor/serializeSong.js";
 import {
@@ -29,8 +31,6 @@ import {
 	newSong,
 	removeAt,
 } from "./editor/songModel.js";
-import SongCanvas from "./editor/SongCanvas.js";
-import { StructureTree } from "./editor/StructureTree.js";
 import validateSong from "./song/validate.js";
 
 /**

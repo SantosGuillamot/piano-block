@@ -170,8 +170,7 @@ export function StructureTree({
 				sectionNumber,
 			);
 		const sectionSelected =
-			selection?.kind === "section" &&
-			selection.sectionIndex === sectionIndex;
+			selection?.kind === "section" && selection.sectionIndex === sectionIndex;
 
 		rows.push(
 			<TreeGridRow
@@ -369,10 +368,7 @@ export function StructureTree({
 						: __("Left hand", "piano-block");
 				const addNoteLabel = sprintf(
 					// translators: 1: hand name, 2: measure number, 3: section number.
-					__(
-						"Add note to %1$s of measure %2$d of section %3$d",
-						"piano-block",
-					),
+					__("Add note to %1$s of measure %2$d of section %3$d", "piano-block"),
 					handLabel,
 					measureNumber,
 					sectionNumber,

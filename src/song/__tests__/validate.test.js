@@ -894,11 +894,11 @@ describe("validateSong — optional `language` enum", () => {
 		sections: [{ measures: [] }],
 	});
 
-	it("accepts `language: \"spanish\"`", () => {
+	it('accepts `language: "spanish"`', () => {
 		expect(check(languageSong("spanish"))).toEqual([]);
 	});
 
-	it("accepts `language: \"english\"`", () => {
+	it('accepts `language: "english"`', () => {
 		expect(check(languageSong("english"))).toEqual([]);
 	});
 

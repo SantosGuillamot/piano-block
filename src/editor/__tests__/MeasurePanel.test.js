@@ -20,9 +20,9 @@
 import { createElement } from "@wordpress/element";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
-import { resolveSelection } from "../selection.js";
 import validateSong from "../../song/validate.js";
 import { MeasurePanel } from "../inspector/MeasurePanel.js";
+import { resolveSelection } from "../selection.js";
 
 // Mark this as a React act-capable environment so React flushes work inside
 // `act` synchronously instead of warning.
@@ -61,8 +61,7 @@ function fieldByName(container, name) {
 function buttonByText(container, text) {
 	return Array.from(container.querySelectorAll("button")).find(
 		(button) =>
-			button.textContent === text ||
-			button.getAttribute("aria-label") === text,
+			button.textContent === text || button.getAttribute("aria-label") === text,
 	);
 }
 

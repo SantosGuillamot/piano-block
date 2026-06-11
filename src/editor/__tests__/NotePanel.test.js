@@ -23,9 +23,9 @@
 import { createElement } from "@wordpress/element";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
-import { resolveSelection } from "../selection.js";
 import validateSong from "../../song/validate.js";
 import { NotePanel } from "../inspector/NotePanel.js";
+import { resolveSelection } from "../selection.js";
 
 // Mark this as a React act-capable environment so React flushes work inside
 // `act` synchronously instead of warning.
@@ -64,8 +64,7 @@ function fieldByName(container, name) {
 function buttonByText(container, text) {
 	return Array.from(container.querySelectorAll("button")).find(
 		(button) =>
-			button.textContent === text ||
-			button.getAttribute("aria-label") === text,
+			button.textContent === text || button.getAttribute("aria-label") === text,
 	);
 }
 
@@ -106,7 +105,11 @@ function fixtureSong() {
 				measures: [
 					{
 						rightHand: [
-							{ type: "note", duration: "quarter", pitches: [{ step: "C", octave: 4 }] },
+							{
+								type: "note",
+								duration: "quarter",
+								pitches: [{ step: "C", octave: 4 }],
+							},
 							{ type: "rest", duration: "quarter" },
 						],
 					},
@@ -129,7 +132,12 @@ function fixtureSong() {
  */
 function renderPanel({
 	song: initialSong = fixtureSong(),
-	selection = { sectionIndex: 0, measureIndex: 0, hand: "rightHand", eventIndex: 0 },
+	selection = {
+		sectionIndex: 0,
+		measureIndex: 0,
+		hand: "rightHand",
+		eventIndex: 0,
+	},
 } = {}) {
 	const calls = [];
 	const removed = [];
@@ -228,7 +236,9 @@ describe("NotePanel — advanced disclosure (omit-when-unset)", () => {
 		const { container, calls } = renderPanel();
 
 		change(fieldByName(container, "Dynamic"), "mf");
-		expect(calls.at(-1).sections[0].measures[0].rightHand[0].dynamic).toBe("mf");
+		expect(calls.at(-1).sections[0].measures[0].rightHand[0].dynamic).toBe(
+			"mf",
+		);
 		expectConformant(calls.at(-1));
 
 		change(fieldByName(container, "Dynamic"), "");

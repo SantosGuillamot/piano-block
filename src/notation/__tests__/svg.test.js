@@ -1465,7 +1465,10 @@ describe("renderSvg — duration-ordered spacing reaches the SVG (issue #21)", (
 			pitches: [{ step: "C", octave: 5 }],
 		})),
 	];
-	const song = { metadata: {}, sections: [{ measures: [{ rightHand: events }] }] };
+	const song = {
+		metadata: {},
+		sections: [{ measures: [{ rightHand: events }] }],
+	};
 
 	it("renders eighth noteheads closer together than the quarter noteheads (AC10)", () => {
 		const svg = renderSvg(buildLayoutModel(song, 1000));

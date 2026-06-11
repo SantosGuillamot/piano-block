@@ -549,9 +549,16 @@ export function beamGeometry(members, bottomLineY = 0) {
 			x2: shiftedMembers[shiftedMembers.length - 1].x,
 		});
 		for (let i = 0; i < shiftedMembers.length - 1; i++) {
-			const shared = Math.min(shiftedMembers[i].beamCount, shiftedMembers[i + 1].beamCount);
+			const shared = Math.min(
+				shiftedMembers[i].beamCount,
+				shiftedMembers[i + 1].beamCount,
+			);
 			for (let level = 2; level <= shared; level++) {
-				beams.push({ level, x1: shiftedMembers[i].x, x2: shiftedMembers[i + 1].x });
+				beams.push({
+					level,
+					x1: shiftedMembers[i].x,
+					x2: shiftedMembers[i + 1].x,
+				});
 			}
 		}
 		// Stubs for an isolated shorter note (its beamCount exceeds both neighbours'
@@ -559,10 +566,18 @@ export function beamGeometry(members, bottomLineY = 0) {
 		// possible, else the next).
 		for (let i = 0; i < shiftedMembers.length; i++) {
 			const leftShared =
-				i > 0 ? Math.min(shiftedMembers[i - 1].beamCount, shiftedMembers[i].beamCount) : 0;
+				i > 0
+					? Math.min(
+							shiftedMembers[i - 1].beamCount,
+							shiftedMembers[i].beamCount,
+						)
+					: 0;
 			const rightShared =
 				i < shiftedMembers.length - 1
-					? Math.min(shiftedMembers[i].beamCount, shiftedMembers[i + 1].beamCount)
+					? Math.min(
+							shiftedMembers[i].beamCount,
+							shiftedMembers[i + 1].beamCount,
+						)
 					: 0;
 			const neighbourShared = Math.max(leftShared, rightShared);
 			for (
@@ -572,8 +587,12 @@ export function beamGeometry(members, bottomLineY = 0) {
 			) {
 				const stubLen = NOTEHEAD_RX * 1.5;
 				const towardPrev = i > 0;
-				const x1 = towardPrev ? shiftedMembers[i].x - stubLen : shiftedMembers[i].x;
-				const x2 = towardPrev ? shiftedMembers[i].x : shiftedMembers[i].x + stubLen;
+				const x1 = towardPrev
+					? shiftedMembers[i].x - stubLen
+					: shiftedMembers[i].x;
+				const x2 = towardPrev
+					? shiftedMembers[i].x
+					: shiftedMembers[i].x + stubLen;
 				beams.push({ level, x1, x2, stub: true });
 			}
 		}
@@ -2998,7 +3017,12 @@ function buildSystemTexts(members, measureModels, band) {
 			}
 			if (!run || run.shift !== shift) {
 				flush();
-				run = { shift, firstModel: null, lastModel: null, firstHandNotes: null };
+				run = {
+					shift,
+					firstModel: null,
+					lastModel: null,
+					firstHandNotes: null,
+				};
 			}
 			const laid =
 				hand === "rightHand" ? measureModels[i].right : measureModels[i].left;

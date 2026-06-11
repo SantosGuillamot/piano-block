@@ -476,7 +476,9 @@ test.describe("Piano block — editor authoring, persistence and validation", ()
 		// The Note panel's contextual "Add note" inserts a sibling in the selected
 		// note's hand (inferred — never prompted). Scoped to the `sidebar` and
 		// `exact`, so it never matches the tree's "Add note to Right hand …" action.
-		await sidebar.getByRole("button", { name: "Add note", exact: true }).click();
+		await sidebar
+			.getByRole("button", { name: "Add note", exact: true })
+			.click();
 
 		// A second right-hand note now exists in that same measure/hand, and the
 		// canvas re-rendered both note groups.

@@ -16,14 +16,14 @@
  * These are pure-data assertions; only the invariant test touches the DOM (via the
  * core's `renderSvg`, which mounts into jsdom exactly as the svg-core tests do).
  */
-import { buildLayoutModel } from '../../notation/layout.js';
-import { renderSvg } from '../../notation/svg.js';
+import { buildLayoutModel } from "../../notation/layout.js";
+import { renderSvg } from "../../notation/svg.js";
 import {
 	globalMeasureNumber,
 	measureCoords,
 	resolveSelection,
 	selectionQuery,
-} from '../selection.js';
+} from "../selection.js";
 
 /**
  * A multi-section song: section 0 has two measures, section 1 has one. The global
@@ -37,26 +37,26 @@ const SONG = {
 				{
 					rightHand: [
 						{
-							type: 'note',
-							duration: 'quarter',
-							pitches: [ { step: 'C', octave: 5 } ],
+							type: "note",
+							duration: "quarter",
+							pitches: [{ step: "C", octave: 5 }],
 						},
-						{ type: 'rest', duration: 'quarter' },
+						{ type: "rest", duration: "quarter" },
 					],
 					leftHand: [
 						{
-							type: 'note',
-							duration: 'whole',
-							pitches: [ { step: 'C', octave: 3 } ],
+							type: "note",
+							duration: "whole",
+							pitches: [{ step: "C", octave: 3 }],
 						},
 					],
 				},
 				{
 					rightHand: [
 						{
-							type: 'note',
-							duration: 'half',
-							pitches: [ { step: 'E', octave: 5 } ],
+							type: "note",
+							duration: "half",
+							pitches: [{ step: "E", octave: 5 }],
 						},
 					],
 				},
@@ -67,9 +67,9 @@ const SONG = {
 				{
 					rightHand: [
 						{
-							type: 'note',
-							duration: 'quarter',
-							pitches: [ { step: 'G', octave: 4 } ],
+							type: "note",
+							duration: "quarter",
+							pitches: [{ step: "G", octave: 4 }],
 						},
 					],
 				},
@@ -78,298 +78,280 @@ const SONG = {
 	],
 };
 
-describe( 'measureCoords', () => {
-	it( 'flattens sections-outer / measures-inner into 0-based global order', () => {
-		expect( measureCoords( SONG ) ).toEqual( [
+describe("measureCoords", () => {
+	it("flattens sections-outer / measures-inner into 0-based global order", () => {
+		expect(measureCoords(SONG)).toEqual([
 			{ sectionIndex: 0, measureIndex: 0 },
 			{ sectionIndex: 0, measureIndex: 1 },
 			{ sectionIndex: 1, measureIndex: 0 },
-		] );
-	} );
+		]);
+	});
 
-	it( "mirrors the notation core's emitted data-measure order", () => {
+	it("mirrors the notation core's emitted data-measure order", () => {
 		// Render the REAL core and read the global measure numbers it emits, in
 		// document order. The helper must agree position-for-position, so the two
 		// cannot drift: `data-measure="N"` ⇒ measureCoords(song)[N - 1].
-		const svg = renderSvg( buildLayoutModel( SONG, 600 ) );
-		const emitted = [ ...svg.querySelectorAll( '[data-measure]' ) ].map(
-			( node ) => Number( node.getAttribute( 'data-measure' ) )
+		const svg = renderSvg(buildLayoutModel(SONG, 600));
+		const emitted = [...svg.querySelectorAll("[data-measure]")].map((node) =>
+			Number(node.getAttribute("data-measure")),
 		);
 		// One group per measure, numbered 1..N with no gaps, in flatten order.
-		expect( emitted ).toEqual( [ 1, 2, 3 ] );
+		expect(emitted).toEqual([1, 2, 3]);
 
-		const coords = measureCoords( SONG );
-		emitted.forEach( ( number ) => {
-			const coord = coords[ number - 1 ];
+		const coords = measureCoords(SONG);
+		emitted.forEach((number) => {
+			const coord = coords[number - 1];
 			// The emitted group is the measure the helper says it is.
 			const measure =
-				SONG.sections[ coord.sectionIndex ].measures[
-					coord.measureIndex
-				];
-			expect( measure ).toBe(
-				SONG.sections[ coord.sectionIndex ].measures[
-					coord.measureIndex
-				]
+				SONG.sections[coord.sectionIndex].measures[coord.measureIndex];
+			expect(measure).toBe(
+				SONG.sections[coord.sectionIndex].measures[coord.measureIndex],
 			);
-		} );
+		});
 		// And the count matches exactly — no extra or missing entries.
-		expect( coords ).toHaveLength( emitted.length );
-	} );
+		expect(coords).toHaveLength(emitted.length);
+	});
 
-	it( 'returns [] for a malformed or missing song', () => {
-		expect( measureCoords( undefined ) ).toEqual( [] );
-		expect( measureCoords( null ) ).toEqual( [] );
-		expect( measureCoords( {} ) ).toEqual( [] );
-		expect( measureCoords( { sections: 'nope' } ) ).toEqual( [] );
+	it("returns [] for a malformed or missing song", () => {
+		expect(measureCoords(undefined)).toEqual([]);
+		expect(measureCoords(null)).toEqual([]);
+		expect(measureCoords({})).toEqual([]);
+		expect(measureCoords({ sections: "nope" })).toEqual([]);
 		// A section missing its measures array contributes no entries (and does not throw).
-		expect(
-			measureCoords( { sections: [ {}, { measures: [ {} ] } ] } )
-		).toEqual( [ { sectionIndex: 1, measureIndex: 0 } ] );
-	} );
-} );
+		expect(measureCoords({ sections: [{}, { measures: [{}] }] })).toEqual([
+			{ sectionIndex: 1, measureIndex: 0 },
+		]);
+	});
+});
 
-describe( 'globalMeasureNumber', () => {
-	it( 'is the exact 1-based inverse of measureCoords on the same fixture', () => {
-		const coords = measureCoords( SONG );
-		coords.forEach( ( coord, position ) => {
+describe("globalMeasureNumber", () => {
+	it("is the exact 1-based inverse of measureCoords on the same fixture", () => {
+		const coords = measureCoords(SONG);
+		coords.forEach((coord, position) => {
 			expect(
-				globalMeasureNumber(
-					SONG,
-					coord.sectionIndex,
-					coord.measureIndex
-				)
-			).toBe( position + 1 );
-		} );
-	} );
+				globalMeasureNumber(SONG, coord.sectionIndex, coord.measureIndex),
+			).toBe(position + 1);
+		});
+	});
 
-	it( 'returns null for coords out of range', () => {
-		expect( globalMeasureNumber( SONG, 9, 0 ) ).toBeNull();
-		expect( globalMeasureNumber( SONG, 0, 9 ) ).toBeNull();
-		expect( globalMeasureNumber( undefined, 0, 0 ) ).toBeNull();
-	} );
-} );
+	it("returns null for coords out of range", () => {
+		expect(globalMeasureNumber(SONG, 9, 0)).toBeNull();
+		expect(globalMeasureNumber(SONG, 0, 9)).toBeNull();
+		expect(globalMeasureNumber(undefined, 0, 0)).toBeNull();
+	});
+});
 
-describe( 'resolveSelection', () => {
-	it( 'resolves a live selection to its event/measure/section + coords', () => {
-		const resolved = resolveSelection( SONG, {
+describe("resolveSelection", () => {
+	it("resolves a live selection to its event/measure/section + coords", () => {
+		const resolved = resolveSelection(SONG, {
 			sectionIndex: 0,
 			measureIndex: 0,
-			hand: 'rightHand',
+			hand: "rightHand",
 			eventIndex: 1,
-		} );
-		expect( resolved ).not.toBeNull();
-		expect( resolved.event ).toBe(
-			SONG.sections[ 0 ].measures[ 0 ].rightHand[ 1 ]
-		);
-		expect( resolved.measure ).toBe( SONG.sections[ 0 ].measures[ 0 ] );
-		expect( resolved.section ).toBe( SONG.sections[ 0 ] );
-		expect( resolved.sectionIndex ).toBe( 0 );
-		expect( resolved.measureIndex ).toBe( 0 );
-		expect( resolved.hand ).toBe( 'rightHand' );
-		expect( resolved.eventIndex ).toBe( 1 );
-	} );
+		});
+		expect(resolved).not.toBeNull();
+		expect(resolved.event).toBe(SONG.sections[0].measures[0].rightHand[1]);
+		expect(resolved.measure).toBe(SONG.sections[0].measures[0]);
+		expect(resolved.section).toBe(SONG.sections[0]);
+		expect(resolved.sectionIndex).toBe(0);
+		expect(resolved.measureIndex).toBe(0);
+		expect(resolved.hand).toBe("rightHand");
+		expect(resolved.eventIndex).toBe(1);
+	});
 
-	it( 'resolves a left-hand selection in a later section', () => {
-		const resolved = resolveSelection( SONG, {
+	it("resolves a left-hand selection in a later section", () => {
+		const resolved = resolveSelection(SONG, {
 			sectionIndex: 1,
 			measureIndex: 0,
-			hand: 'rightHand',
+			hand: "rightHand",
 			eventIndex: 0,
-		} );
-		expect( resolved.event ).toBe(
-			SONG.sections[ 1 ].measures[ 0 ].rightHand[ 0 ]
-		);
-	} );
+		});
+		expect(resolved.event).toBe(SONG.sections[1].measures[0].rightHand[0]);
+	});
 
-	it( 'returns null when the section is out of range', () => {
+	it("returns null when the section is out of range", () => {
 		expect(
-			resolveSelection( SONG, {
+			resolveSelection(SONG, {
 				sectionIndex: 5,
 				measureIndex: 0,
-				hand: 'rightHand',
+				hand: "rightHand",
 				eventIndex: 0,
-			} )
+			}),
 		).toBeNull();
-	} );
+	});
 
-	it( 'returns null when the measure is out of range', () => {
+	it("returns null when the measure is out of range", () => {
 		expect(
-			resolveSelection( SONG, {
+			resolveSelection(SONG, {
 				sectionIndex: 0,
 				measureIndex: 5,
-				hand: 'rightHand',
+				hand: "rightHand",
 				eventIndex: 0,
-			} )
+			}),
 		).toBeNull();
-	} );
+	});
 
-	it( 'returns null when the hand is absent on the measure', () => {
+	it("returns null when the hand is absent on the measure", () => {
 		// Section 0 measure 1 has no leftHand.
 		expect(
-			resolveSelection( SONG, {
+			resolveSelection(SONG, {
 				sectionIndex: 0,
 				measureIndex: 1,
-				hand: 'leftHand',
+				hand: "leftHand",
 				eventIndex: 0,
-			} )
+			}),
 		).toBeNull();
-	} );
+	});
 
-	it( 'returns null when the event index is out of range', () => {
+	it("returns null when the event index is out of range", () => {
 		expect(
-			resolveSelection( SONG, {
+			resolveSelection(SONG, {
 				sectionIndex: 0,
 				measureIndex: 0,
-				hand: 'rightHand',
+				hand: "rightHand",
 				eventIndex: 9,
-			} )
+			}),
 		).toBeNull();
-	} );
+	});
 
-	it( 'returns null for a null/empty/untagged-partial selection', () => {
-		expect( resolveSelection( SONG, null ) ).toBeNull();
-		expect( resolveSelection( SONG, undefined ) ).toBeNull();
-		expect( resolveSelection( SONG, {} ) ).toBeNull();
+	it("returns null for a null/empty/untagged-partial selection", () => {
+		expect(resolveSelection(SONG, null)).toBeNull();
+		expect(resolveSelection(SONG, undefined)).toBeNull();
+		expect(resolveSelection(SONG, {})).toBeNull();
 		// An untagged partial (no `kind`, missing hand/eventIndex) is malformed.
 		expect(
-			resolveSelection( SONG, { sectionIndex: 0, measureIndex: 0 } )
+			resolveSelection(SONG, { sectionIndex: 0, measureIndex: 0 }),
 		).toBeNull();
-	} );
+	});
 
-	it( 'returns null when the song itself is missing', () => {
+	it("returns null when the song itself is missing", () => {
 		expect(
-			resolveSelection( undefined, {
+			resolveSelection(undefined, {
 				sectionIndex: 0,
 				measureIndex: 0,
-				hand: 'rightHand',
+				hand: "rightHand",
 				eventIndex: 0,
-			} )
+			}),
 		).toBeNull();
-	} );
+	});
 
-	it( 'tags an untagged-complete event tuple as kind:"event" (backward compat)', () => {
-		const resolved = resolveSelection( SONG, {
+	it('tags an untagged-complete event tuple as kind:"event" (backward compat)', () => {
+		const resolved = resolveSelection(SONG, {
 			sectionIndex: 0,
 			measureIndex: 0,
-			hand: 'rightHand',
+			hand: "rightHand",
 			eventIndex: 1,
-		} );
-		expect( resolved.kind ).toBe( 'event' );
-		expect( resolved.event ).toBe(
-			SONG.sections[ 0 ].measures[ 0 ].rightHand[ 1 ]
-		);
-	} );
-} );
+		});
+		expect(resolved.kind).toBe("event");
+		expect(resolved.event).toBe(SONG.sections[0].measures[0].rightHand[1]);
+	});
+});
 
-describe( 'resolveSelection — kind-tagged', () => {
-	it( 'resolves a section-kind selection to its section, stopping at section depth', () => {
-		const resolved = resolveSelection( SONG, {
-			kind: 'section',
+describe("resolveSelection — kind-tagged", () => {
+	it("resolves a section-kind selection to its section, stopping at section depth", () => {
+		const resolved = resolveSelection(SONG, {
+			kind: "section",
 			sectionIndex: 1,
-		} );
-		expect( resolved.kind ).toBe( 'section' );
-		expect( resolved.section ).toBe( SONG.sections[ 1 ] );
-		expect( resolved.sectionIndex ).toBe( 1 );
+		});
+		expect(resolved.kind).toBe("section");
+		expect(resolved.section).toBe(SONG.sections[1]);
+		expect(resolved.sectionIndex).toBe(1);
 		// No measure/event resolution at section depth.
-		expect( resolved.measure ).toBeUndefined();
-		expect( resolved.event ).toBeUndefined();
-	} );
+		expect(resolved.measure).toBeUndefined();
+		expect(resolved.event).toBeUndefined();
+	});
 
-	it( 'returns null for a section-kind selection whose section is gone', () => {
+	it("returns null for a section-kind selection whose section is gone", () => {
 		expect(
-			resolveSelection( SONG, { kind: 'section', sectionIndex: 5 } )
+			resolveSelection(SONG, { kind: "section", sectionIndex: 5 }),
 		).toBeNull();
-	} );
+	});
 
-	it( 'resolves a measure-kind selection to its measure + section, stopping at measure depth', () => {
-		const resolved = resolveSelection( SONG, {
-			kind: 'measure',
+	it("resolves a measure-kind selection to its measure + section, stopping at measure depth", () => {
+		const resolved = resolveSelection(SONG, {
+			kind: "measure",
 			sectionIndex: 0,
 			measureIndex: 1,
-		} );
-		expect( resolved.kind ).toBe( 'measure' );
-		expect( resolved.section ).toBe( SONG.sections[ 0 ] );
-		expect( resolved.measure ).toBe( SONG.sections[ 0 ].measures[ 1 ] );
-		expect( resolved.sectionIndex ).toBe( 0 );
-		expect( resolved.measureIndex ).toBe( 1 );
+		});
+		expect(resolved.kind).toBe("measure");
+		expect(resolved.section).toBe(SONG.sections[0]);
+		expect(resolved.measure).toBe(SONG.sections[0].measures[1]);
+		expect(resolved.sectionIndex).toBe(0);
+		expect(resolved.measureIndex).toBe(1);
 		// No event resolution at measure depth.
-		expect( resolved.event ).toBeUndefined();
-	} );
+		expect(resolved.event).toBeUndefined();
+	});
 
-	it( 'returns null for a measure-kind selection when section or measure is gone', () => {
+	it("returns null for a measure-kind selection when section or measure is gone", () => {
 		expect(
-			resolveSelection( SONG, {
-				kind: 'measure',
+			resolveSelection(SONG, {
+				kind: "measure",
 				sectionIndex: 5,
 				measureIndex: 0,
-			} )
+			}),
 		).toBeNull();
 		expect(
-			resolveSelection( SONG, {
-				kind: 'measure',
+			resolveSelection(SONG, {
+				kind: "measure",
 				sectionIndex: 0,
 				measureIndex: 9,
-			} )
+			}),
 		).toBeNull();
-	} );
+	});
 
-	it( 'resolves an event-kind selection to event + measure + section', () => {
-		const resolved = resolveSelection( SONG, {
-			kind: 'event',
+	it("resolves an event-kind selection to event + measure + section", () => {
+		const resolved = resolveSelection(SONG, {
+			kind: "event",
 			sectionIndex: 0,
 			measureIndex: 0,
-			hand: 'rightHand',
+			hand: "rightHand",
 			eventIndex: 1,
-		} );
-		expect( resolved.kind ).toBe( 'event' );
-		expect( resolved.event ).toBe(
-			SONG.sections[ 0 ].measures[ 0 ].rightHand[ 1 ]
-		);
-		expect( resolved.measure ).toBe( SONG.sections[ 0 ].measures[ 0 ] );
-		expect( resolved.section ).toBe( SONG.sections[ 0 ] );
-		expect( resolved.hand ).toBe( 'rightHand' );
-		expect( resolved.eventIndex ).toBe( 1 );
-	} );
+		});
+		expect(resolved.kind).toBe("event");
+		expect(resolved.event).toBe(SONG.sections[0].measures[0].rightHand[1]);
+		expect(resolved.measure).toBe(SONG.sections[0].measures[0]);
+		expect(resolved.section).toBe(SONG.sections[0]);
+		expect(resolved.hand).toBe("rightHand");
+		expect(resolved.eventIndex).toBe(1);
+	});
 
-	it( 'returns null for an event-kind selection whose event is gone', () => {
+	it("returns null for an event-kind selection whose event is gone", () => {
 		expect(
-			resolveSelection( SONG, {
-				kind: 'event',
+			resolveSelection(SONG, {
+				kind: "event",
 				sectionIndex: 0,
 				measureIndex: 0,
-				hand: 'rightHand',
+				hand: "rightHand",
 				eventIndex: 9,
-			} )
+			}),
 		).toBeNull();
-	} );
-} );
+	});
+});
 
-describe( 'selectionQuery', () => {
-	it( 'builds a measure-scoped compound selector for the note/rest node', () => {
+describe("selectionQuery", () => {
+	it("builds a measure-scoped compound selector for the note/rest node", () => {
 		expect(
-			selectionQuery( {
+			selectionQuery({
 				measureNumber: 3,
-				hand: 'leftHand',
+				hand: "leftHand",
 				eventIndex: 2,
-			} )
-		).toBe(
-			'[data-measure="3"] [data-hand="leftHand"][data-event-index="2"]'
-		);
-	} );
+			}),
+		).toBe('[data-measure="3"] [data-hand="leftHand"][data-event-index="2"]');
+	});
 
-	it( 'scopes the highlight so a per-measure-resetting event index stays unambiguous', () => {
+	it("scopes the highlight so a per-measure-resetting event index stays unambiguous", () => {
 		// eventIndex 0 exists in many measures; scoping by the global measure number
 		// first is what makes the query resolve to exactly one node.
-		const query = selectionQuery( {
+		const query = selectionQuery({
 			measureNumber: 1,
-			hand: 'rightHand',
+			hand: "rightHand",
 			eventIndex: 0,
-		} );
-		const svg = renderSvg( buildLayoutModel( SONG, 600 ) );
-		const matches = svg.querySelectorAll( query );
-		expect( matches ).toHaveLength( 1 );
-		expect( matches[ 0 ].getAttribute( 'data-kind' ) ).toBe( 'note' );
-		expect( matches[ 0 ].getAttribute( 'data-hand' ) ).toBe( 'rightHand' );
-		expect( matches[ 0 ].getAttribute( 'data-event-index' ) ).toBe( '0' );
-	} );
-} );
+		});
+		const svg = renderSvg(buildLayoutModel(SONG, 600));
+		const matches = svg.querySelectorAll(query);
+		expect(matches).toHaveLength(1);
+		expect(matches[0].getAttribute("data-kind")).toBe("note");
+		expect(matches[0].getAttribute("data-hand")).toBe("rightHand");
+		expect(matches[0].getAttribute("data-event-index")).toBe("0");
+	});
+});

@@ -280,7 +280,10 @@ function hitRect(x) {
  *   the published SVG stays byte-identical.
  * @return {SVGSVGElement} The rendered `<svg role="img">`.
  */
-export function renderSvg(model, { accessibleName = "", interactive = false } = {}) {
+export function renderSvg(
+	model,
+	{ accessibleName = "", interactive = false } = {},
+) {
 	const widthSp = Math.max(model?.width ?? 0, 0);
 	const heightSp = Math.max(model?.height ?? 0, 0);
 

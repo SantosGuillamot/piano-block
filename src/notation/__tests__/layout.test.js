@@ -521,9 +521,16 @@ describe("beamGeometry", () => {
 		expect(geo.stems.every((s) => s.y2 === geo.beamY)).toBe(true);
 		expect(new Set(geo.stems.map((s) => s.y2)).size).toBe(1);
 		// Primary beam spans the group (shifted to notehead edge).
-		expect(geo.beams[0]).toMatchObject({ level: 1, x1: 0 + NOTEHEAD_RX, x2: 4 + NOTEHEAD_RX });
+		expect(geo.beams[0]).toMatchObject({
+			level: 1,
+			x1: 0 + NOTEHEAD_RX,
+			x2: 4 + NOTEHEAD_RX,
+		});
 		// Stems sit at the notehead edge (same rule as standalone renderStem).
-		expect(geo.stems.map((s) => s.x)).toEqual([0 + NOTEHEAD_RX, 4 + NOTEHEAD_RX]);
+		expect(geo.stems.map((s) => s.x)).toEqual([
+			0 + NOTEHEAD_RX,
+			4 + NOTEHEAD_RX,
+		]);
 		// Primary beam endpoints equal the first and last shifted stem X.
 		expect(geo.beams[0].x1).toBe(geo.stems[0].x);
 		expect(geo.beams[0].x2).toBe(geo.stems.at(-1).x);
@@ -537,9 +544,16 @@ describe("beamGeometry", () => {
 		const geo = beamGeometry(members);
 		expect(geo.direction).toBe("down");
 		// Stems sit at the left notehead edge (negative offset, same rule as standalone renderStem).
-		expect(geo.stems.map((s) => s.x)).toEqual([0 - NOTEHEAD_RX, 4 - NOTEHEAD_RX]);
+		expect(geo.stems.map((s) => s.x)).toEqual([
+			0 - NOTEHEAD_RX,
+			4 - NOTEHEAD_RX,
+		]);
 		// Primary beam matches the first and last shifted stem X.
-		expect(geo.beams[0]).toMatchObject({ level: 1, x1: 0 - NOTEHEAD_RX, x2: 4 - NOTEHEAD_RX });
+		expect(geo.beams[0]).toMatchObject({
+			level: 1,
+			x1: 0 - NOTEHEAD_RX,
+			x2: 4 - NOTEHEAD_RX,
+		});
 		expect(geo.beams[0].x1).toBe(geo.stems[0].x);
 		expect(geo.beams[0].x2).toBe(geo.stems.at(-1).x);
 	});
@@ -3890,7 +3904,9 @@ describe("lhAboveTopExtent — LH high-note extent above the LH top line", () =>
 	});
 
 	it("returns 0 for an absent leftHand", () => {
-		expect(lhAboveTopExtent([{ measure: {}, ctx: { leftHand: { clef: "bass" } } }])).toBe(0);
+		expect(
+			lhAboveTopExtent([{ measure: {}, ctx: { leftHand: { clef: "bass" } } }]),
+		).toBe(0);
 	});
 
 	it("returns 4.5 sp for bass C5 (step 17)", () => {
@@ -3906,9 +3922,9 @@ describe("lhAboveTopExtent — LH high-note extent above the LH top line", () =>
 	});
 
 	it("returns 0 for LH notes at or below the top line (bass C3)", () => {
-		expect(
-			lhAboveTopExtent([memberWithLeft([{ step: "C", octave: 3 }])]),
-		).toBe(0);
+		expect(lhAboveTopExtent([memberWithLeft([{ step: "C", octave: 3 }])])).toBe(
+			0,
+		);
 	});
 
 	it("takes the highest notehead across all members and uses each measure's own clef", () => {
@@ -4176,9 +4192,18 @@ describe("duration-ordered horizontal spacing (issue #21)", () => {
 		// Onsets: four eighths at 0,0.5,1,1.5 then two quarters at 2,3.
 		expect(layout.grid).toEqual([0, 0.5, 1, 1.5, 2, 3]);
 		// The four eighth-led columns are mutually equal (sqrt-irrational ⇒ close).
-		expect(layout.columns[1].advance).toBeCloseTo(layout.columns[0].advance, 10);
-		expect(layout.columns[2].advance).toBeCloseTo(layout.columns[0].advance, 10);
-		expect(layout.columns[3].advance).toBeCloseTo(layout.columns[0].advance, 10);
+		expect(layout.columns[1].advance).toBeCloseTo(
+			layout.columns[0].advance,
+			10,
+		);
+		expect(layout.columns[2].advance).toBeCloseTo(
+			layout.columns[0].advance,
+			10,
+		);
+		expect(layout.columns[3].advance).toBeCloseTo(
+			layout.columns[0].advance,
+			10,
+		);
 		// Each eighth column is tighter than the genuine q→q gap at col 4 (onsets
 		// 2→3). NOT col 3: the last-eighth→first-quarter boundary (onset 1.5→2) is
 		// governed by the eighth's Δ=0.5, so it is itself an eighth gap (trap R-B).
@@ -4224,14 +4249,26 @@ describe("duration-ordered horizontal spacing (issue #21)", () => {
 						{ step: "G", octave: 5 },
 					],
 				},
-				{ type: "note", duration: "quarter", pitches: [{ step: "C", octave: 5 }] },
+				{
+					type: "note",
+					duration: "quarter",
+					pitches: [{ step: "C", octave: 5 }],
+				},
 			],
 			[],
 		);
 		const single = measureLayout(
 			[
-				{ type: "note", duration: "quarter", pitches: [{ step: "C", octave: 5 }] },
-				{ type: "note", duration: "quarter", pitches: [{ step: "C", octave: 5 }] },
+				{
+					type: "note",
+					duration: "quarter",
+					pitches: [{ step: "C", octave: 5 }],
+				},
+				{
+					type: "note",
+					duration: "quarter",
+					pitches: [{ step: "C", octave: 5 }],
+				},
 			],
 			[],
 		);
@@ -4251,8 +4288,14 @@ describe("duration-ordered horizontal spacing (issue #21)", () => {
 		);
 		// N notes → N−1 equal consecutive internal gaps (cols 0..N−2). Column 3 is
 		// the gap to measureEnd and is excluded from the uniformity check.
-		expect(layout.columns[1].advance).toBeCloseTo(layout.columns[0].advance, 10);
-		expect(layout.columns[2].advance).toBeCloseTo(layout.columns[0].advance, 10);
+		expect(layout.columns[1].advance).toBeCloseTo(
+			layout.columns[0].advance,
+			10,
+		);
+		expect(layout.columns[2].advance).toBeCloseTo(
+			layout.columns[0].advance,
+			10,
+		);
 	});
 
 	it("spaces rests by duration as full grid citizens (AC4)", () => {
@@ -4267,22 +4310,35 @@ describe("duration-ordered horizontal spacing (issue #21)", () => {
 			],
 			[],
 		);
-		expect(layout.columns[0].advance).toBeGreaterThan(layout.columns[1].advance);
+		expect(layout.columns[0].advance).toBeGreaterThan(
+			layout.columns[1].advance,
+		);
 	});
 
 	it("gives a quarter the same intrinsic advance regardless of its measure or neighbours (AC8)", () => {
 		// Intrinsic (pre-justify) layer only — assert never across systems (trap R-D).
 		const isolated = measureLayout(
 			[
-				{ type: "note", duration: "quarter", pitches: [{ step: "C", octave: 5 }] },
-				{ type: "note", duration: "quarter", pitches: [{ step: "C", octave: 5 }] },
+				{
+					type: "note",
+					duration: "quarter",
+					pitches: [{ step: "C", octave: 5 }],
+				},
+				{
+					type: "note",
+					duration: "quarter",
+					pitches: [{ step: "C", octave: 5 }],
+				},
 			],
 			[],
 		);
 		const mixed = measureLayout(AC1_EVENTS, []);
 		// mixed.columns[4] is the genuine q→q column (onsets 2→3); its advance equals
 		// the isolated quarter's, independent of the eighth neighbours (trap R-B).
-		expect(mixed.columns[4].advance).toBeCloseTo(isolated.columns[0].advance, 10);
+		expect(mixed.columns[4].advance).toBeCloseTo(
+			isolated.columns[0].advance,
+			10,
+		);
 	});
 
 	it("lays out an over-full measure blind to the time signature (AC9)", () => {
@@ -4309,8 +4365,12 @@ describe("duration-ordered horizontal spacing (issue #21)", () => {
 		).toBe(true);
 		// Time-signature-blind: identical output across wildly different meters and
 		// with no time signature at all (repo { beats, beatType } shape).
-		const a = measureLayout(rh, [], { timeSignature: { beats: 2, beatType: 4 } });
-		const b = measureLayout(rh, [], { timeSignature: { beats: 12, beatType: 8 } });
+		const a = measureLayout(rh, [], {
+			timeSignature: { beats: 2, beatType: 4 },
+		});
+		const b = measureLayout(rh, [], {
+			timeSignature: { beats: 12, beatType: 8 },
+		});
 		const bare = measureLayout(rh, []);
 		expect(a).toEqual(b);
 		expect(a).toEqual(bare);
@@ -4325,15 +4385,33 @@ describe("duration-ordered horizontal spacing (issue #21)", () => {
 		// is the one end-to-end ordering+ratio confirmation (design D-Justify, R-E).
 		const measure = {
 			rightHand: [
-				{ type: "note", duration: "eighth", pitches: [{ step: "C", octave: 5 }] },
-				{ type: "note", duration: "eighth", pitches: [{ step: "C", octave: 5 }] },
-				{ type: "note", duration: "quarter", pitches: [{ step: "C", octave: 5 }] },
-				{ type: "note", duration: "quarter", pitches: [{ step: "C", octave: 5 }] },
+				{
+					type: "note",
+					duration: "eighth",
+					pitches: [{ step: "C", octave: 5 }],
+				},
+				{
+					type: "note",
+					duration: "eighth",
+					pitches: [{ step: "C", octave: 5 }],
+				},
+				{
+					type: "note",
+					duration: "quarter",
+					pitches: [{ step: "C", octave: 5 }],
+				},
+				{
+					type: "note",
+					duration: "quarter",
+					pitches: [{ step: "C", octave: 5 }],
+				},
 			],
 		};
 		const song = {
 			metadata: {},
-			sections: [{ measures: Array.from({ length: 8 }, () => ({ ...measure })) }],
+			sections: [
+				{ measures: Array.from({ length: 8 }, () => ({ ...measure })) },
+			],
 		};
 		const model = buildLayoutModel(song, 140);
 		// Assert the SHAPE, not the exact scale (live ≈ 1.0237; resilient to a
@@ -4350,10 +4428,15 @@ describe("duration-ordered horizontal spacing (issue #21)", () => {
 		expect(eighthGap).toBeLessThan(quarterGap);
 		// Ratio preserved under stretch — the uniform scalar cancels, leaving the
 		// intrinsic advanceFor ratio.
-		expect(quarterGap / eighthGap).toBeCloseTo(advanceFor(1) / advanceFor(0.5), 10);
+		expect(quarterGap / eighthGap).toBeCloseTo(
+			advanceFor(1) / advanceFor(0.5),
+			10,
+		);
 		// The measure-start lead-in is added unscaled, so the first note sits at
 		// MEASURE_START_PAD even when the system is stretched (exactly 1.0).
-		expect(model.systems[0].measures[0].right.notes[0].x).toBe(MEASURE_START_PAD);
+		expect(model.systems[0].measures[0].right.notes[0].x).toBe(
+			MEASURE_START_PAD,
+		);
 	});
 
 	it("keeps the eighth note.x gaps tighter than the q→q gap end-to-end (AC10)", () => {
