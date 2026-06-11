@@ -403,6 +403,101 @@ export default function Edit({ attributes, setAttributes }) {
 		);
 	};
 
+	// The six positional-insert mutators (Add before / Add after at each level):
+	// each inserts a fresh empty-but-conformant node at the row's own coordinate
+	// (`before`) or one past it (`after`) via `insertAt(list, target, newX())`,
+	// commits (re-validating), then selects the new node with an explicit `kind` and
+	// reveals its ancestors — modelled on the duplicate mutators, differing only in
+	// the splice (`insertAt`/`newX()` vs `duplicateAt`) and the selected index
+	// (`target` vs `i + 1`). Each `newX()` is schema-conformant and `insertAt` over a
+	// valid list at any index in `[0, len]` stays valid, so the result is valid by
+	// construction. The same stale-coordinate guards the duplicate mutators use make
+	// a missing section/measure/hand a no-op, never a throw.
+
+	// Insert a fresh section before/after the row at `sectionIndex`.
+	const insertSectionAt = (sectionIndex, where) => {
+		if (!working.sections[sectionIndex]) {
+			return;
+		}
+		const target = where === "before" ? sectionIndex : sectionIndex + 1;
+		commit({
+			...working,
+			sections: insertAt(working.sections, target, newSection()),
+		});
+		setSelection({ kind: "section", sectionIndex: target });
+	};
+	const onAddSectionBefore = (sectionIndex) =>
+		insertSectionAt(sectionIndex, "before");
+	const onAddSectionAfter = (sectionIndex) =>
+		insertSectionAt(sectionIndex, "after");
+
+	// Insert a fresh measure before/after the row at `(sectionIndex, measureIndex)`.
+	const insertMeasureAt = (sectionIndex, measureIndex, where) => {
+		const section = working.sections[sectionIndex];
+		if (!section?.measures[measureIndex]) {
+			return;
+		}
+		const target = where === "before" ? measureIndex : measureIndex + 1;
+		const nextMeasures = insertAt(section.measures, target, newMeasure());
+		const nextSections = working.sections.map((current, index) =>
+			index === sectionIndex ? { ...section, measures: nextMeasures } : current,
+		);
+		commit({ ...working, sections: nextSections });
+		setSelection({ kind: "measure", sectionIndex, measureIndex: target });
+		// Open the section so the new measure row is visible.
+		revealAncestors(expansionKey({ sectionIndex }));
+	};
+	const onAddMeasureBefore = (sectionIndex, measureIndex) =>
+		insertMeasureAt(sectionIndex, measureIndex, "before");
+	const onAddMeasureAfter = (sectionIndex, measureIndex) =>
+		insertMeasureAt(sectionIndex, measureIndex, "after");
+
+	// Insert a fresh note before/after the row at `(sectionIndex, measureIndex, hand,
+	// eventIndex)`. Note before/after only ever fire on an existing note row, so the
+	// `[hand]` list is non-empty and insertion only grows it.
+	const insertNoteAt = (
+		sectionIndex,
+		measureIndex,
+		hand,
+		eventIndex,
+		where,
+	) => {
+		const section = working.sections[sectionIndex];
+		if (!section) {
+			return;
+		}
+		const measure = section.measures[measureIndex];
+		if (!measure?.[hand]?.[eventIndex]) {
+			return;
+		}
+		const target = where === "before" ? eventIndex : eventIndex + 1;
+		const nextEvents = insertAt(measure[hand], target, newNote());
+		const nextMeasures = section.measures.map((current, index) =>
+			index === measureIndex ? { ...measure, [hand]: nextEvents } : current,
+		);
+		const nextSections = working.sections.map((current, index) =>
+			index === sectionIndex ? { ...section, measures: nextMeasures } : current,
+		);
+		commit({ ...working, sections: nextSections });
+		setSelection({
+			kind: "event",
+			sectionIndex,
+			measureIndex,
+			hand,
+			eventIndex: target,
+		});
+		// Open the new note's branch (section → measure → hand) so it is visible.
+		revealAncestors(
+			expansionKey({ sectionIndex }),
+			expansionKey({ sectionIndex, measureIndex }),
+			expansionKey({ sectionIndex, measureIndex, hand }),
+		);
+	};
+	const onAddNoteBefore = (sectionIndex, measureIndex, hand, eventIndex) =>
+		insertNoteAt(sectionIndex, measureIndex, hand, eventIndex, "before");
+	const onAddNoteAfter = (sectionIndex, measureIndex, hand, eventIndex) =>
+		insertNoteAt(sectionIndex, measureIndex, hand, eventIndex, "after");
+
 	return (
 		<div {...useBlockProps()}>
 			<BlockControls>
@@ -466,12 +561,17 @@ export default function Edit({ attributes, setAttributes }) {
 								onSelect={setSelection}
 								onRemoveSection={onRemoveSection}
 								onDuplicateSection={onDuplicateSection}
-								onAddMeasure={onAddMeasure}
+								onAddSectionBefore={onAddSectionBefore}
+								onAddSectionAfter={onAddSectionAfter}
 								onRemoveMeasure={onRemoveMeasure}
 								onDuplicateMeasure={onDuplicateMeasure}
+								onAddMeasureBefore={onAddMeasureBefore}
+								onAddMeasureAfter={onAddMeasureAfter}
 								onAddNote={onAddNote}
 								onRemoveNote={onRemoveNote}
 								onDuplicateNote={onDuplicateNote}
+								onAddNoteBefore={onAddNoteBefore}
+								onAddNoteAfter={onAddNoteAfter}
 							/>
 						)}
 						<SongCanvas
@@ -514,6 +614,7 @@ export default function Edit({ attributes, setAttributes }) {
 								selection={resolvedSelection}
 								onChange={commit}
 								onRemoveSection={onRemoveSection}
+								onAddMeasure={onAddMeasure}
 							/>
 						)}
 						<SongPanel

@@ -487,13 +487,14 @@ describe("Edit — lifted structural mutators", () => {
 		expect(panelByTitle(container, "Section")).toBeNull();
 	});
 
-	it("onAddMeasure targets the section the structure tree fires for", () => {
+	it("onAddMeasure targets the selected section from the Section panel button", () => {
 		const { container, calls } = renderEdit(SONG);
-		// The structure tree's per-section "Add measure" now lives in the section
-		// row's DropdownMenu (the always-open menu mock renders its items directly).
-		// The tree is open by default, so the section-row menu is present at once.
-		// "Add measure" appears only in a section menu, so its visible text is
-		// unambiguous and signals the lifted onAddMeasure with that section's index.
+		// "Add measure" re-homed from the section row menu to the Section inspector
+		// panel: the panel renders only when a section/measure/event is selected, so
+		// select the section row first to reveal it, then click its "Add measure"
+		// button — its visible text is unique now the tree item is gone, and it signals
+		// the lifted onAddMeasure with the selection's section index.
+		clickByText(container, "Section 1");
 		click(buttonByText(container, "Add measure"));
 		const persisted = JSON.parse(calls.at(-1));
 		expect(persisted.sections[0].measures).toHaveLength(2);
@@ -611,6 +612,31 @@ describe("Edit — mutation-site ancestor seeding", () => {
 		expect(countTreeRows(container, "Measure 2")).toBe(1);
 		expect(rowExpanded(container, "Section 1")).toBe("true");
 		// The copy is selected, so the Measure panel opens on it.
+		expect(panelByTitle(container, "Measure")).not.toBeNull();
+	});
+
+	it("onAddMeasureAfter inserts a fresh measure at i+1, commits, and selects it", () => {
+		const { container, calls } = renderEdit(SONG);
+		// Expand the section to reach the measure's actions menu, then "Add after".
+		expandRow(container, "Section 1");
+		expect(countTreeRows(container, "Measure 1")).toBe(1);
+
+		clickRowAction(
+			container,
+			"Actions for Measure 1 of section 1",
+			"Add after",
+		);
+
+		// The new (empty `{}`) measure lands at index 1; the song stays conformant.
+		const persisted = JSON.parse(calls.at(-1));
+		expect(persisted.sections[0].measures).toHaveLength(2);
+		expect(persisted.sections[0].measures[1]).toEqual({});
+		expect(validateSong(calls.at(-1))).toEqual([]);
+		// The seed keeps the section open, so both measure rows render under it.
+		expect(countTreeRows(container, "Measure 1")).toBe(1);
+		expect(countTreeRows(container, "Measure 2")).toBe(1);
+		expect(rowExpanded(container, "Section 1")).toBe("true");
+		// The new measure is selected, so the Measure panel opens on it.
 		expect(panelByTitle(container, "Measure")).not.toBeNull();
 	});
 

@@ -112,14 +112,19 @@ function TreeExpander({ isExpanded, onToggle }) {
  * @param {Set}      props.expanded           The single Set of expanded coordinate keys.
  * @param {Function} props.onToggleExpanded   Toggle a key's membership in `expanded`.
  * @param {Function} props.onSelect           Receives a kind-tagged selection.
- * @param {Function} props.onRemoveSection    Lifted: remove the section at the index.
- * @param {Function} props.onDuplicateSection Lifted: duplicate the section after itself.
- * @param {Function} props.onAddMeasure       Lifted: append a measure to a section.
- * @param {Function} props.onRemoveMeasure    Lifted: remove the measure at the coords.
- * @param {Function} props.onDuplicateMeasure Lifted: duplicate the measure after itself.
- * @param {Function} props.onAddNote          Lifted: add a note to a measure's hand.
- * @param {Function} props.onRemoveNote       Lifted: remove the note at the coords.
- * @param {Function} props.onDuplicateNote    Lifted: duplicate the note after itself.
+ * @param {Function} props.onRemoveSection     Lifted: remove the section at the index.
+ * @param {Function} props.onDuplicateSection  Lifted: duplicate the section after itself.
+ * @param {Function} props.onAddSectionBefore  Lifted: insert a section before this one.
+ * @param {Function} props.onAddSectionAfter   Lifted: insert a section after this one.
+ * @param {Function} props.onRemoveMeasure     Lifted: remove the measure at the coords.
+ * @param {Function} props.onDuplicateMeasure  Lifted: duplicate the measure after itself.
+ * @param {Function} props.onAddMeasureBefore  Lifted: insert a measure before this one.
+ * @param {Function} props.onAddMeasureAfter   Lifted: insert a measure after this one.
+ * @param {Function} props.onAddNote           Lifted: add a note to a measure's hand.
+ * @param {Function} props.onRemoveNote        Lifted: remove the note at the coords.
+ * @param {Function} props.onDuplicateNote     Lifted: duplicate the note after itself.
+ * @param {Function} props.onAddNoteBefore     Lifted: insert a note before this one.
+ * @param {Function} props.onAddNoteAfter      Lifted: insert a note after this one.
  * @return {Object} The rendered structure tree.
  */
 export function StructureTree({
@@ -131,12 +136,17 @@ export function StructureTree({
 	onSelect,
 	onRemoveSection,
 	onDuplicateSection,
-	onAddMeasure,
+	onAddSectionBefore,
+	onAddSectionAfter,
 	onRemoveMeasure,
 	onDuplicateMeasure,
+	onAddMeasureBefore,
+	onAddMeasureAfter,
 	onAddNote,
 	onRemoveNote,
 	onDuplicateNote,
+	onAddNoteBefore,
+	onAddNoteAfter,
 }) {
 	const sections = Array.isArray(song?.sections) ? song.sections : [];
 
@@ -201,33 +211,45 @@ export function StructureTree({
 							)}
 						>
 							{({ onClose }) => (
-								<MenuGroup>
-									<MenuItem
-										onClick={() => {
-											onDuplicateSection?.(sectionIndex);
-											onClose();
-										}}
-									>
-										{__("Duplicate", "piano-block")}
-									</MenuItem>
-									<MenuItem
-										onClick={() => {
-											onAddMeasure?.(sectionIndex);
-											onClose();
-										}}
-									>
-										{__("Add measure", "piano-block")}
-									</MenuItem>
-									<MenuItem
-										isDestructive
-										onClick={() => {
-											onRemoveSection?.(sectionIndex);
-											onClose();
-										}}
-									>
-										{__("Remove", "piano-block")}
-									</MenuItem>
-								</MenuGroup>
+								<>
+									<MenuGroup>
+										<MenuItem
+											onClick={() => {
+												onDuplicateSection?.(sectionIndex);
+												onClose();
+											}}
+										>
+											{__("Duplicate", "piano-block")}
+										</MenuItem>
+										<MenuItem
+											onClick={() => {
+												onAddSectionBefore?.(sectionIndex);
+												onClose();
+											}}
+										>
+											{__("Add before", "piano-block")}
+										</MenuItem>
+										<MenuItem
+											onClick={() => {
+												onAddSectionAfter?.(sectionIndex);
+												onClose();
+											}}
+										>
+											{__("Add after", "piano-block")}
+										</MenuItem>
+									</MenuGroup>
+									<MenuGroup>
+										<MenuItem
+											isDestructive
+											onClick={() => {
+												onRemoveSection?.(sectionIndex);
+												onClose();
+											}}
+										>
+											{__("Remove", "piano-block")}
+										</MenuItem>
+									</MenuGroup>
+								</>
 							)}
 						</DropdownMenu>
 					)}
@@ -301,25 +323,45 @@ export function StructureTree({
 								)}
 							>
 								{({ onClose }) => (
-									<MenuGroup>
-										<MenuItem
-											onClick={() => {
-												onDuplicateMeasure?.(sectionIndex, measureIndex);
-												onClose();
-											}}
-										>
-											{__("Duplicate", "piano-block")}
-										</MenuItem>
-										<MenuItem
-											isDestructive
-											onClick={() => {
-												onRemoveMeasure?.(sectionIndex, measureIndex);
-												onClose();
-											}}
-										>
-											{__("Remove", "piano-block")}
-										</MenuItem>
-									</MenuGroup>
+									<>
+										<MenuGroup>
+											<MenuItem
+												onClick={() => {
+													onDuplicateMeasure?.(sectionIndex, measureIndex);
+													onClose();
+												}}
+											>
+												{__("Duplicate", "piano-block")}
+											</MenuItem>
+											<MenuItem
+												onClick={() => {
+													onAddMeasureBefore?.(sectionIndex, measureIndex);
+													onClose();
+												}}
+											>
+												{__("Add before", "piano-block")}
+											</MenuItem>
+											<MenuItem
+												onClick={() => {
+													onAddMeasureAfter?.(sectionIndex, measureIndex);
+													onClose();
+												}}
+											>
+												{__("Add after", "piano-block")}
+											</MenuItem>
+										</MenuGroup>
+										<MenuGroup>
+											<MenuItem
+												isDestructive
+												onClick={() => {
+													onRemoveMeasure?.(sectionIndex, measureIndex);
+													onClose();
+												}}
+											>
+												{__("Remove", "piano-block")}
+											</MenuItem>
+										</MenuGroup>
+									</>
 								)}
 							</DropdownMenu>
 						)}
@@ -452,35 +494,65 @@ export function StructureTree({
 										)}
 									>
 										{({ onClose }) => (
-											<MenuGroup>
-												<MenuItem
-													onClick={() => {
-														onDuplicateNote?.(
-															sectionIndex,
-															measureIndex,
-															hand,
-															eventIndex,
-														);
-														onClose();
-													}}
-												>
-													{__("Duplicate", "piano-block")}
-												</MenuItem>
-												<MenuItem
-													isDestructive
-													onClick={() => {
-														onRemoveNote?.(
-															sectionIndex,
-															measureIndex,
-															hand,
-															eventIndex,
-														);
-														onClose();
-													}}
-												>
-													{__("Remove", "piano-block")}
-												</MenuItem>
-											</MenuGroup>
+											<>
+												<MenuGroup>
+													<MenuItem
+														onClick={() => {
+															onDuplicateNote?.(
+																sectionIndex,
+																measureIndex,
+																hand,
+																eventIndex,
+															);
+															onClose();
+														}}
+													>
+														{__("Duplicate", "piano-block")}
+													</MenuItem>
+													<MenuItem
+														onClick={() => {
+															onAddNoteBefore?.(
+																sectionIndex,
+																measureIndex,
+																hand,
+																eventIndex,
+															);
+															onClose();
+														}}
+													>
+														{__("Add before", "piano-block")}
+													</MenuItem>
+													<MenuItem
+														onClick={() => {
+															onAddNoteAfter?.(
+																sectionIndex,
+																measureIndex,
+																hand,
+																eventIndex,
+															);
+															onClose();
+														}}
+													>
+														{__("Add after", "piano-block")}
+													</MenuItem>
+												</MenuGroup>
+												<MenuGroup>
+													<MenuItem
+														isDestructive
+														onClick={() => {
+															onRemoveNote?.(
+																sectionIndex,
+																measureIndex,
+																hand,
+																eventIndex,
+															);
+															onClose();
+														}}
+													>
+														{__("Remove", "piano-block")}
+													</MenuItem>
+												</MenuGroup>
+											</>
 										)}
 									</DropdownMenu>
 								)}

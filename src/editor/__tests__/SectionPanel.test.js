@@ -127,7 +127,7 @@ function fixtureSong() {
  * @param {Object} [options.song]      The starting working song.
  * @param {Object} [options.selection] The raw selection coordinates.
  * @return {{ container: HTMLElement, calls: Object[], removed: Object,
- *   removeSection: Object }} Handle.
+ *   removeSection: Object, addMeasure: Object }} Handle.
  */
 function renderPanel({
 	song: initialSong = fixtureSong(),
@@ -143,6 +143,7 @@ function renderPanel({
 	// The structural mutators are now lifted to `edit.js`; the panel only signals
 	// intent through these props. Record each invocation for the assertions.
 	const removeSection = { count: 0, args: null };
+	const addMeasure = { count: 0, args: null };
 	let song = initialSong;
 	let handle;
 	const props = () => ({
@@ -155,6 +156,10 @@ function renderPanel({
 		onRemoveSection: (sectionIndex) => {
 			removeSection.count += 1;
 			removeSection.args = [sectionIndex];
+		},
+		onAddMeasure: (sectionIndex) => {
+			addMeasure.count += 1;
+			addMeasure.args = [sectionIndex];
 		},
 	});
 	function onChange(next) {
@@ -172,6 +177,7 @@ function renderPanel({
 		calls,
 		removed,
 		removeSection,
+		addMeasure,
 	};
 }
 
@@ -269,5 +275,30 @@ describe("SectionPanel — remove section", () => {
 		});
 		click(buttonByText(container, "Remove section"));
 		expect(removeSection.args).toEqual([1]);
+	});
+});
+
+describe("SectionPanel — add measure", () => {
+	it("calls the lifted onAddMeasure handler with the selected section index", () => {
+		const { container, addMeasure, calls } = renderPanel();
+		click(buttonByText(container, "Add measure"));
+		expect(addMeasure.count).toBe(1);
+		// The panel passes its resolved section coord to the lifted handler.
+		expect(addMeasure.args).toEqual([0]);
+		// No local emission — the lifted handler owns the splice and the commit.
+		expect(calls).toHaveLength(0);
+	});
+
+	it("passes a later section's index through to onAddMeasure", () => {
+		const { container, addMeasure } = renderPanel({
+			selection: {
+				sectionIndex: 1,
+				measureIndex: 0,
+				hand: "rightHand",
+				eventIndex: 0,
+			},
+		});
+		click(buttonByText(container, "Add measure"));
+		expect(addMeasure.args).toEqual([1]);
 	});
 });

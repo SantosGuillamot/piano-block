@@ -154,12 +154,17 @@ function renderTree({
 		toggle: [],
 		removeSection: [],
 		duplicateSection: [],
-		addMeasure: [],
+		addSectionBefore: [],
+		addSectionAfter: [],
 		removeMeasure: [],
 		duplicateMeasure: [],
+		addMeasureBefore: [],
+		addMeasureAfter: [],
 		addNote: [],
 		removeNote: [],
 		duplicateNote: [],
+		addNoteBefore: [],
+		addNoteAfter: [],
 	};
 	const { container, unmount } = render(
 		createElement(StructureTree, {
@@ -171,14 +176,21 @@ function renderTree({
 			onSelect: (next) => calls.select.push(next),
 			onRemoveSection: (si) => calls.removeSection.push(si),
 			onDuplicateSection: (si) => calls.duplicateSection.push(si),
-			onAddMeasure: (si) => calls.addMeasure.push(si),
+			onAddSectionBefore: (si) => calls.addSectionBefore.push(si),
+			onAddSectionAfter: (si) => calls.addSectionAfter.push(si),
 			onRemoveMeasure: (si, mi) => calls.removeMeasure.push([si, mi]),
 			onDuplicateMeasure: (si, mi) => calls.duplicateMeasure.push([si, mi]),
+			onAddMeasureBefore: (si, mi) => calls.addMeasureBefore.push([si, mi]),
+			onAddMeasureAfter: (si, mi) => calls.addMeasureAfter.push([si, mi]),
 			onAddNote: (si, mi, hand) => calls.addNote.push([si, mi, hand]),
 			onRemoveNote: (si, mi, hand, ei) =>
 				calls.removeNote.push([si, mi, hand, ei]),
 			onDuplicateNote: (si, mi, hand, ei) =>
 				calls.duplicateNote.push([si, mi, hand, ei]),
+			onAddNoteBefore: (si, mi, hand, ei) =>
+				calls.addNoteBefore.push([si, mi, hand, ei]),
+			onAddNoteAfter: (si, mi, hand, ei) =>
+				calls.addNoteAfter.push([si, mi, hand, ei]),
 		}),
 	);
 	return { container, unmount, calls };
@@ -438,14 +450,16 @@ describe("StructureTree — row actions", () => {
 		unmount();
 	});
 
-	it("adds a measure to a section from the section DropdownMenu", () => {
+	it("inserts a section before and after from its DropdownMenu", () => {
 		const { container, unmount, calls } = renderTree();
 		const sectionTwoMenu = buttonByLabel(
 			container,
 			"Actions for Section 2",
 		).closest("div");
-		click(selectButtonByText(sectionTwoMenu, "Add measure"));
-		expect(calls.addMeasure).toEqual([1]);
+		click(selectButtonByText(sectionTwoMenu, "Add before"));
+		click(selectButtonByText(sectionTwoMenu, "Add after"));
+		expect(calls.addSectionBefore).toEqual([1]);
+		expect(calls.addSectionAfter).toEqual([1]);
 		unmount();
 	});
 
@@ -463,6 +477,19 @@ describe("StructureTree — row actions", () => {
 		click(selectButtonByText(measureOneMenu, "Duplicate"));
 		expect(calls.removeMeasure).toEqual([[0, 1]]);
 		expect(calls.duplicateMeasure).toEqual([[0, 0]]);
+		unmount();
+	});
+
+	it("inserts a measure before and after from its DropdownMenu", () => {
+		const { container, unmount, calls } = renderTree();
+		const measureOneMenu = buttonByLabel(
+			container,
+			"Actions for Measure 1 of section 1",
+		).closest("div");
+		click(selectButtonByText(measureOneMenu, "Add before"));
+		click(selectButtonByText(measureOneMenu, "Add after"));
+		expect(calls.addMeasureBefore).toEqual([[0, 0]]);
+		expect(calls.addMeasureAfter).toEqual([[0, 0]]);
 		unmount();
 	});
 
@@ -501,6 +528,21 @@ describe("StructureTree — row actions", () => {
 		click(selectButtonByText(chordMenu, "Duplicate"));
 		expect(calls.removeNote).toEqual([[0, 0, "rightHand", 0]]);
 		expect(calls.duplicateNote).toEqual([[0, 0, "leftHand", 0]]);
+		unmount();
+	});
+
+	it("inserts a note before and after from its DropdownMenu", () => {
+		const { container, unmount, calls } = renderTree();
+		const noteMenu = buttonByLabel(
+			container,
+			"Actions for Note 1 of Right hand of measure 1 of section 1",
+		).closest("div");
+		click(selectButtonByText(noteMenu, "Add before"));
+		click(selectButtonByText(noteMenu, "Add after"));
+		expect(calls.addNoteBefore).toEqual([[0, 0, "rightHand", 0]]);
+		expect(calls.addNoteAfter).toEqual([[0, 0, "rightHand", 0]]);
+		// "Remove" is still found by name — the isDestructive flag only adds a class.
+		expect(selectButtonByText(noteMenu, "Remove")).toBeTruthy();
 		unmount();
 	});
 });

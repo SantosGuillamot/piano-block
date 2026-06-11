@@ -17,11 +17,15 @@
  * projection `SectionEditor` used — so every emission stays conformant by
  * construction and an unset override drops its key (clean round-trip).
  *
- * The structural **Remove section** button only signals intent through the lifted
- * `onRemoveSection(sectionIndex)` prop — the splice and the selection-fallout are
- * owned once in `edit.js` (the single owner of `working` + `commit`). `song.sections`
- * is `required` but unbounded — a song with **zero** sections validates — so removing
- * the only section is allowed and needs no min-one guard.
+ * The structural **Add measure** and **Remove section** buttons only signal intent
+ * through the lifted `onAddMeasure(sectionIndex)` / `onRemoveSection(sectionIndex)`
+ * props — the splice and the selection-fallout are owned once in `edit.js` (the
+ * single owner of `working` + `commit`). `song.sections` is `required` but unbounded
+ * — a song with **zero** sections validates — so removing the only section is allowed
+ * and needs no min-one guard. **Add measure** is the section's appender: the block
+ * menu puts "Add before/after" only on measure rows, so a zero-measure section (which
+ * arises when its last measure is removed) would otherwise be a dead end in the
+ * visual editor; this button keeps a measure always re-seedable from the panel.
  */
 import {
 	Button,
@@ -64,9 +68,16 @@ function projectOverrides(section) {
  *                                         `section` with its `sectionIndex` coord.
  * @param {Function} props.onChange        Receives the next working song.
  * @param {Function} props.onRemoveSection Lifted: remove the section at the index.
+ * @param {Function} props.onAddMeasure    Lifted: append a measure to the section.
  * @return {Object} The rendered Section panel.
  */
-export function SectionPanel({ song, selection, onChange, onRemoveSection }) {
+export function SectionPanel({
+	song,
+	selection,
+	onChange,
+	onRemoveSection,
+	onAddMeasure,
+}) {
 	const { section, sectionIndex } = selection;
 
 	/**
@@ -131,6 +142,10 @@ export function SectionPanel({ song, selection, onChange, onRemoveSection }) {
 					/>
 				</ToolsPanelItem>
 			</ToolsPanel>
+
+			<Button variant="secondary" onClick={() => onAddMeasure?.(sectionIndex)}>
+				{__("Add measure", "piano-block")}
+			</Button>
 
 			<Button
 				variant="secondary"
