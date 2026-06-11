@@ -32,7 +32,8 @@ import {
 } from "@wordpress/components";
 import { __ } from "@wordpress/i18n";
 import { ContextEditor } from "../ContextEditor.js";
-import { replaceAt } from "../songModel.js";
+import { setSectionAt } from "../songModel.js";
+import { omitFalsy } from "./emit.js";
 
 /** The context override keys a section may carry alongside its `measures`. */
 const OVERRIDE_KEYS = ["tempo", "timeSignature", "rightHand", "leftHand"];
@@ -68,12 +69,14 @@ function projectOverrides(section) {
 export function SectionPanel({ song, selection, onChange, onRemoveSection }) {
 	const { section, sectionIndex } = selection;
 
-	/** Splice `nextSection` back into the whole `song` at its index and emit it. */
+	/**
+	 * Splice `nextSection` back into the whole `song` at the selection's section
+	 * coord and emit it. `setSectionAt` dispatches by this panel's depth (section),
+	 * never by which coords are present, so the same resolved selection the parent
+	 * also feeds the Note/Measure panels still splices at the right level here.
+	 */
 	const emitSection = (nextSection) => {
-		onChange({
-			...song,
-			sections: replaceAt(song.sections, sectionIndex, nextSection),
-		});
+		onChange(setSectionAt(song, selection, nextSection));
 	};
 
 	/**
@@ -82,12 +85,7 @@ export function SectionPanel({ song, selection, onChange, onRemoveSection }) {
 	 * (the same omit-when-empty idiom the override keys follow).
 	 */
 	const changeName = (value) => {
-		if (value.trim()) {
-			emitSection({ ...section, name: value });
-			return;
-		}
-		const { name: _dropped, ...rest } = section;
-		emitSection(rest);
+		emitSection(omitFalsy(section, "name", value));
 	};
 
 	/**

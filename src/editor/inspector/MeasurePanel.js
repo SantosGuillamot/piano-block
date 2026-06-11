@@ -30,7 +30,8 @@ import {
 } from "@wordpress/components";
 import { __ } from "@wordpress/i18n";
 import { AnnotationList } from "../AnnotationList.js";
-import { BARLINES, replaceAt } from "../songModel.js";
+import { BARLINES, setMeasureAt } from "../songModel.js";
+import { omitFalsy } from "./emit.js";
 
 /** The empty option a barline select offers to leave the barline unset. */
 const NONE_OPTION = { label: __("None", "piano-block"), value: "" };
@@ -54,20 +55,16 @@ const BARLINE_FIELDS = [
  * @return {Object} The rendered Measure panel.
  */
 export function MeasurePanel({ song, selection, onChange, onRemoveMeasure }) {
-	const { section, measure, sectionIndex, measureIndex } = selection;
+	const { measure, sectionIndex, measureIndex } = selection;
 
 	/**
-	 * Splice `nextMeasure` back into the whole `song` at the selection's path and
-	 * emit it — the section → measures chain, every level rebuilt immutably
-	 * through `replaceAt`.
+	 * Splice `nextMeasure` back into the whole `song` at the selection's measure
+	 * coords and emit it. `setMeasureAt` dispatches by this panel's depth (measure),
+	 * never by which coords are present, so the same resolved selection the parent
+	 * also feeds the Note/Section panels still splices at the right level here.
 	 */
 	const emitMeasure = (nextMeasure) => {
-		const nextMeasures = replaceAt(section.measures, measureIndex, nextMeasure);
-		const nextSection = { ...section, measures: nextMeasures };
-		onChange({
-			...song,
-			sections: replaceAt(song.sections, sectionIndex, nextSection),
-		});
+		onChange(setMeasureAt(song, selection, nextMeasure));
 	};
 
 	/**
@@ -76,12 +73,7 @@ export function MeasurePanel({ song, selection, onChange, onRemoveMeasure }) {
 	 * (the same omit-when-empty idiom the barline fields follow).
 	 */
 	const changeName = (value) => {
-		if (value.trim()) {
-			emitMeasure({ ...measure, name: value });
-			return;
-		}
-		const { name: _dropped, ...rest } = measure;
-		emitMeasure(rest);
+		emitMeasure(omitFalsy(measure, "name", value));
 	};
 
 	/**
@@ -89,12 +81,7 @@ export function MeasurePanel({ song, selection, onChange, onRemoveMeasure }) {
 	 * otherwise it is set to one of the schema's barline enums.
 	 */
 	const changeBarline = (field, value) => {
-		if (value) {
-			emitMeasure({ ...measure, [field]: value });
-			return;
-		}
-		const { [field]: _dropped, ...rest } = measure;
-		emitMeasure(rest);
+		emitMeasure(omitFalsy(measure, field, value));
 	};
 
 	return (

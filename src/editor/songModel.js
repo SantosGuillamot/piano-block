@@ -120,6 +120,58 @@ export const DOTS_MAX = 2;
 export const BPM_MIN_EXCLUSIVE = 0;
 
 /**
+ * Coerce a numeric-input string to an integer clamped to `[min, max]`. A
+ * non-numeric input clamps to `min`, so a control can never produce an
+ * out-of-range value. This is the one home for the rule the bounded
+ * `NumberControl` editors share.
+ *
+ * @param {string} raw The raw field value.
+ * @param {number} min The lower bound.
+ * @param {number} max The upper bound.
+ * @return {number} The clamped integer.
+ */
+export function clampInt(raw, min, max) {
+	const parsed = Math.round(Number(raw));
+	if (!Number.isFinite(parsed)) {
+		return min;
+	}
+	return Math.min(max, Math.max(min, parsed));
+}
+
+/**
+ * Parse a numeric-input string to a finite number, or `null` when empty or
+ * invalid. The required-field sub-objects (`tempo`, `timeSignature`) use this to
+ * distinguish "no value yet" from a concrete number while the author fills them.
+ *
+ * @param {string} raw The raw field value.
+ * @return {?number} The finite number, or `null`.
+ */
+export function toNumber(raw) {
+	if (raw === "" || raw === null || raw === undefined) {
+		return null;
+	}
+	const parsed = Number(raw);
+	return Number.isFinite(parsed) ? parsed : null;
+}
+
+/**
+ * Parse a numeric-input string to an integer ≥ `min`, or `null` when empty.
+ * Unlike `clampInt`, an empty value stays `null` (not floored to `min`) so a
+ * not-yet-filled required field can remain absent.
+ *
+ * @param {string} raw The raw field value.
+ * @param {number} min The lower bound.
+ * @return {?number} The bounded integer, or `null`.
+ */
+export function toBoundedInt(raw, min) {
+	const parsed = toNumber(raw);
+	if (parsed === null) {
+		return null;
+	}
+	return Math.max(min, Math.round(parsed));
+}
+
+/**
  * A minimal pitch.
  *
  * @param {string} [step="C"]  The note name.
@@ -265,4 +317,87 @@ export function duplicateAt(list, index) {
 		return list.slice();
 	}
 	return insertAt(list, index + 1, structuredClone(list[index]));
+}
+
+/**
+ * Return a new song with `nextSection` spliced in at `sectionIndex`, every level
+ * above the splice rebuilt immutably.
+ *
+ * CRITICAL: this face destructures ONLY its own coordinate (`sectionIndex`). A
+ * stray deeper coordinate (e.g. an `eventIndex` riding along on the same
+ * selection object) is structurally ignored — the splice depth is fixed by the
+ * face the caller chose, never inferred from which coordinates happen to be
+ * present. `edit.js` hands the SAME full resolved selection to the Note, Measure
+ * and Section panels at once, so a single depth-inferring "deepest-coord-wins"
+ * splice would mis-place `nextSection` at the event coord and corrupt the song.
+ * Keep these three faces distinct; each takes only its own coords.
+ *
+ * @param {Object} song              The current song object.
+ * @param {Object} coords            The selection coords (only `sectionIndex` is read).
+ * @param {number} coords.sectionIndex The section index to replace.
+ * @param {Object} nextSection       The replacement section.
+ * @return {Object} A new song with the section replaced.
+ */
+export function setSectionAt(song, { sectionIndex }, nextSection) {
+	return {
+		...song,
+		sections: replaceAt(song.sections, sectionIndex, nextSection),
+	};
+}
+
+/**
+ * Return a new song with `nextMeasure` spliced in at `sectionIndex`/`measureIndex`,
+ * every level above the splice rebuilt immutably.
+ *
+ * CRITICAL: reads ONLY `sectionIndex` and `measureIndex` (see `setSectionAt`); a
+ * stray deeper coord on the selection is ignored.
+ *
+ * @param {Object} song               The current song object.
+ * @param {Object} coords             The selection coords (only the two read).
+ * @param {number} coords.sectionIndex The section index.
+ * @param {number} coords.measureIndex The measure index to replace.
+ * @param {Object} nextMeasure        The replacement measure.
+ * @return {Object} A new song with the measure replaced.
+ */
+export function setMeasureAt(
+	song,
+	{ sectionIndex, measureIndex },
+	nextMeasure,
+) {
+	const section = song.sections[sectionIndex];
+	const nextSection = {
+		...section,
+		measures: replaceAt(section.measures, measureIndex, nextMeasure),
+	};
+	return setSectionAt(song, { sectionIndex }, nextSection);
+}
+
+/**
+ * Return a new song with `nextEvent` spliced in at
+ * `sectionIndex`/`measureIndex`/`hand`/`eventIndex`, every level above the splice
+ * rebuilt immutably.
+ *
+ * CRITICAL: reads ONLY its own four coords (see `setSectionAt`); the face fixes
+ * the splice depth, the coordinates do not.
+ *
+ * @param {Object} song               The current song object.
+ * @param {Object} coords             The selection coords (only the four read).
+ * @param {number} coords.sectionIndex The section index.
+ * @param {number} coords.measureIndex The measure index.
+ * @param {string} coords.hand         The hand key (`rightHand`/`leftHand`).
+ * @param {number} coords.eventIndex   The event index to replace.
+ * @param {Object} nextEvent          The replacement event.
+ * @return {Object} A new song with the event replaced.
+ */
+export function setEventAt(
+	song,
+	{ sectionIndex, measureIndex, hand, eventIndex },
+	nextEvent,
+) {
+	const measure = song.sections[sectionIndex].measures[measureIndex];
+	const nextMeasure = {
+		...measure,
+		[hand]: replaceAt(measure[hand], eventIndex, nextEvent),
+	};
+	return setMeasureAt(song, { sectionIndex, measureIndex }, nextMeasure);
 }

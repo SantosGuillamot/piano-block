@@ -21,11 +21,12 @@ import {
 	BEATS_MIN,
 	BPM_MIN_EXCLUSIVE,
 	CLEFS,
+	clampInt,
 	DOTS_MAX,
 	DOTS_MIN,
-	duplicateAt,
 	DURATIONS,
 	DYNAMICS,
+	duplicateAt,
 	EVENT_TYPES,
 	insertAt,
 	newEventAnnotation,
@@ -45,6 +46,11 @@ import {
 	replaceAt,
 	SPAN_STATES,
 	STAVES,
+	setEventAt,
+	setMeasureAt,
+	setSectionAt,
+	toBoundedInt,
+	toNumber,
 } from "../songModel.js";
 
 /** The raw values an option list presents, in order. */
@@ -328,5 +334,125 @@ describe("immutable array helpers", () => {
 		expect(duplicateAt(list, 5)).toEqual(["a", "b"]);
 		expect(duplicateAt(list, -1)).toEqual(["a", "b"]);
 		expect(duplicateAt(list, 5)).not.toBe(list);
+	});
+});
+
+describe("numeric-input parse helpers", () => {
+	it("clampInt rounds and stays inside the bounds", () => {
+		expect(clampInt("3", 0, 9)).toBe(3);
+		expect(clampInt("3.4", 0, 9)).toBe(3);
+		expect(clampInt("3.6", 0, 9)).toBe(4);
+	});
+
+	it("clampInt clamps at and beyond each bound", () => {
+		expect(clampInt("0", 0, 9)).toBe(0);
+		expect(clampInt("9", 0, 9)).toBe(9);
+		expect(clampInt("-5", 0, 9)).toBe(0);
+		expect(clampInt("42", 0, 9)).toBe(9);
+	});
+
+	it("clampInt returns min for a non-numeric input", () => {
+		// `Number("")` is 0 (finite), so an empty string clamps into range, not to
+		// min; only a genuinely non-numeric value (NaN) falls back to min.
+		expect(clampInt("", -2, 2)).toBe(0);
+		expect(clampInt("abc", -2, 2)).toBe(-2);
+		expect(clampInt(undefined, -2, 2)).toBe(-2);
+	});
+
+	it("toNumber returns a finite number or null for empty/invalid", () => {
+		expect(toNumber("4")).toBe(4);
+		expect(toNumber("4.5")).toBe(4.5);
+		expect(toNumber("")).toBeNull();
+		expect(toNumber(null)).toBeNull();
+		expect(toNumber(undefined)).toBeNull();
+		expect(toNumber("abc")).toBeNull();
+	});
+
+	it("toBoundedInt rounds, floors at min, and returns null when empty", () => {
+		expect(toBoundedInt("4", 1)).toBe(4);
+		expect(toBoundedInt("4.6", 1)).toBe(5);
+		expect(toBoundedInt("0", 1)).toBe(1);
+		expect(toBoundedInt("-3", 1)).toBe(1);
+		expect(toBoundedInt("", 1)).toBeNull();
+		expect(toBoundedInt("abc", 1)).toBeNull();
+	});
+});
+
+describe("typed splice faces dispatch by caller depth, not by coords", () => {
+	// A two-section song; each section carries two measures; the first measure of
+	// section 0 carries one right-hand note. Enough depth to prove each face
+	// splices at its own level and ignores any stray deeper coord.
+	const makeSong = () => ({
+		sections: [
+			{
+				name: "A",
+				measures: [
+					{ rightHand: [{ type: "note", duration: "quarter" }] },
+					{ name: "m1" },
+				],
+			},
+			{ name: "B", measures: [{}, {}] },
+		],
+	});
+
+	it("setSectionAt replaces only the section, never mutating the input", () => {
+		const song = makeSong();
+		const next = setSectionAt(song, { sectionIndex: 1 }, { name: "B2" });
+		expect(next.sections[1]).toEqual({ name: "B2" });
+		expect(next.sections[0]).toBe(song.sections[0]);
+		expect(song.sections[1]).toEqual({ name: "B", measures: [{}, {}] });
+	});
+
+	it("setSectionAt ignores a stray deeper coord (replaces only the section)", () => {
+		const song = makeSong();
+		// measureIndex/eventIndex are present but must be structurally ignored.
+		const next = setSectionAt(
+			song,
+			{ sectionIndex: 0, measureIndex: 9, eventIndex: 9 },
+			{ name: "A2" },
+		);
+		expect(next.sections[0]).toEqual({ name: "A2" });
+		expect(next.sections[1]).toBe(song.sections[1]);
+	});
+
+	it("setMeasureAt replaces only the measure at its two coords", () => {
+		const song = makeSong();
+		const next = setMeasureAt(
+			song,
+			{ sectionIndex: 0, measureIndex: 1 },
+			{ name: "m1-edited" },
+		);
+		expect(next.sections[0].measures[1]).toEqual({ name: "m1-edited" });
+		expect(next.sections[0].measures[0]).toBe(song.sections[0].measures[0]);
+		expect(next.sections[1]).toBe(song.sections[1]);
+	});
+
+	it("setMeasureAt ignores a stray deeper coord (hand/eventIndex)", () => {
+		const song = makeSong();
+		const next = setMeasureAt(
+			song,
+			{ sectionIndex: 0, measureIndex: 0, hand: "rightHand", eventIndex: 9 },
+			{ name: "m0-edited" },
+		);
+		expect(next.sections[0].measures[0]).toEqual({ name: "m0-edited" });
+		expect(next.sections[0].measures[1]).toBe(song.sections[0].measures[1]);
+	});
+
+	it("setEventAt replaces only the event at its four coords", () => {
+		const song = makeSong();
+		const nextEvent = { type: "rest", duration: "half" };
+		const next = setEventAt(
+			song,
+			{ sectionIndex: 0, measureIndex: 0, hand: "rightHand", eventIndex: 0 },
+			nextEvent,
+		);
+		expect(next.sections[0].measures[0].rightHand[0]).toEqual(nextEvent);
+		expect(next.sections[0].measures[1]).toBe(song.sections[0].measures[1]);
+		expect(next.sections[1]).toBe(song.sections[1]);
+		// Input untouched.
+		expect(song.sections[0].measures[0].rightHand[0]).toEqual({
+			type: "note",
+			duration: "quarter",
+		});
 	});
 });

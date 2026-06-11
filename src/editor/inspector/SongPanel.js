@@ -33,8 +33,13 @@ import { __ } from "@wordpress/i18n";
 import { HandConfigEditor } from "../HandConfigEditor.js";
 import { MetadataEditor } from "../MetadataEditor.js";
 import { mapSong } from "../noteNames.js";
-import { BEAT_TYPES, BEATS_MIN, DURATIONS } from "../songModel.js";
-import { emitBlock } from "./emit.js";
+import {
+	BEAT_TYPES,
+	BEATS_MIN,
+	DURATIONS,
+	toBoundedInt,
+} from "../songModel.js";
+import { emitBlock, omitEmpty } from "./emit.js";
 
 /**
  * The note-language `SelectControl` options. Each `value` is a recognised
@@ -46,24 +51,6 @@ const LANGUAGES = [
 	{ label: __("English", "piano-block"), value: "english" },
 	{ label: __("Spanish", "piano-block"), value: "spanish" },
 ];
-
-/** Parse a numeric-input string to a finite number, or `null` when empty/invalid. */
-function toNumber(raw) {
-	if (raw === "" || raw === null || raw === undefined) {
-		return null;
-	}
-	const parsed = Number(raw);
-	return Number.isFinite(parsed) ? parsed : null;
-}
-
-/** Parse a numeric-input string to an integer ≥ `min`, or `null` when empty. */
-function toBoundedInt(raw, min) {
-	const parsed = toNumber(raw);
-	if (parsed === null) {
-		return null;
-	}
-	return Math.max(min, Math.round(parsed));
-}
 
 /** The conformant `tempo` projection of a draft, or `undefined` when no bpm. */
 function projectTempo(draft) {
@@ -102,13 +89,7 @@ function projectTimeSignature(draft) {
  * @param {Function} onChange Receives the next song object.
  */
 function emitContextMember(song, context, key, value, onChange) {
-	const next = { ...context };
-	if (value && Object.keys(value).length > 0) {
-		next[key] = value;
-	} else {
-		delete next[key];
-	}
-	emitBlock(song, "defaults", next, onChange);
+	emitBlock(song, "defaults", omitEmpty(context, key, value), onChange);
 }
 
 /**

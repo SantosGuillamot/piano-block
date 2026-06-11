@@ -28,7 +28,8 @@ import {
 import { useState } from "@wordpress/element";
 import { __ } from "@wordpress/i18n";
 import { HandConfigEditor } from "./HandConfigEditor.js";
-import { BEAT_TYPES, BEATS_MIN, DURATIONS } from "./songModel.js";
+import { omitEmpty } from "./inspector/emit.js";
+import { BEAT_TYPES, BEATS_MIN, DURATIONS, toBoundedInt } from "./songModel.js";
 
 /**
  * Emit a context object rebuilt from a single member edit, omitting any member
@@ -41,31 +42,7 @@ import { BEAT_TYPES, BEATS_MIN, DURATIONS } from "./songModel.js";
  * @param {Function} onChange Receives the rebuilt context object.
  */
 function emitMember(context, key, value, onChange) {
-	const next = { ...context };
-	if (value && Object.keys(value).length > 0) {
-		next[key] = value;
-	} else {
-		delete next[key];
-	}
-	onChange(next);
-}
-
-/** Parse a numeric-input string to a finite number, or `null` when empty/invalid. */
-function toNumber(raw) {
-	if (raw === "" || raw === null || raw === undefined) {
-		return null;
-	}
-	const parsed = Number(raw);
-	return Number.isFinite(parsed) ? parsed : null;
-}
-
-/** Parse a numeric-input string to an integer ≥ `min`, or `null` when empty. */
-function toBoundedInt(raw, min) {
-	const parsed = toNumber(raw);
-	if (parsed === null) {
-		return null;
-	}
-	return Math.max(min, Math.round(parsed));
+	onChange(omitEmpty(context, key, value));
 }
 
 /** The conformant `tempo` projection of a draft, or `undefined` when no bpm. */

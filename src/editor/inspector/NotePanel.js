@@ -39,15 +39,17 @@ import { AnnotationList } from "../AnnotationList.js";
 import { noteNameOptions } from "../noteNames.js";
 import { PitchList } from "../PitchList.js";
 import {
+	clampInt,
 	DOTS_MAX,
 	DOTS_MIN,
 	DURATIONS,
 	DYNAMICS,
 	EVENT_TYPES,
 	newPitch,
-	replaceAt,
 	SPAN_STATES,
+	setEventAt,
 } from "../songModel.js";
+import { omitFalsy } from "./emit.js";
 
 /** The four span fields and their human-facing labels, disclosed as a group. */
 const SPAN_FIELDS = [
@@ -59,24 +61,6 @@ const SPAN_FIELDS = [
 
 /** The empty option an optional select offers to unset its field. */
 const NONE_OPTION = { label: __("None", "piano-block"), value: "" };
-
-/**
- * Coerce a numeric-input string to an integer clamped to `[min, max]`. A
- * non-numeric input clamps to `min`, so the control can never produce an
- * out-of-range value. (Mirrors `EventRow.clampInt`.)
- *
- * @param {string} raw The raw field value.
- * @param {number} min The lower bound.
- * @param {number} max The upper bound.
- * @return {number} The clamped integer.
- */
-function clampInt(raw, min, max) {
-	const parsed = Math.round(Number(raw));
-	if (!Number.isFinite(parsed)) {
-		return min;
-	}
-	return Math.min(max, Math.max(min, parsed));
-}
 
 /**
  * The inspector panel for the selected event.
@@ -108,23 +92,16 @@ export function NotePanel({
 	onRemoveNote,
 	onAddNote,
 }) {
-	const { event, section, measure, sectionIndex, measureIndex, hand, eventIndex } =
-		selection;
+	const { event, sectionIndex, measureIndex, hand, eventIndex } = selection;
 
 	/**
-	 * Splice `nextEvent` back into the whole `song` at the selection's path and
-	 * emit it — the section → measures → hand → event chain the structural editor
-	 * used, every level rebuilt immutably through `replaceAt`.
+	 * Splice `nextEvent` back into the whole `song` at the selection's event coords
+	 * and emit it. `setEventAt` dispatches by this panel's depth (event), never by
+	 * which coords are present, so the same resolved selection the parent also feeds
+	 * the Measure/Section panels still splices at the right level here.
 	 */
 	const emitEvent = (nextEvent) => {
-		const nextHand = replaceAt(measure[hand], eventIndex, nextEvent);
-		const nextMeasure = { ...measure, [hand]: nextHand };
-		const nextMeasures = replaceAt(section.measures, measureIndex, nextMeasure);
-		const nextSection = { ...section, measures: nextMeasures };
-		onChange({
-			...song,
-			sections: replaceAt(song.sections, sectionIndex, nextSection),
-		});
+		onChange(setEventAt(song, selection, nextEvent));
 	};
 
 	/**
@@ -149,12 +126,7 @@ export function NotePanel({
 	 * schema's enum values and bounded numbers, so a set value is conformant.
 	 */
 	const changeOptional = (key, value) => {
-		if (value) {
-			emitEvent({ ...event, [key]: value });
-			return;
-		}
-		const { [key]: _dropped, ...rest } = event;
-		emitEvent(rest);
+		emitEvent(omitFalsy(event, key, value));
 	};
 
 	return (

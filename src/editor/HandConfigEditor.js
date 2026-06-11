@@ -28,6 +28,7 @@ import {
 	ALTER_MAX,
 	ALTER_MIN,
 	CLEFS,
+	clampInt,
 	OCTAVE_SHIFT_MAX,
 	OCTAVE_SHIFT_MIN,
 } from "./songModel.js";
@@ -181,24 +182,6 @@ export function HandConfigEditor({ handConfig = {}, onChange, label }) {
 			/>
 		</>
 	);
-}
-
-/**
- * Coerce a numeric-input string to an integer clamped to `[min, max]`. A
- * non-numeric input clamps to `min`, so the control can never produce an
- * out-of-range value.
- *
- * @param {string} raw The raw field value.
- * @param {number} min The lower bound.
- * @param {number} max The upper bound.
- * @return {number} The clamped integer.
- */
-function clampInt(raw, min, max) {
-	const parsed = Math.round(Number(raw));
-	if (!Number.isFinite(parsed)) {
-		return min;
-	}
-	return Math.min(max, Math.max(min, parsed));
 }
 
 /** Return a new rows array with the row at `index` replaced. */

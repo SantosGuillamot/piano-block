@@ -23,7 +23,13 @@ import {
 } from "@wordpress/components";
 import { __ } from "@wordpress/i18n";
 import { noteNameOptions, stepInSystem } from "./noteNames.js";
-import { ALTER_MAX, ALTER_MIN, OCTAVE_MAX, OCTAVE_MIN } from "./songModel.js";
+import {
+	ALTER_MAX,
+	ALTER_MIN,
+	clampInt,
+	OCTAVE_MAX,
+	OCTAVE_MIN,
+} from "./songModel.js";
 
 /**
  * Edit a single pitch.
@@ -83,22 +89,4 @@ export function PitchEditor({ pitch, system, onChange }) {
 			/>
 		</>
 	);
-}
-
-/**
- * Coerce a numeric-input string to an integer clamped to `[min, max]`. A
- * non-numeric input clamps to `min`, so the control can never produce an
- * out-of-range value.
- *
- * @param {string} raw The raw field value.
- * @param {number} min The lower bound.
- * @param {number} max The upper bound.
- * @return {number} The clamped integer.
- */
-function clampInt(raw, min, max) {
-	const parsed = Math.round(Number(raw));
-	if (!Number.isFinite(parsed)) {
-		return min;
-	}
-	return Math.min(max, Math.max(min, parsed));
 }
