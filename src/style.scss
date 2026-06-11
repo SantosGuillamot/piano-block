@@ -42,7 +42,7 @@
 	&__workspace {
 		display: flex;
 		flex-direction: row;
-		gap: 1em;
+		gap: 1.5em;
 		align-items: flex-start;
 	}
 
@@ -56,21 +56,50 @@
 	&__tree {
 		flex: 0 1 auto;
 		max-width: 24em;
+		/* A hairline rule plus inside padding set the tree apart from the canvas
+		 * (logical properties keep it RTL-safe). `#ddd` is core's `$gray-300`, the
+		 * standard editor border gray; the inside padding keeps the rule clear of the
+		 * right-edge labels, and `&__workspace`'s `gap` adds the space outside it. */
+		border-inline-end: 1px solid #ddd; /* core's $gray-300, the standard editor border gray */
+		padding-inline-end: 1em;
+
+		/* The label cell (always the first gridcell — the actions cell is the second)
+		 * is a flex line so the disclosure chevron centers vertically against the row
+		 * label, mirroring core's List View expander treatment. The per-level indent
+		 * lives on this line's leading edge so the chevron and label indent together
+		 * as a unit (Recipe A). The actions cell is never flexed or indented. */
+		[role="gridcell"]:first-child {
+			display: flex;
+			align-items: center;
+		}
 
 		/* Depth indentation for the tree's label column, keyed off each row's
 		 * rendered `aria-level` (emitted by `TreeGridRow`'s `level`, 1 for a section
-		 * … 4 for a note). The depth *number* now lives in the DOM; the indent *unit*
+		 * … 4 for a note). The depth *number* lives in the DOM; the indent *unit*
 		 * lives here. This is core's own idiom (List View indents via `@for` × a grid
-		 * unit) and needs zero JS injection. Level 1 sits flush-left; each deeper
-		 * level adds 1.5em. */
+		 * unit) and needs zero JS injection. The indent sits on the flex line's
+		 * leading edge so chevron and label move together. Level 1 sits flush-left;
+		 * each deeper level adds 1.5em. */
 		@for $i from 1 through 4 {
-			[aria-level="#{$i}"] &-label {
-				padding-left: ($i - 1) * 1.5em;
+			[aria-level="#{$i}"] [role="gridcell"]:first-child {
+				padding-inline-start: ($i - 1) * 1.5em;
 			}
 		}
 
-		/* The label cell truncates rather than widening the column: a long note name
-		 * shows an ellipsis instead of pushing the column past the ceiling above. */
+		/* The disclosure chevron: a fixed icon-size square that centers its `<Icon>`,
+		 * so the glyph aligns to the label baseline regardless of its intrinsic size
+		 * and the indent steps stay even across levels. */
+		&-expander {
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			width: 24px;
+			height: 24px;
+			flex: none;
+		}
+
+		/* The label truncates rather than widening the column: a long note name shows
+		 * an ellipsis instead of pushing the column past the ceiling above. */
 		&-label {
 			white-space: nowrap;
 			overflow: hidden;
