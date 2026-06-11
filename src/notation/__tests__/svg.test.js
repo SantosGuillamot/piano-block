@@ -1386,3 +1386,106 @@ describe("renderSvg — hairpin wedges", () => {
 		expect(g.querySelectorAll("line")).toHaveLength(2);
 	});
 });
+
+// ── Measure-number absence (consumer side) ─────────────────────────────────────────
+//
+// Guards that the emit layer renders NO measure-number node, even for a song that
+// genuinely wraps to several systems — the case where measure numbers used to be
+// restated at each system head. The fixture is plain (notes on both hands, no
+// markings) and authored to wrap at a narrow width; it is kept inline here rather than
+// reusing the file's single-system SONG (which never wraps).
+
+/**
+ * A plain multi-measure song that wraps to more than one system at a narrow width.
+ * Each measure carries a whole note on both hands so the grand staff exists and the
+ * packer has real content widths to break across; the `tempo` default makes a
+ * system-level tempo node render, which the test uses as a positive control that the
+ * `[data-text=…]` query idiom actually matches emitted nodes.
+ */
+const WRAPPING_SONG = {
+	metadata: { title: "Wrapping" },
+	defaults: { tempo: { bpm: 120 } },
+	sections: [
+		{
+			measures: Array.from({ length: 6 }, () => ({
+				rightHand: [
+					{
+						type: "note",
+						duration: "whole",
+						pitches: [{ step: "C", octave: 5 }],
+					},
+				],
+				leftHand: [
+					{
+						type: "note",
+						duration: "whole",
+						pitches: [{ step: "C", octave: 3 }],
+					},
+				],
+			})),
+		},
+	],
+};
+
+describe("renderSvg — measure-number absence", () => {
+	it("emits no measure-number node for a song that wraps to multiple systems", () => {
+		const model = buildLayoutModel(WRAPPING_SONG, 30);
+		// Wrap guard: the song genuinely spans more than one system, so the absence
+		// assertion below is non-vacuous (it is the multi-system head where measure
+		// numbers used to be restated).
+		expect(model.systems.length).toBeGreaterThan(1);
+		const svg = renderSvg(model);
+		// Positive control: the `[data-text=…]` query idiom matches real emitted nodes
+		// in this render (the tempo mark), so the zero-match below is a true absence,
+		// not an empty-SVG false pass.
+		expect(svg.querySelectorAll('[data-text="tempo"]').length).toBeGreaterThan(
+			0,
+		);
+		// No measure-number node is emitted anywhere in the rendered SVG.
+		expect(svg.querySelectorAll('[data-text="measure-number"]')).toHaveLength(
+			0,
+		);
+	});
+});
+
+describe("renderSvg — duration-ordered spacing reaches the SVG (issue #21)", () => {
+	// Four eighths + two quarters, single-pitch (single-pitch ⇒ cx === note.x,
+	// so the chord back-head skew never enters the gap comparison). This is the
+	// same canonical fixture used at the layout/model layers, inlined here since
+	// the two test files do not share fixture imports.
+	const events = [
+		...Array.from({ length: 4 }, () => ({
+			type: "note",
+			duration: "eighth",
+			pitches: [{ step: "C", octave: 5 }],
+		})),
+		...Array.from({ length: 2 }, () => ({
+			type: "note",
+			duration: "quarter",
+			pitches: [{ step: "C", octave: 5 }],
+		})),
+	];
+	const song = { metadata: {}, sections: [{ measures: [{ rightHand: events }] }] };
+
+	it("renders eighth noteheads closer together than the quarter noteheads (AC10)", () => {
+		const svg = renderSvg(buildLayoutModel(song, 1000));
+		const cx = (i) =>
+			Number(
+				svg
+					.querySelector(`#rightHand-note-${i}`)
+					.querySelector("[data-notehead]")
+					.getAttribute("cx"),
+			);
+
+		// Guard the pitch-less skip trap: all six events must reach the SVG, so a
+		// regression that drops notes fails loudly here instead of throwing on null.
+		for (let i = 0; i < 6; i += 1) {
+			expect(svg.querySelector(`#rightHand-note-${i}`)).not.toBeNull();
+		}
+
+		// A leading eighth cx gap is narrower than the genuine q→q cx gap. The
+		// last two events are the quarters, so cx(5) - cx(4) is a real q→q gap
+		// (not the eighth→quarter boundary, which is still governed by the eighth).
+		expect(cx(1) - cx(0)).toBeLessThan(cx(5) - cx(4));
+	});
+});

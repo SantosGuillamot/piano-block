@@ -70,10 +70,19 @@ export const DOT_GAP = 0.5;
 // ── Horizontal spacing ─────────────────────────────────────────────────────────
 
 /** Minimum advance between adjacent onsets; raised per-column for glyph clearance. */
-export const MIN_ADV = 2.2;
+export const MIN_ADV = 0.5;
 
-/** Compressive-spacing coefficient: `advance(Δ) = MIN_ADV + ADV_K · sqrt(Δ)`. */
-export const ADV_K = 3.0;
+/**
+ * Compressive-spacing coefficient: `advance(Δ) = MIN_ADV + ADV_K · sqrt(Δ)`.
+ *
+ * A small `MIN_ADV` floor paired with this slope keeps a quarter (Δ=1) near
+ * 5.2 sp while pulling shorter notes noticeably tighter — an eighth (Δ=0.5)
+ * sits at ~3.8 sp, a quarter→eighth contrast of ~1.36:1 — so note length reads
+ * clearly across a measure. Still firmly compressive (a whole note advances
+ * ~4.6× a 32nd, nowhere near the 32× of strict proportional spacing), in the
+ * spirit of LilyPond/MuseScore engraving.
+ */
+export const ADV_K = 4.7;
 
 /** Floor width for an empty measure (no events on either hand). */
 export const EMPTY_MEASURE_WIDTH = 3.3;
@@ -184,9 +193,6 @@ export const NOTE_SIZE = 2.8;
 
 /** Tempo marking text size ("[note-glyph] = [bpm]"). */
 export const TEMPO_SIZE = 2.8;
-
-/** Measure-number text size (above-left of each system's first measure). */
-export const MEASURE_NUMBER_SIZE = 2.2;
 
 /** Ottava-bracket label text size ("8va" / "8vb" / "15ma" / "15mb"). */
 export const OTTAVA_SIZE = 2.2;

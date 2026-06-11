@@ -33,7 +33,6 @@ import {
 	DYNAMIC_SIZE,
 	HIT_RECT_VERTICAL_MARGIN_SP,
 	LEDGER_WIDTH,
-	MEASURE_NUMBER_SIZE,
 	NOTE_SIZE,
 	NOTEHEAD_RX,
 	OTTAVA_SIZE,
@@ -1158,8 +1157,8 @@ function renderHandText(text, annotationY) {
 
 /**
  * Render the system-level texts: the tempo marks (a metronome note glyph + " = bpm"
- * digits/text), the measure number, and the ottava brackets. Tempo + measure number
- * + ottava labels are plain font text; the tempo note is a font glyph.
+ * digits/text) and the ottava brackets. Tempo and ottava labels are plain font text;
+ * the tempo note is a font glyph.
  */
 function renderSystemTexts(texts) {
 	const g = el("g", { "data-system-texts": "" });
@@ -1169,19 +1168,6 @@ function renderSystemTexts(texts) {
 
 	for (const tempo of texts.tempos ?? []) {
 		g.appendChild(renderTempo(tempo));
-	}
-
-	if (texts.measureNumber) {
-		const mn = texts.measureNumber;
-		const node = el("text", {
-			x: mn.x,
-			y: mn.y,
-			fill: INK,
-			"font-size": MEASURE_NUMBER_SIZE,
-			"text-anchor": "start",
-			"data-text": "measure-number",
-		});
-		g.appendChild(setText(node, mn.text));
 	}
 
 	for (const ottava of texts.ottavas ?? []) {

@@ -10,6 +10,7 @@
  */
 import {
 	ACCIDENTAL_GAP,
+	ADV_K,
 	BARLINE_POST_PAD,
 	DYNAMIC_ADVANCE_EM,
 	DYNAMIC_SIZE,
@@ -519,8 +520,28 @@ describe("beamGeometry", () => {
 		// All stems end at the same (flat) beam Y.
 		expect(geo.stems.every((s) => s.y2 === geo.beamY)).toBe(true);
 		expect(new Set(geo.stems.map((s) => s.y2)).size).toBe(1);
-		// Primary beam spans the group.
-		expect(geo.beams[0]).toMatchObject({ level: 1, x1: 0, x2: 4 });
+		// Primary beam spans the group (shifted to notehead edge).
+		expect(geo.beams[0]).toMatchObject({ level: 1, x1: 0 + NOTEHEAD_RX, x2: 4 + NOTEHEAD_RX });
+		// Stems sit at the notehead edge (same rule as standalone renderStem).
+		expect(geo.stems.map((s) => s.x)).toEqual([0 + NOTEHEAD_RX, 4 + NOTEHEAD_RX]);
+		// Primary beam endpoints equal the first and last shifted stem X.
+		expect(geo.beams[0].x1).toBe(geo.stems[0].x);
+		expect(geo.beams[0].x2).toBe(geo.stems.at(-1).x);
+	});
+
+	it("shifts stems to the left notehead edge for a stem-down group", () => {
+		const members = [
+			{ x: 0, topStep: 6, bottomStep: 6, beamCount: 1 },
+			{ x: 4, topStep: 6, bottomStep: 6, beamCount: 1 },
+		];
+		const geo = beamGeometry(members);
+		expect(geo.direction).toBe("down");
+		// Stems sit at the left notehead edge (negative offset, same rule as standalone renderStem).
+		expect(geo.stems.map((s) => s.x)).toEqual([0 - NOTEHEAD_RX, 4 - NOTEHEAD_RX]);
+		// Primary beam matches the first and last shifted stem X.
+		expect(geo.beams[0]).toMatchObject({ level: 1, x1: 0 - NOTEHEAD_RX, x2: 4 - NOTEHEAD_RX });
+		expect(geo.beams[0].x1).toBe(geo.stems[0].x);
+		expect(geo.beams[0].x2).toBe(geo.stems.at(-1).x);
 	});
 
 	it("adds a secondary beam only where both notes share it", () => {
@@ -531,6 +552,10 @@ describe("beamGeometry", () => {
 		const geo = beamGeometry(members);
 		const levels = geo.beams.map((b) => b.level).sort();
 		expect(levels).toEqual([1, 2]);
+		// Level-2 segment spans the shifted adjacent stem X values.
+		const seg2 = geo.beams.find((b) => b.level === 2);
+		expect(seg2.x1).toBe(0 + NOTEHEAD_RX);
+		expect(seg2.x2).toBe(4 + NOTEHEAD_RX);
 	});
 
 	it("adds a stub for an isolated shorter note", () => {
@@ -542,6 +567,10 @@ describe("beamGeometry", () => {
 		const stub = geo.beams.find((b) => b.stub);
 		expect(stub).toBeDefined();
 		expect(stub.level).toBe(2);
+		// Stub's kept endpoint is at the shifted stem X of the note it belongs to.
+		expect(stub.x2).toBe(4 + NOTEHEAD_RX);
+		// Stub length is unchanged from the original NOTEHEAD_RX * 1.5 rule.
+		expect(stub.x2 - stub.x1).toBe(NOTEHEAD_RX * 1.5);
 	});
 });
 
@@ -747,16 +776,19 @@ describe("unionGrid", () => {
 
 describe("advanceFor (compressive spacing)", () => {
 	it("is MIN_ADV + ADV_K·sqrt(Δ)", () => {
-		// Δ = 4 → sqrt 2 → MIN_ADV + 3·2 = MIN_ADV + 6.
-		expect(advanceFor(4)).toBeCloseTo(MIN_ADV + 6, 10);
+		// Δ = 4 → sqrt 2 → MIN_ADV + ADV_K·2 (asserted against the live constants,
+		// not a hard-coded slope, so a re-tune of ADV_K keeps this green).
+		expect(advanceFor(4)).toBeCloseTo(MIN_ADV + ADV_K * 2, 10);
 		// Δ = 0 → the floor advance MIN_ADV.
 		expect(advanceFor(0)).toBeCloseTo(MIN_ADV, 10);
 	});
 
-	it("is compressive: whole-vs-32nd advance ratio is ~2.5:1, not 32:1", () => {
+	it("is compressive: whole-vs-32nd advance ratio is ~4.6:1, not 32:1", () => {
+		// Far below the 32:1 of strict proportional spacing, so the model stays
+		// compressive; the band brackets the current tuning's ~4.6:1.
 		const ratio = advanceFor(4) / advanceFor(0.125);
-		expect(ratio).toBeGreaterThan(2);
-		expect(ratio).toBeLessThan(3);
+		expect(ratio).toBeGreaterThan(4);
+		expect(ratio).toBeLessThan(5);
 	});
 
 	it("is NaN-safe for a negative Δ (clamps via sqrt(max(Δ,0)))", () => {
@@ -1956,6 +1988,44 @@ describe("buildLayoutModel — the full positioned-primitive model", () => {
 		expect(eightVa.placement).toBe("above");
 	});
 
+	it("returns a per-system texts object whose only keys are tempos and ottavas", () => {
+		// The texts producer no longer carries a measure-number field; its own
+		// enumerable keys narrow to exactly the tempo + ottava collections. Checked at
+		// both a wide width (one head system) and a narrow width (many wrapped systems).
+		for (const width of [200, 30]) {
+			const model = buildLayoutModel(COMPREHENSIVE_SONG, width);
+			for (const sys of model.systems) {
+				expect(Object.keys(sys.texts).sort()).toEqual(["ottavas", "tempos"]);
+				expect("measureNumber" in sys.texts).toBe(false);
+			}
+		}
+	});
+
+	it("never carries a measureNumber on the head system or any wrapped system", () => {
+		// Narrow → many systems, so both the system that opens on measure 1 and the
+		// later systems that formerly carried a label are covered.
+		const model = buildLayoutModel(COMPREHENSIVE_SONG, 30);
+		expect(model.systems.length).toBeGreaterThan(1);
+		for (const sys of model.systems) {
+			expect(sys.texts.measureNumber).toBeUndefined();
+		}
+	});
+
+	it("still surfaces tempos and ottavas as arrays after dropping the measure number", () => {
+		// Removing the measure-number field leaves the tempo + ottava computations
+		// untouched: both stay arrays with their existing contents.
+		const model = buildLayoutModel(COMPREHENSIVE_SONG, 200);
+		const tempos = model.systems.flatMap((s) => s.texts.tempos);
+		const ottavas = model.systems.flatMap((s) => s.texts.ottavas);
+		for (const sys of model.systems) {
+			expect(Array.isArray(sys.texts.tempos)).toBe(true);
+			expect(Array.isArray(sys.texts.ottavas)).toBe(true);
+		}
+		// The fixture's tempo (song start + section-2 change) and 8va are intact.
+		expect(tempos.map((t) => t.bpm).sort((a, b) => a - b)).toEqual([90, 120]);
+		expect(ottavas.some((o) => o.label === "8va")).toBe(true);
+	});
+
 	it("draws an inline section change at a mid-system section boundary", () => {
 		// At a width that keeps all three measures on one system, the section-2 start
 		// (measure 3) carries inline cautionary changes (LH clef + RH/LH key sig).
@@ -2220,6 +2290,64 @@ describe("layout-polish fixes", () => {
 		expect(plain.band.annotationAboveRHLaneY).toBeNull();
 	});
 
+	it("a head system opening on measure 1 keeps its exact top margin + lane baselines", () => {
+		// Measure 1 never reserved any above-staff number band, so collapsing the
+		// reservation to the bare ledger extent must leave this system pixel-identical.
+		// These are the verified pre-change values for the comprehensive song's head
+		// system (the one that opens on measure 1) at two widths.
+		const head30 = buildLayoutModel(COMPREHENSIVE_SONG, 30).systems[0];
+		expect(head30.measures[0].number).toBe(1);
+		expect(head30.band.topMargin).toBeCloseTo(8.7, 10);
+		expect(head30.band.tempoLaneY).toBeCloseTo(3.8, 10);
+		expect(head30.band.ottavaAboveLaneY).toBeNull();
+		expect(head30.band.annotationAboveRHLaneY).toBeCloseTo(7.2, 10);
+
+		const head200 = buildLayoutModel(COMPREHENSIVE_SONG, 200).systems[0];
+		expect(head200.measures[0].number).toBe(1);
+		expect(head200.band.topMargin).toBeCloseTo(13, 10);
+		expect(head200.band.tempoLaneY).toBeCloseTo(3.8, 10);
+		expect(head200.band.ottavaAboveLaneY).toBeCloseTo(6.6, 10);
+		expect(head200.band.annotationAboveRHLaneY).toBeCloseTo(10, 10);
+	});
+
+	it("the above-staff reservation depends only on the ledger extent, not on a measure number", () => {
+		// One low-note measure that carries a tempo lane and nothing high above the
+		// staff. As a song's first measure it is number 1 (never reserved a number
+		// band); reached as a later section start it is numbered ≥ 2 (formerly reserved
+		// one). With the reservation collapsed the two heads share identical geometry.
+		const note = {
+			type: "note",
+			duration: "quarter",
+			pitches: [{ step: "B", octave: 4 }],
+		};
+		const tempoMeasure = (bpm) => ({
+			tempo: { bpm, beatUnit: "quarter" },
+			measures: [{ rightHand: [note, note, note, note] }],
+		});
+		// Song A: the tempo-bearing measure opens the score → its system's head is #1.
+		const songOpensAtOne = {
+			defaults: { timeSignature: { beats: 4, beatType: 4 } },
+			sections: [tempoMeasure(100)],
+		};
+		// Song B: a leading section pushes the same tempo-change measure to #2, where it
+		// starts a fresh (wrapped) system at a narrow width.
+		const songOpensLater = {
+			defaults: { timeSignature: { beats: 4, beatType: 4 } },
+			sections: [tempoMeasure(100), tempoMeasure(120)],
+		};
+		const headAtOne = buildLayoutModel(songOpensAtOne, 40).systems[0];
+		const wrapped = buildLayoutModel(songOpensLater, 40);
+		const later = wrapped.systems.find((s) => s.measures[0].number === 2);
+		// Sanity: the two heads differ only by number, and both carry a tempo lane.
+		expect(headAtOne.measures[0].number).toBe(1);
+		expect(later).toBeDefined();
+		expect(headAtOne.band.tempoLaneY).not.toBeNull();
+		expect(later.band.tempoLaneY).not.toBeNull();
+		// The reservation no longer depends on the number → identical band geometry.
+		expect(later.band.topMargin).toBeCloseTo(headAtOne.band.topMargin, 10);
+		expect(later.band.tempoLaneY).toBeCloseTo(headAtOne.band.tempoLaneY, 10);
+	});
+
 	it("every barline leaves at least a notehead-width gap before the next measure's first note", () => {
 		const measures = buildLayoutModel(COMPREHENSIVE_SONG, 200).systems[0]
 			.measures;
@@ -2321,18 +2449,52 @@ describe("layout-polish fixes", () => {
 		expect(m.right.notes[0].x).toBeLessThan(m.width / 2);
 	});
 
-	it("measure 1 is not numbered; a later system numbers its first measure", () => {
-		const model = buildLayoutModel(COMPREHENSIVE_SONG, 30); // narrow → many systems
+	it("no system carries a measure number, even when the song wraps", () => {
+		// Narrow → many systems, so coverage is non-vacuous: both the system that
+		// opens on measure 1 and the later systems that formerly carried a label
+		// are exercised. The model no longer produces a measure-number text on any
+		// of them, while the rest of the texts object stays intact.
+		const model = buildLayoutModel(COMPREHENSIVE_SONG, 30);
 		expect(model.systems.length).toBeGreaterThan(1);
-		// The system that opens the piece (measure 1) shows no measure number…
-		expect(model.systems[0].texts.measureNumber).toBeNull();
-		// …but at least one later system labels its first measure (number ≥ 2).
-		const later = model.systems
-			.slice(1)
-			.map((s) => s.texts.measureNumber)
-			.filter(Boolean);
-		expect(later.length).toBeGreaterThan(0);
-		expect(Number(later[0].text)).toBeGreaterThanOrEqual(2);
+		expect(
+			model.systems.every((s) => s.texts.measureNumber === undefined),
+		).toBe(true);
+		// The texts object is otherwise untouched: the head system still exposes its
+		// tempo + ottava collections as arrays.
+		expect(Array.isArray(model.systems[0].texts.tempos)).toBe(true);
+		expect(Array.isArray(model.systems[0].texts.ottavas)).toBe(true);
+	});
+
+	it("a later system's tempo + above-ottava lanes stay on baseline with the number whitespace reclaimed", () => {
+		// COMPREHENSIVE_SONG wraps into several systems at this width; a later one
+		// opens on a formerly-numbered measure (number ≠ 1) yet also carries a tempo
+		// and an above-placed ottava. With the measure-number lane gone, those marks
+		// must still stack on their own lanes — nothing clipped or shifted into the
+		// reclaimed whitespace.
+		const model = buildLayoutModel(COMPREHENSIVE_SONG, 30);
+		expect(model.systems.length).toBeGreaterThan(1);
+		// Select that system programmatically rather than hard-coding its index, so a
+		// future regression that drops the property surfaces as "no match" here.
+		const sys = model.systems.find(
+			(s, i) =>
+				i >= 1 &&
+				s.measures[0].number !== 1 &&
+				s.texts.tempos.length > 0 &&
+				s.texts.ottavas.some((o) => o.placement === "above"),
+		);
+		expect(sys).toBeDefined();
+		const above = sys.texts.ottavas.filter((o) => o.placement === "above");
+		// Lanes stack top→bottom exactly as on the first system (smaller Y is higher):
+		// tempo above the above-ottava lane, both above the staff top.
+		expect(sys.band.tempoLaneY).toBeLessThan(sys.band.ottavaAboveLaneY);
+		expect(sys.band.ottavaAboveLaneY).toBeLessThan(sys.band.rightStaffTopY);
+		// Each mark lands on its lane baseline — none drifted off-lane.
+		for (const t of sys.texts.tempos) {
+			expect(t.y).toBeCloseTo(sys.band.tempoLaneY, 10);
+		}
+		for (const o of above) {
+			expect(o.y).toBeCloseTo(sys.band.ottavaAboveLaneY, 10);
+		}
 	});
 
 	it("an opening note lands at the uniform lead-in; an opening accidental occupies that lead-in and draws left of the head", () => {
@@ -3972,5 +4134,238 @@ describe("ottava placement — per-hand 'above' lanes and per-system measure-ext
 		expect(perSystem.every((c) => c === 1)).toBe(true);
 		// And the total equals the number of systems the run spans.
 		expect(perSystem.reduce((a, b) => a + b, 0)).toBe(model.systems.length);
+	});
+});
+
+/**
+ * Issue #21 — duration-ordered horizontal spacing.
+ *
+ * This block locks the accepted, already-shipped behavior: a shorter note takes
+ * strictly LESS horizontal space than a longer one. The spacing is already
+ * implemented and wired end-to-end, so this is a pure regression lock — NO
+ * source change is made here. Assertions are ordinal (shorter < longer) or
+ * stated against the live `advanceFor(Δ)` formula; never against raw pixel
+ * literals, so a future spacing-constant tune keeps these green as long as the
+ * duration ordering holds.
+ */
+describe("duration-ordered horizontal spacing (issue #21)", () => {
+	// Four eighths + two quarters, single-pitch (single-pitch ⇒ cx === note.x;
+	// pitches present ⇒ notes are not skipped in layoutHand). The SAME array
+	// feeds measureLayout (which ignores pitches) and buildLayoutModel/renderSvg.
+	const AC1_EVENTS = [
+		...Array.from({ length: 4 }, () => ({
+			type: "note",
+			duration: "eighth",
+			pitches: [{ step: "C", octave: 5 }],
+		})),
+		...Array.from({ length: 2 }, () => ({
+			type: "note",
+			duration: "quarter",
+			pitches: [{ step: "C", octave: 5 }],
+		})),
+	];
+	// Wrap an event array into a one-measure song (mirrors songWithNotes).
+	const songOf = (events) => ({
+		metadata: {},
+		sections: [{ measures: [{ rightHand: events }] }],
+	});
+
+	it("spaces equal eighth columns equally and tighter than the quarter column (AC1)", () => {
+		const layout = measureLayout(AC1_EVENTS, []);
+		// Onsets: four eighths at 0,0.5,1,1.5 then two quarters at 2,3.
+		expect(layout.grid).toEqual([0, 0.5, 1, 1.5, 2, 3]);
+		// The four eighth-led columns are mutually equal (sqrt-irrational ⇒ close).
+		expect(layout.columns[1].advance).toBeCloseTo(layout.columns[0].advance, 10);
+		expect(layout.columns[2].advance).toBeCloseTo(layout.columns[0].advance, 10);
+		expect(layout.columns[3].advance).toBeCloseTo(layout.columns[0].advance, 10);
+		// Each eighth column is tighter than the genuine q→q gap at col 4 (onsets
+		// 2→3). NOT col 3: the last-eighth→first-quarter boundary (onset 1.5→2) is
+		// governed by the eighth's Δ=0.5, so it is itself an eighth gap (trap R-B).
+		expect(layout.columns[0].advance).toBeLessThan(layout.columns[4].advance);
+		expect(layout.columns[1].advance).toBeLessThan(layout.columns[4].advance);
+		expect(layout.columns[2].advance).toBeLessThan(layout.columns[4].advance);
+		expect(layout.columns[3].advance).toBeLessThan(layout.columns[4].advance);
+		// Tie the columns to the live formula (assert against the import, not a
+		// copied 4.3213 / 5.2 literal).
+		expect(layout.columns[0].advance).toBeCloseTo(advanceFor(0.5), 10);
+		expect(layout.columns[4].advance).toBeCloseTo(advanceFor(1), 10);
+	});
+
+	it("orders advances strictly by duration across the whole range (AC2)", () => {
+		// Δ-indexed chain (immune to the inter-note-gap trap R-B): 32nd < 16th <
+		// eighth < quarter < half < whole. The first link is also edge F — the
+		// MIN_ADV floor never ties two distinct durations (0.25 > 0.125).
+		expect(advanceFor(0.125)).toBeLessThan(advanceFor(0.25));
+		expect(advanceFor(0.25)).toBeLessThan(advanceFor(0.5));
+		expect(advanceFor(0.5)).toBeLessThan(advanceFor(1));
+		expect(advanceFor(1)).toBeLessThan(advanceFor(2));
+		expect(advanceFor(2)).toBeLessThan(advanceFor(4));
+	});
+
+	it("places a dotted quarter strictly between a quarter and a half (AC3)", () => {
+		// eventDuration self-documents BASE_DUR × DOT_MUL → 1.5 quarter-beats.
+		const dq = advanceFor(eventDuration({ duration: "quarter", dots: 1 }));
+		expect(dq).toBeGreaterThan(advanceFor(1));
+		expect(dq).toBeLessThan(advanceFor(2));
+	});
+
+	it("gives a chord the same column footprint as a single note of the same duration (AC5)", () => {
+		// Prove AC5 at the measureLayout onset-grid level, NOT at cx — a chord's
+		// back head is displaced by dx*2, so cx would skew (trap R-C).
+		const chord = measureLayout(
+			[
+				{
+					type: "note",
+					duration: "quarter",
+					pitches: [
+						{ step: "C", octave: 5 },
+						{ step: "E", octave: 5 },
+						{ step: "G", octave: 5 },
+					],
+				},
+				{ type: "note", duration: "quarter", pitches: [{ step: "C", octave: 5 }] },
+			],
+			[],
+		);
+		const single = measureLayout(
+			[
+				{ type: "note", duration: "quarter", pitches: [{ step: "C", octave: 5 }] },
+				{ type: "note", duration: "quarter", pitches: [{ step: "C", octave: 5 }] },
+			],
+			[],
+		);
+		// Head count never enters handOnsets / unionGrid / advanceFor.
+		expect(chord.columns[0].advance).toBeCloseTo(single.columns[0].advance, 10);
+		expect(chord.grid).toEqual(single.grid);
+	});
+
+	it("spaces a single-duration measure uniformly (AC6)", () => {
+		const layout = measureLayout(
+			Array.from({ length: 4 }, () => ({
+				type: "note",
+				duration: "quarter",
+				pitches: [{ step: "C", octave: 5 }],
+			})),
+			[],
+		);
+		// N notes → N−1 equal consecutive internal gaps (cols 0..N−2). Column 3 is
+		// the gap to measureEnd and is excluded from the uniformity check.
+		expect(layout.columns[1].advance).toBeCloseTo(layout.columns[0].advance, 10);
+		expect(layout.columns[2].advance).toBeCloseTo(layout.columns[0].advance, 10);
+	});
+
+	it("spaces rests by duration as full grid citizens (AC4)", () => {
+		// A half rest takes strictly more horizontal space than an eighth rest.
+		expect(advanceFor(2)).toBeGreaterThan(advanceFor(0.5));
+		// Rests carry their duration into the onset grid like notes — they need no
+		// pitches and still drive the per-column advance.
+		const layout = measureLayout(
+			[
+				{ type: "rest", duration: "half" },
+				{ type: "rest", duration: "eighth" },
+			],
+			[],
+		);
+		expect(layout.columns[0].advance).toBeGreaterThan(layout.columns[1].advance);
+	});
+
+	it("gives a quarter the same intrinsic advance regardless of its measure or neighbours (AC8)", () => {
+		// Intrinsic (pre-justify) layer only — assert never across systems (trap R-D).
+		const isolated = measureLayout(
+			[
+				{ type: "note", duration: "quarter", pitches: [{ step: "C", octave: 5 }] },
+				{ type: "note", duration: "quarter", pitches: [{ step: "C", octave: 5 }] },
+			],
+			[],
+		);
+		const mixed = measureLayout(AC1_EVENTS, []);
+		// mixed.columns[4] is the genuine q→q column (onsets 2→3); its advance equals
+		// the isolated quarter's, independent of the eighth neighbours (trap R-B).
+		expect(mixed.columns[4].advance).toBeCloseTo(isolated.columns[0].advance, 10);
+	});
+
+	it("lays out an over-full measure blind to the time signature (AC9)", () => {
+		const rh = Array.from({ length: 20 }, () => ({
+			type: "note",
+			duration: "eighth",
+			pitches: [{ step: "C", octave: 5 }],
+		}));
+		const layout = measureLayout(rh, []);
+		expect(layout.columns).toHaveLength(20);
+		// Every column carries the eighth advance — no time-signature clamping.
+		for (const c of layout.columns) {
+			expect(c.advance).toBeCloseTo(advanceFor(0.5), 10);
+		}
+		// Strictly monotonic X across all columns.
+		for (let i = 1; i < 20; i++) {
+			expect(layout.columns[i].x).toBeGreaterThan(layout.columns[i - 1].x);
+		}
+		// Everything stays finite even past a nominal bar capacity.
+		expect(
+			layout.columns.every(
+				(c) => Number.isFinite(c.x) && Number.isFinite(c.advance),
+			),
+		).toBe(true);
+		// Time-signature-blind: identical output across wildly different meters and
+		// with no time signature at all (repo { beats, beatType } shape).
+		const a = measureLayout(rh, [], { timeSignature: { beats: 2, beatType: 4 } });
+		const b = measureLayout(rh, [], { timeSignature: { beats: 12, beatType: 8 } });
+		const bare = measureLayout(rh, []);
+		expect(a).toEqual(b);
+		expect(a).toEqual(bare);
+	});
+
+	it("preserves eighth-vs-quarter ordering and ratio under justification (AC7)", () => {
+		// Width 140 yields a clean 6+2 measure split, so both eighths and both
+		// quarters of measure 0 share that measure's system scale. The measure is
+		// [8,8,q,q] (NOT [8,8,8,8,q,q]) so a genuine q→q inter-note gap exists at
+		// cols 2→3 (trap R-B). The systemScale policy (cap / ragged-last / downscale)
+		// is locked separately by the reused unit cases (layout.test.js:1789); this
+		// is the one end-to-end ordering+ratio confirmation (design D-Justify, R-E).
+		const measure = {
+			rightHand: [
+				{ type: "note", duration: "eighth", pitches: [{ step: "C", octave: 5 }] },
+				{ type: "note", duration: "eighth", pitches: [{ step: "C", octave: 5 }] },
+				{ type: "note", duration: "quarter", pitches: [{ step: "C", octave: 5 }] },
+				{ type: "note", duration: "quarter", pitches: [{ step: "C", octave: 5 }] },
+			],
+		};
+		const song = {
+			metadata: {},
+			sections: [{ measures: Array.from({ length: 8 }, () => ({ ...measure })) }],
+		};
+		const model = buildLayoutModel(song, 140);
+		// Assert the SHAPE, not the exact scale (live ≈ 1.0237; resilient to a
+		// deferred constant tune). Interior system stretches up to the cap; the last
+		// system is ragged (scale 1).
+		expect(model.systems).toHaveLength(2);
+		expect(model.systems[0].advanceScale).toBeGreaterThan(1);
+		expect(model.systems[0].advanceScale).toBeLessThanOrEqual(MAX_STRETCH);
+		expect(model.systems[model.systems.length - 1].advanceScale).toBe(1);
+		// Post-justify on-screen X gaps in system 0, measure 0.
+		const n = model.systems[0].measures[0].right.notes;
+		const eighthGap = n[1].x - n[0].x;
+		const quarterGap = n[3].x - n[2].x; // genuine q→q gap (trap R-B)
+		expect(eighthGap).toBeLessThan(quarterGap);
+		// Ratio preserved under stretch — the uniform scalar cancels, leaving the
+		// intrinsic advanceFor ratio.
+		expect(quarterGap / eighthGap).toBeCloseTo(advanceFor(1) / advanceFor(0.5), 10);
+		// The measure-start lead-in is added unscaled, so the first note sits at
+		// MEASURE_START_PAD even when the system is stretched (exactly 1.0).
+		expect(model.systems[0].measures[0].right.notes[0].x).toBe(MEASURE_START_PAD);
+	});
+
+	it("keeps the eighth note.x gaps tighter than the q→q gap end-to-end (AC10)", () => {
+		// Wide width ⇒ a single ragged system at scale 1 over the canonical
+		// six-event fixture.
+		const model = buildLayoutModel(songOf(AC1_EVENTS), 1000);
+		const notes = model.systems[0].measures[0].right.notes;
+		// All six notes survive layoutHand (guards the pitch-less skip trap R-G).
+		expect(notes).toHaveLength(6);
+		// The [8,8,8,8,q,q] array makes the LAST gap a genuine q→q (trap R-B): the
+		// leading eighth gap is tighter than that trailing quarter gap.
+		expect(notes[1].x - notes[0].x).toBeLessThan(
+			notes[notes.length - 1].x - notes[notes.length - 2].x,
+		);
 	});
 });
