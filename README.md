@@ -16,7 +16,7 @@ There is no playable keyboard or audio yet, but a published page now shows the s
 
 ## Using the Piano block
 
-The Piano block stores one **song** — a JSON document in the plugin's own [song format](docs/song-format.md). You author that song with a **visual editor** (the default surface): you **navigate and select** the song through a **structure tree** — a toggleable outline panel beside the canvas (Section → Measure → Right/Left hand → Note) — run add/remove/duplicate for measures and notes and remove/duplicate for sections from that tree (adding a section lives in the sidebar's Song panel), and configure the selected node in the **block settings sidebar**, while the **canvas is the live render with selection highlighting** (display + highlight only). If you prefer, you can switch to editing the **raw JSON** of the same song as text. Here is the end-to-end workflow.
+The Piano block stores one **song** — a JSON document in the plugin's own [song format](docs/song-format.md). You author that song with a **visual editor** (the default surface): you **navigate and select** the song through a **structure tree** — a toggleable outline panel beside the canvas (Section → Measure → Right/Left hand → Note) — where each section, measure, and note row's menu offers **Duplicate / Add before / Add after / Remove** ("Add measure" lives in the sidebar's Section panel and "Add section" in its Song panel), and configure the selected node in the **block settings sidebar**, while the **canvas is the live render with selection highlighting** (display + highlight only). If you prefer, you can switch to editing the **raw JSON** of the same song as text. Here is the end-to-end workflow.
 
 ### 1. Insert the block
 
