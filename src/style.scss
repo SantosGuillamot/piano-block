@@ -46,23 +46,35 @@
 		align-items: flex-start;
 	}
 
-	/* The structure-tree column: a fixed, content-sized rail to the left of the
-	 * canvas. It does not grow with the workspace; the canvas takes the remaining
-	 * space (and shrinks past it via `&__canvas`'s `min-width: 0`). */
+	/* The structure-tree column. The TreeGrid renders a bare, content-sized table,
+	 * so this column is shrink-to-fit (`flex: 0 1 auto`) rather than a fixed rail.
+	 * The `max-width` is load-bearing, not cosmetic: a flex item defaults to
+	 * `min-width: auto` and a shrink-to-fit table reports a large min-content width
+	 * when a row label is long, so without this ceiling a long note label could push
+	 * the column wider and starve the canvas. The ceiling plus the label truncation
+	 * below cap the table's growth — the same construction List View uses. */
 	&__tree {
-		flex: 0 0 auto;
-		width: 16em;
-		min-width: 12em;
-		max-width: 40%;
+		flex: 0 1 auto;
+		max-width: 24em;
 
-		/* Depth indentation for the tree's label column. Each row's label button
-		 * carries an inline `--pb-tree-depth` (0 for a section … 3 for a note),
-		 * computed in JS from the row's `level`; this rule turns that depth number
-		 * into a left padding so the hierarchy reads as nested. The depth *number*
-		 * lives in JS (`level`); the indent *unit* lives here. The `0` default keeps
-		 * a var-less label (e.g. the action-button cell) flush-left. */
+		/* Depth indentation for the tree's label column, keyed off each row's
+		 * rendered `aria-level` (emitted by `TreeGridRow`'s `level`, 1 for a section
+		 * … 4 for a note). The depth *number* now lives in the DOM; the indent *unit*
+		 * lives here. This is core's own idiom (List View indents via `@for` × a grid
+		 * unit) and needs zero JS injection. Level 1 sits flush-left; each deeper
+		 * level adds 1.5em. */
+		@for $i from 1 through 4 {
+			[aria-level="#{$i}"] &-label {
+				padding-left: ($i - 1) * 1.5em;
+			}
+		}
+
+		/* The label cell truncates rather than widening the column: a long note name
+		 * shows an ellipsis instead of pushing the column past the ceiling above. */
 		&-label {
-			padding-left: calc(var(--pb-tree-depth, 0) * 1.5em);
+			white-space: nowrap;
+			overflow: hidden;
+			text-overflow: ellipsis;
 		}
 	}
 
@@ -101,15 +113,6 @@
 			*:not([fill="none"]) { fill: #007cba; } /* filled heads, dots, text, rest bodies */
 			line { stroke: #007cba; }               /* stems + ledger lines */
 			ellipse[fill="none"] { stroke: #007cba; } /* open-notehead ring (keeps its hole) */
-
-			/* Enclosing hairline (Chrome/Firefox; may no-op on Safari for a <g>,
-			 * hence the recolor floor above). Outline lengths resolve in the
-			 * staff-space user system, which the root viewBox scales 1 sp -> SP_PX
-			 * (8) CSS px, so divide by 8: 0.125 sp x 8 = ~1 CSS px line, 0.25 sp x 8
-			 * = ~2 CSS px gap. COUPLED to SP_PX=8 by design (this one commented line
-			 * must be re-divided if SP_PX is retuned). */
-			outline: 0.125px solid #007cba;
-			outline-offset: 0.25px;
 		}
 	}
 }
