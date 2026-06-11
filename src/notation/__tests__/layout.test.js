@@ -2293,21 +2293,22 @@ describe("layout-polish fixes", () => {
 	it("a head system opening on measure 1 keeps its exact top margin + lane baselines", () => {
 		// Measure 1 never reserved any above-staff number band, so collapsing the
 		// reservation to the bare ledger extent must leave this system pixel-identical.
-		// These are the verified pre-change values for the comprehensive song's head
-		// system (the one that opens on measure 1) at two widths.
+		// Verified values for the comprehensive song's head system (the one that opens
+		// on measure 1) at two widths, under the ottava → tempo → annotation lane
+		// stacking (annotations sit above tempo, the outermost lane).
 		const head30 = buildLayoutModel(COMPREHENSIVE_SONG, 30).systems[0];
 		expect(head30.measures[0].number).toBe(1);
 		expect(head30.band.topMargin).toBeCloseTo(8.7, 10);
-		expect(head30.band.tempoLaneY).toBeCloseTo(3.8, 10);
+		expect(head30.band.tempoLaneY).toBeCloseTo(7.2, 10);
 		expect(head30.band.ottavaAboveLaneY).toBeNull();
-		expect(head30.band.annotationAboveRHLaneY).toBeCloseTo(7.2, 10);
+		expect(head30.band.annotationAboveRHLaneY).toBeCloseTo(3.8, 10);
 
 		const head200 = buildLayoutModel(COMPREHENSIVE_SONG, 200).systems[0];
 		expect(head200.measures[0].number).toBe(1);
 		expect(head200.band.topMargin).toBeCloseTo(13, 10);
-		expect(head200.band.tempoLaneY).toBeCloseTo(3.8, 10);
-		expect(head200.band.ottavaAboveLaneY).toBeCloseTo(6.6, 10);
-		expect(head200.band.annotationAboveRHLaneY).toBeCloseTo(10, 10);
+		expect(head200.band.tempoLaneY).toBeCloseTo(7.2, 10);
+		expect(head200.band.ottavaAboveLaneY).toBeCloseTo(10, 10);
+		expect(head200.band.annotationAboveRHLaneY).toBeCloseTo(3.8, 10);
 	});
 
 	it("the above-staff reservation depends only on the ledger extent, not on a measure number", () => {
