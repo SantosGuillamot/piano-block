@@ -565,14 +565,23 @@ Two test surfaces exist and both touch the redesign:
 - Highlight: the `is-selected` assertion (`:206`, `:455`) STAYS valid (DD8 keeps the class).
 - `render.spec.js` stays green untouched (R-E1).
 
-**Test-strategy summary:** rewrite `StructureTree.test.js` for the new row shape (the mock
-needs a `DropdownMenu` stub — per Q0 caveat, jest proves STRUCTURE: row inventory, per-row
-menu `label`, kind-gated menu contents, single-Set toggle, plain-key addressing); keep the
-ARIA-wiring assertions; lean on the Playwright e2e suite for the A11y/keyboard composition
+**Test-strategy summary:** rewrite `StructureTree.test.js` for the new row shape (the
+components mock at `test/mocks/wordpress-components.js` needs `DropdownMenu`/`MenuGroup`/
+`MenuItem` stubs ADDED — it has none today per the Q0 caveat; this is a concrete plan-phase
+touch-point. With the stubs, jest proves STRUCTURE: row inventory, per-row menu `label`,
+kind-gated menu contents, single-Set toggle, plain-key addressing); keep the ARIA-wiring
+assertions; lean on the Playwright e2e suite for the A11y/keyboard composition
 (focus-trap/restore, roving tabindex reaching the menu trigger) that the mock can't prove;
 keep the inspector panel tests as the unchanged-behavior regression net for R-B3; add
 direct unit tests for the extracted helpers (`clampInt`/`toBoundedInt`/`setSectionAt`/
 `setMeasureAt`/`setEventAt`/`omitEmpty`/`omitFalsy`).
+
+**Two concrete plan-phase touch-points to carry forward (researcher housekeeping note):**
+(1) the components mock `test/mocks/wordpress-components.js` must gain `DropdownMenu`/
+`MenuGroup`/`MenuItem` stubs for the structural unit tests (R-A2/DD3); (2) the e2e
+caret-tolerant note-row locator (`specs/editor.spec.js:281-288`) must drop its `▸`/`▾`
+regex when DD4 removes the glyphs. Both are implementation tasks already implied by the
+decisions — flagged here so the planner sees them coming.
 
 ## 4. Q&A log
 
