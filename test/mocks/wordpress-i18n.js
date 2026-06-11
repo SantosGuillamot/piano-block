@@ -8,7 +8,10 @@
  * never reaches the output in the real package either). `sprintf` performs the
  * same substitution the real export does — both the bare `%d`/`%s` forms and the
  * positional `%1$s`/`%2$d` forms — so a numbered or two-part label (e.g.
- * "Measure 3" or "Hello by Ada") renders the right text under test.
+ * "Measure 3" or "Hello by Ada") renders the right text under test. `isRTL`
+ * returns `false`, matching the real package when no RTL locale is loaded —
+ * exactly the no-locale test default — so callers exercise the LTR branch (the
+ * RTL branch is e2e/runtime-only, mirroring this mock's no-translation stance).
  */
 const __ = (text) => text;
 
@@ -21,4 +24,6 @@ const sprintf = (format, ...args) => {
 	);
 };
 
-module.exports = { __, _x, sprintf };
+const isRTL = () => false;
+
+module.exports = { __, _x, sprintf, isRTL };

@@ -324,6 +324,84 @@ const Icon = ({ icon: _icon, size: _size, ...rest }) =>
 	createElement("span", { "data-icon": true, ...rest });
 
 /**
+ * Minimal `DropdownMenu` stand-in. The real component renders a trigger button
+ * that opens a focus-trapped popover holding the menu content; here the trigger
+ * is a real `<button>` carrying `aria-label={label}` and spreading `toggleProps`
+ * (so any roving-tabindex props — `ref`/`tabIndex`/`onFocus` — reach the DOM
+ * button), and the `children` (the menu content) render directly in the DOM so
+ * their `MenuItem`s are always queryable. Like the TreeGrid mock leaves roving
+ * tabindex to e2e, this stub simulates no focus trap or open/close: the menu
+ * content is always present, and the real composition (open the menu, focus the
+ * first item) is left to the e2e suite. `icon` is accepted and ignored.
+ *
+ * Note: under jest the `TreeGridCell` render-prop child receives `{}`, so the
+ * `{ ref, tabIndex, onFocus }` a caller forwards into `toggleProps` are all
+ * `undefined` — harmless (spreading `undefined` props is a no-op), but it means
+ * the roving-tabindex wiring is e2e-only; unit tests assert structural outcomes
+ * (the trigger's `aria-label`, the gated `MenuItem`s, the fired handlers), not
+ * `ref`/`tabIndex`/`onFocus`.
+ *
+ * @param {Object} props DropdownMenu props.
+ * @return {Object} A React element: the trigger button followed by the menu content.
+ */
+const DropdownMenu = ({
+	label,
+	children,
+	toggleProps = {},
+	// Swallow props with no behavior the tests assert.
+	icon: _icon,
+	...rest
+}) =>
+	createElement(
+		"div",
+		rest,
+		createElement("button", {
+			type: "button",
+			"aria-label": label,
+			...toggleProps,
+		}),
+		children,
+	);
+
+/**
+ * Minimal `MenuGroup` stand-in. The real component groups menu items under an
+ * optional label; here it just renders its `children` inside a `<div>` so the
+ * grouped `MenuItem`s are present in the DOM. `label` is accepted and ignored.
+ *
+ * @param {Object} props MenuGroup props.
+ * @return {Object} A React `<div>` wrapping the children.
+ */
+const MenuGroup = ({
+	children,
+	// Swallow props with no behavior the tests assert.
+	label: _label,
+	...rest
+}) => createElement("div", { ...rest }, children);
+
+/**
+ * Minimal `MenuItem` stand-in. Renders a real `<button>`; the accessible name
+ * comes from `label` (mapped to `aria-label`) or, failing that, the button's
+ * text children — which is how tests locate it. `isDestructive` is accepted and
+ * ignored (it carries no behavior the tests assert), mirroring `Button`.
+ *
+ * @param {Object} props MenuItem props.
+ * @return {Object} A React `<button>` element.
+ */
+const MenuItem = ({
+	onClick,
+	label,
+	children,
+	// Swallow props with no behavior the tests assert.
+	isDestructive: _isDestructive,
+	...rest
+}) =>
+	createElement(
+		"button",
+		{ type: "button", onClick, "aria-label": label ?? undefined, ...rest },
+		children,
+	);
+
+/**
  * Minimal `__experimentalTreeGrid` (TreeGrid) stand-in. The real component
  * renders a `<table role="treegrid">` and supplies the accessible treegrid
  * keyboard model (roving tabindex, Up/Down/Left/Right navigation) over its rows;
@@ -396,6 +474,13 @@ const TreeGridRow = ({
  * object (the mock simulates no roving tabindex). A plain (non-render-prop) child
  * is rendered as-is.
  *
+ * Because the render-prop child is called with `{}`, any `{ ref, tabIndex,
+ * onFocus }` a caller destructures from it are `undefined` under jest — harmless
+ * (spreading `undefined` props is a no-op, and `Button`/`DropdownMenu` swallow
+ * unknown props) but it makes the roving-tabindex wiring e2e-only: unit tests
+ * assert structural outcomes (which focusable renders, its label, the fired
+ * handlers), not `ref`/`tabIndex`/`onFocus`.
+ *
  * @param {Object} props TreeGridCell props.
  * @return {Object} A React `<td role="gridcell">` element.
  */
@@ -431,6 +516,9 @@ module.exports = {
 	PanelBody,
 	ToggleControl,
 	Icon,
+	DropdownMenu,
+	MenuGroup,
+	MenuItem,
 	__experimentalNumberControl: NumberControl,
 	__experimentalToolsPanel: ToolsPanel,
 	__experimentalToolsPanelItem: ToolsPanelItem,
