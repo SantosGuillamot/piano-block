@@ -107,7 +107,7 @@ export default function Edit({ attributes, setAttributes }) {
 	// after a structural edit is best-effort (same wart, not new).
 	const [showTree, setShowTree] = useState(true);
 	const [expandedPaths, setExpandedPaths] = useState(() => new Set());
-	const [collapsedOverride, setCollapsedOverride] = useState(() => new Set());
+	const [_collapsedOverride, setCollapsedOverride] = useState(() => new Set());
 
 	// Toggle a tree row's manual expansion by its index-path string. A new Set is
 	// built each call so React sees a fresh reference and re-renders the tree.
@@ -123,12 +123,12 @@ export default function Edit({ attributes, setAttributes }) {
 		});
 	};
 
-	// Toggle a selection-ancestor row's manual-collapse veto by its index-path
-	// string. Same immutable add/delete shape as `onToggleExpanded`: a fresh Set so
-	// React re-renders. The tree consults this only for selection-ancestor rows, so
-	// adding a path collapses an otherwise auto-revealed ancestor and deleting it
-	// restores the auto-reveal.
-	const onToggleCollapsedOverride = (path) => {
+	// Dead since the StructureTree redesign dropped the dual-Set/veto regime (the
+	// tree now takes a single `expanded` Set and no longer accepts this toggle).
+	// Kept (underscore-prefixed to satisfy no-unused-vars) only as the harmless
+	// bridge while edit.js's own state collapse waits for T5, which deletes this
+	// function and the now-dead `collapsedOverride` state outright.
+	const _onToggleCollapsedOverride = (path) => {
 		setCollapsedOverride((current) => {
 			const next = new Set(current);
 			if (next.has(path)) {
@@ -458,10 +458,8 @@ export default function Edit({ attributes, setAttributes }) {
 								song={working}
 								selection={resolvedSelection}
 								system={system}
-								expandedPaths={expandedPaths}
+								expanded={expandedPaths}
 								onToggleExpanded={onToggleExpanded}
-								collapsedOverride={collapsedOverride}
-								onToggleCollapsedOverride={onToggleCollapsedOverride}
 								onSelect={setSelection}
 								onRemoveSection={onRemoveSection}
 								onDuplicateSection={onDuplicateSection}

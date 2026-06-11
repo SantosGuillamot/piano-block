@@ -4,23 +4,29 @@
  * `StructureTree` is a pure controlled component built on `__experimentalTreeGrid`:
  * it flattens the song into Section → Measure → {Right hand, Left hand} → Note rows
  * (respecting expansion), signals a kind-tagged `selection` through `onSelect` for
- * section/measure/note rows, and signals add/remove/duplicate intent through the
- * lifted `edit.js` handlers. Hand-group rows are organizational — they toggle
- * expansion and host the per-hand "Add note" but never select (KD 14).
+ * section/measure/note rows, and signals add/remove/duplicate intent through a
+ * per-row `DropdownMenu` (hand-group rows host a single direct "Add note"). Each
+ * row mirrors core's List View row: a select-only label `Button` with a
+ * non-focusable stock chevron beside it, and an actions `DropdownMenu`. Hand-group
+ * rows are organizational — the label toggles expansion and the cell hosts the
+ * per-hand "Add note", but they never select (KD 14).
  *
- * These tests pin the row inventory at each level (and that collapsed
- * sections/measures hide their descendants until expanded or auto-expanded by the
- * selection), the `name`-or-positional labels and `noteLabel` note labels, the
- * kind-tagged select payloads (and that a hand row does not select), the
- * add/remove/duplicate handler wiring at each level plus the per-hand "Add note",
- * the manual-vs-auto expansion behavior, and the treegrid ARIA wiring
- * (`aria-level`/`-posinset`/`-setsize`/`-expanded`) exposed by the component mock.
+ * Expansion is a single membership lookup against one `expanded` Set of
+ * coordinate-derived keys (`s0`, `s0m0`, `s0m0rightHand`) — no ancestor test, no
+ * veto, no auto-reveal. These tests pin the row inventory at each level (and that
+ * collapsed sections/measures hide their descendants until their key is in the
+ * Set), the `name`-or-positional labels and `noteLabel` note labels, the
+ * kind-tagged select payloads (and that a hand row does not select), the split of
+ * select-only label vs chevron toggle, the per-row `DropdownMenu` actions + the
+ * per-hand "Add note", `aria-current` on the selected row, and the treegrid ARIA
+ * wiring (`aria-level`/`-posinset`/`-setsize`/`-expanded`) exposed by the mock.
  *
  * The component is presentational, so the tests render it into jsdom (the same
  * `createRoot`/`act` harness the sibling suites use) and drive the mocked
- * `@wordpress/components` buttons directly. The `__experimentalTreeGrid*` mocks
- * render DOM-honest `<table role="treegrid">`/`<tr>`/`<td>` stand-ins, leaving the
- * real keyboard/roving-tabindex model to the e2e suite.
+ * `@wordpress/components` controls directly. The `__experimentalTreeGrid*` and
+ * `DropdownMenu` mocks render DOM-honest stand-ins (a `<table role="treegrid">`
+ * and an always-open menu), leaving the real keyboard/roving-tabindex and
+ * focus-trap model to the e2e suite.
  */
 import { createElement } from "@wordpress/element";
 import { act } from "react";
@@ -56,22 +62,31 @@ function buttonByLabel(container, label) {
 }
 
 /**
- * Find a select/label button by the leading text of its visible label. Section,
- * measure, hand and note rows render a label `Button` whose text content carries an
- * optional disclosure caret then the label, so a prefix match locates the row's
- * select control.
+ * Find a select/label button by its exact visible text. Section, measure, hand and
+ * note rows render a label `Button` whose text content is the plain label (the
+ * disclosure chevron is a sibling `<span>`/`<Icon>`, not part of the button text),
+ * so an exact-text match locates the row's select control.
  */
 function selectButtonByText(container, text) {
 	return Array.from(container.querySelectorAll("button")).find(
-		(button) => (button.textContent ?? "").replace(/^[▸▾]\s*/, "") === text,
+		(button) => (button.textContent ?? "") === text,
 	);
 }
 
-/** All select/label buttons whose (caret-stripped) text equals `text`. */
+/** All select/label buttons whose text equals `text`. */
 function selectButtonsByText(container, text) {
 	return Array.from(container.querySelectorAll("button")).filter(
-		(button) => (button.textContent ?? "").replace(/^[▸▾]\s*/, "") === text,
+		(button) => (button.textContent ?? "") === text,
 	);
+}
+
+/**
+ * The non-focusable disclosure chevron for the row whose label is `text`: the
+ * sibling `__tree-expander` span inside the same row, carrying the pointer toggle.
+ */
+function expanderForRow(container, text) {
+	const row = selectButtonByText(container, text).closest("tr");
+	return row.querySelector(".wp-block-piano-block-piano__tree-expander");
 }
 
 /** Click a node inside `act`. */
@@ -124,21 +139,19 @@ function fixtureSong() {
 /**
  * Render a `StructureTree` over a fixture, recording every handler invocation. The
  * `selection` is resolved against the song so the assertions exercise the same
- * kind-tagged shape `edit.js` feeds the component. `expandedPaths` defaults to a
- * Set expanding section 0 and its first measure and both hands, so the deepest rows
- * are visible without relying on auto-expand (which separate tests cover).
+ * kind-tagged shape `edit.js` feeds the component. `expanded` defaults to a Set
+ * with section 0, its first measure and both hands' coordinate keys, so the
+ * deepest rows are visible without relying on auto-reveal (which is dropped).
  */
 function renderTree({
 	song = fixtureSong(),
 	selection = null,
-	expandedPaths = new Set(["s0", "s0/m0", "s0/m0/rightHand", "s0/m0/leftHand"]),
-	collapsedOverride = new Set(),
+	expanded = new Set(["s0", "s0m0", "s0m0rightHand", "s0m0leftHand"]),
 	system = "english",
 } = {}) {
 	const calls = {
 		select: [],
 		toggle: [],
-		toggleOverride: [],
 		removeSection: [],
 		duplicateSection: [],
 		addMeasure: [],
@@ -153,10 +166,8 @@ function renderTree({
 			song,
 			selection: resolveSelection(song, selection),
 			system,
-			expandedPaths,
-			onToggleExpanded: (path) => calls.toggle.push(path),
-			collapsedOverride,
-			onToggleCollapsedOverride: (path) => calls.toggleOverride.push(path),
+			expanded,
+			onToggleExpanded: (key) => calls.toggle.push(key),
 			onSelect: (next) => calls.select.push(next),
 			onRemoveSection: (si) => calls.removeSection.push(si),
 			onDuplicateSection: (si) => calls.duplicateSection.push(si),
@@ -188,9 +199,9 @@ describe("StructureTree — inventory", () => {
 		unmount();
 	});
 
-	it("hides a collapsed section's descendants until expanded", () => {
-		// Nothing expanded and no selection: only the two section rows show.
-		const { container, unmount } = renderTree({ expandedPaths: new Set() });
+	it("hides a collapsed section's descendants until its key is in the Set", () => {
+		// Empty `expanded` Set and no selection: only the two section rows show.
+		const { container, unmount } = renderTree({ expanded: new Set() });
 		expect(selectButtonByText(container, "Section 1")).toBeTruthy();
 		expect(selectButtonByText(container, "Section 2")).toBeTruthy();
 		// No measures, hands or notes are visible while collapsed.
@@ -200,10 +211,10 @@ describe("StructureTree — inventory", () => {
 		unmount();
 	});
 
-	it("hides a collapsed measure's hands until the measure is expanded", () => {
+	it("hides a collapsed measure's hands until the measure key is in the Set", () => {
 		// Section 0 expanded but its measures collapsed: measure rows show, no hands.
 		const { container, unmount } = renderTree({
-			expandedPaths: new Set(["s0"]),
+			expanded: new Set(["s0"]),
 		});
 		expect(selectButtonsByText(container, "Measure 1")).toHaveLength(1);
 		expect(selectButtonByText(container, "Measure 2")).toBeTruthy();
@@ -215,7 +226,7 @@ describe("StructureTree — inventory", () => {
 		// Measure 2 of section 0 is empty `{}` — both hand groups still render so a
 		// note can be seeded into either via the per-hand Add note.
 		const { container, unmount } = renderTree({
-			expandedPaths: new Set(["s0", "s0/m1"]),
+			expanded: new Set(["s0", "s0m1"]),
 		});
 		const measureTwoRow = selectButtonByText(container, "Measure 2").closest(
 			"tr",
@@ -228,6 +239,27 @@ describe("StructureTree — inventory", () => {
 			0,
 		);
 		expect(measureTwoRow).toBeTruthy();
+		unmount();
+	});
+
+	it("does not reveal a selection's ancestors when the Set is empty (no auto-reveal)", () => {
+		// Select the left-hand chord with an EMPTY `expanded` Set: auto-reveal is
+		// dropped, so the deep selected leaf is NOT revealed — only the top-level
+		// section rows render.
+		const { container, unmount } = renderTree({
+			expanded: new Set(),
+			selection: {
+				kind: "event",
+				sectionIndex: 0,
+				measureIndex: 0,
+				hand: "leftHand",
+				eventIndex: 0,
+			},
+		});
+		expect(selectButtonByText(container, "Section 1")).toBeTruthy();
+		expect(selectButtonsByText(container, "Measure 1")).toHaveLength(0);
+		expect(selectButtonByText(container, "Left hand")).toBeFalsy();
+		expect(selectButtonByText(container, "C E G")).toBeFalsy();
 		unmount();
 	});
 });
@@ -263,7 +295,7 @@ describe("StructureTree — labels", () => {
 		// Section 1's measure carries a rest — expand it and assert the "rest" label.
 		unmount();
 		const { container: c2, unmount: u2 } = renderTree({
-			expandedPaths: new Set(["s1", "s1/m0", "s1/m0/rightHand"]),
+			expanded: new Set(["s1", "s1m0", "s1m0rightHand"]),
 		});
 		expect(selectButtonByText(c2, "rest")).toBeTruthy();
 		u2();
@@ -319,43 +351,98 @@ describe("StructureTree — select", () => {
 		unmount();
 	});
 
-	it("does not select when a hand-group row is clicked", () => {
+	it("does not select when a hand-group row label is clicked (it toggles instead)", () => {
 		const { container, unmount, calls } = renderTree();
 		click(selectButtonByText(container, "Right hand"));
-		// A hand row toggles expansion but never selects.
+		// A hand row label toggles expansion but never selects.
 		expect(calls.select).toEqual([]);
-		expect(calls.toggle).toEqual(["s0/m0/rightHand"]);
+		expect(calls.toggle).toEqual(["s0m0rightHand"]);
 		unmount();
 	});
 });
 
-describe("StructureTree — add/remove/duplicate", () => {
-	it("removes and duplicates a section with its index", () => {
+describe("StructureTree — select-only label vs chevron toggle", () => {
+	it("selects (not toggles) when a section label is clicked", () => {
+		const { container, unmount, calls } = renderTree({
+			expanded: new Set(),
+		});
+		click(selectButtonByText(container, "Section 1"));
+		// The label is select-only after the redesign: it selects, never toggles.
+		expect(calls.select).toEqual([{ kind: "section", sectionIndex: 0 }]);
+		expect(calls.toggle).toEqual([]);
+		unmount();
+	});
+
+	it("toggles (not selects) when a section chevron is clicked", () => {
+		const { container, unmount, calls } = renderTree({
+			expanded: new Set(),
+		});
+		click(expanderForRow(container, "Section 1"));
+		// The chevron is the disclosure affordance: it toggles, never selects.
+		expect(calls.toggle).toEqual(["s0"]);
+		expect(calls.select).toEqual([]);
+		unmount();
+	});
+
+	it("toggles a measure's expansion via its chevron with the coordinate key", () => {
 		const { container, unmount, calls } = renderTree();
-		click(buttonByLabel(container, "Remove section 2"));
-		click(buttonByLabel(container, "Duplicate section 1"));
+		click(expanderForRow(container, "Measure 1"));
+		expect(calls.toggle).toEqual(["s0m0"]);
+		expect(calls.select).toEqual([]);
+		unmount();
+	});
+});
+
+describe("StructureTree — row actions", () => {
+	it("removes and duplicates a section from its DropdownMenu", () => {
+		const { container, unmount, calls } = renderTree();
+		// The row menu trigger carries the per-row accessible name; its items render
+		// directly under the always-open menu mock and are queryable by visible text.
+		expect(buttonByLabel(container, "Actions for Section 1")).toBeTruthy();
+		const sectionTwoMenu = buttonByLabel(
+			container,
+			"Actions for Section 2",
+		).closest("div");
+		const sectionOneMenu = buttonByLabel(
+			container,
+			"Actions for Section 1",
+		).closest("div");
+		click(selectButtonByText(sectionTwoMenu, "Remove"));
+		click(selectButtonByText(sectionOneMenu, "Duplicate"));
 		expect(calls.removeSection).toEqual([1]);
 		expect(calls.duplicateSection).toEqual([0]);
 		unmount();
 	});
 
-	it("adds a measure to a section from the section row", () => {
+	it("adds a measure to a section from the section DropdownMenu", () => {
 		const { container, unmount, calls } = renderTree();
-		click(buttonByLabel(container, "Add measure to section 2"));
+		const sectionTwoMenu = buttonByLabel(
+			container,
+			"Actions for Section 2",
+		).closest("div");
+		click(selectButtonByText(sectionTwoMenu, "Add measure"));
 		expect(calls.addMeasure).toEqual([1]);
 		unmount();
 	});
 
-	it("removes and duplicates a measure with its coords", () => {
+	it("removes and duplicates a measure from its DropdownMenu", () => {
 		const { container, unmount, calls } = renderTree();
-		click(buttonByLabel(container, "Remove measure 2 of section 1"));
-		click(buttonByLabel(container, "Duplicate measure 1 of section 1"));
+		const measureTwoMenu = buttonByLabel(
+			container,
+			"Actions for Measure 2 of section 1",
+		).closest("div");
+		const measureOneMenu = buttonByLabel(
+			container,
+			"Actions for Measure 1 of section 1",
+		).closest("div");
+		click(selectButtonByText(measureTwoMenu, "Remove"));
+		click(selectButtonByText(measureOneMenu, "Duplicate"));
 		expect(calls.removeMeasure).toEqual([[0, 1]]);
 		expect(calls.duplicateMeasure).toEqual([[0, 0]]);
 		unmount();
 	});
 
-	it("adds a note to each hand via the per-hand Add note", () => {
+	it("adds a note to each hand via the per-hand Add note button", () => {
 		const { container, unmount, calls } = renderTree();
 		click(
 			buttonByLabel(
@@ -376,121 +463,26 @@ describe("StructureTree — add/remove/duplicate", () => {
 		unmount();
 	});
 
-	it("removes and duplicates a note with its full coords", () => {
+	it("removes and duplicates a note from its DropdownMenu", () => {
 		const { container, unmount, calls } = renderTree();
-		click(
-			buttonByLabel(
-				container,
-				"Remove note 1 of Right hand of measure 1 of section 1",
-			),
-		);
-		click(
-			buttonByLabel(
-				container,
-				"Duplicate note 1 of Left hand of measure 1 of section 1",
-			),
-		);
+		const noteMenu = buttonByLabel(
+			container,
+			"Actions for Note 1 of Right hand of measure 1 of section 1",
+		).closest("div");
+		const chordMenu = buttonByLabel(
+			container,
+			"Actions for Note 1 of Left hand of measure 1 of section 1",
+		).closest("div");
+		click(selectButtonByText(noteMenu, "Remove"));
+		click(selectButtonByText(chordMenu, "Duplicate"));
 		expect(calls.removeNote).toEqual([[0, 0, "rightHand", 0]]);
 		expect(calls.duplicateNote).toEqual([[0, 0, "leftHand", 0]]);
 		unmount();
 	});
 });
 
-describe("StructureTree — expansion", () => {
-	it("toggles a section's manual expansion when its row is clicked", () => {
-		const { container, unmount, calls } = renderTree({
-			expandedPaths: new Set(),
-		});
-		click(selectButtonByText(container, "Section 1"));
-		expect(calls.toggle).toEqual(["s0"]);
-		unmount();
-	});
-
-	it("auto-expands the selection's ancestors even with an empty expandedPaths", () => {
-		// Select the left-hand chord with NOTHING manually expanded: the tree must
-		// reveal its section, measure and hand so the selected leaf is visible.
-		const { container, unmount } = renderTree({
-			expandedPaths: new Set(),
-			selection: {
-				kind: "event",
-				sectionIndex: 0,
-				measureIndex: 0,
-				hand: "leftHand",
-				eventIndex: 0,
-			},
-		});
-		expect(selectButtonByText(container, "Section 1")).toBeTruthy();
-		expect(selectButtonByText(container, "Measure 1")).toBeTruthy();
-		expect(selectButtonByText(container, "Left hand")).toBeTruthy();
-		expect(selectButtonByText(container, "C E G")).toBeTruthy();
-		// The unrelated right-hand branch stays collapsed (no auto-expand of it).
-		expect(selectButtonByText(container, "C")).toBeFalsy();
-		unmount();
-	});
-
-	it("routes a selection-ancestor's collapse to the override, and the override beats auto-reveal (AC7)", () => {
-		// Select the left-hand chord so s0, s0/m0 and s0/m0/leftHand auto-reveal.
-		const selection = {
-			kind: "event",
-			sectionIndex: 0,
-			measureIndex: 0,
-			hand: "leftHand",
-			eventIndex: 0,
-		};
-		const { container, unmount, calls } = renderTree({
-			expandedPaths: new Set(),
-			collapsedOverride: new Set(),
-			selection,
-		});
-		// The ancestor rows and the selected leaf are revealed.
-		expect(selectButtonByText(container, "Measure 1")).toBeTruthy();
-		expect(selectButtonByText(container, "Left hand")).toBeTruthy();
-		expect(selectButtonByText(container, "C E G")).toBeTruthy();
-
-		// Collapsing an ancestor row (Measure 1) routes to the override, not the
-		// manual expandedPaths Set — that is what lets a manual collapse stick.
-		click(selectButtonByText(container, "Measure 1"));
-		expect(calls.toggleOverride).toEqual(["s0/m0"]);
-		expect(calls.toggle).toEqual([]);
-		unmount();
-
-		// Re-render with that ancestor in collapsedOverride (the controlled analog of
-		// the parent applying the toggle): the override vetoes the auto-reveal, so the
-		// ancestor's descendants are hidden while the ancestor row itself stays visible.
-		const { container: c2, unmount: u2 } = renderTree({
-			expandedPaths: new Set(),
-			collapsedOverride: new Set(["s0/m0"]),
-			selection,
-		});
-		expect(selectButtonByText(c2, "Measure 1")).toBeTruthy();
-		expect(selectButtonByText(c2, "Left hand")).toBeFalsy();
-		expect(selectButtonByText(c2, "Right hand")).toBeFalsy();
-		expect(selectButtonByText(c2, "C E G")).toBeFalsy();
-		u2();
-	});
-
-	it("still auto-reveals a different selection's ancestors when the override is empty (AC7 reveal half)", () => {
-		// A different leaf (the right-hand C note) with an EMPTY override: its
-		// ancestors must still auto-reveal — the override only vetoes paths it holds.
-		const { container, unmount } = renderTree({
-			expandedPaths: new Set(),
-			collapsedOverride: new Set(),
-			selection: {
-				kind: "event",
-				sectionIndex: 0,
-				measureIndex: 0,
-				hand: "rightHand",
-				eventIndex: 0,
-			},
-		});
-		expect(selectButtonByText(container, "Section 1")).toBeTruthy();
-		expect(selectButtonByText(container, "Measure 1")).toBeTruthy();
-		expect(selectButtonByText(container, "Right hand")).toBeTruthy();
-		expect(selectButtonByText(container, "C")).toBeTruthy();
-		unmount();
-	});
-
-	it("marks the selected row aria-current", () => {
+describe("StructureTree — aria-current", () => {
+	it("marks the selected row aria-current and leaves unselected rows without it", () => {
 		const { container, unmount } = renderTree({
 			selection: { kind: "section", sectionIndex: 1 },
 		});

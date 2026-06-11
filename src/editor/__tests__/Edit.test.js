@@ -102,19 +102,37 @@ function buttonByText(container, text) {
 }
 
 /**
- * Look up a structure-tree label button by its visible text, ignoring the leading
- * disclosure caret (`▸`/`▾`) the section/measure/hand/note rows render before the
- * label.
+ * Look up a structure-tree label button by its exact visible text. After the
+ * review-6 redesign the label is plain text (the disclosure chevron is a sibling
+ * non-focusable `<span>`, not part of the button), so this is an exact match.
  */
 function treeRowButton(container, text) {
 	return [...container.querySelectorAll("button")].find(
-		(button) => (button.textContent ?? "").replace(/^[▸▾]\s*/, "") === text,
+		(button) => (button.textContent ?? "") === text,
 	);
 }
 
-/** Click a structure-tree label row (by its caret-stripped text) inside `act`. */
+/**
+ * Click a structure-tree label row (by its exact text) inside `act`. The label is
+ * select-only after the redesign, so this **selects** the row; it no longer
+ * expands it. Use `expandRow` to reveal a row's children.
+ */
 function clickByText(container, text) {
 	click(treeRowButton(container, text));
+}
+
+/**
+ * Reveal a row's children by clicking its non-focusable disclosure chevron — the
+ * `__tree-expander` span beside the row's label, whose pointer `onClick` routes to
+ * `onToggleExpanded`. The select-only label no longer expands, so an ancestor must
+ * be expanded through its chevron before its child rows render.
+ */
+function expandRow(container, text) {
+	const row = treeRowButton(container, text).closest("tr");
+	const expander = row.querySelector(
+		".wp-block-piano-block-piano__tree-expander",
+	);
+	click(expander);
 }
 
 /** The mocked `InspectorControls` sidebar region (the panels' host), or null. */
@@ -306,12 +324,12 @@ describe("Edit mode container", () => {
 		const { container, calls } = renderEdit(SONG);
 		// The per-hand "Add note" lives on the structure tree's hand-group row. The
 		// tree is open by default, so expand the section, its measure, and the
-		// right-hand group so the per-hand Add note is reachable. The fixture's lone
-		// measure is measure 1 of section 1; its right-hand "Add note" seeds a default
-		// note.
-		clickByText(container, "Section 1");
-		clickByText(container, "Measure 1");
-		clickByText(container, "Right hand");
+		// right-hand group (via their chevrons — the labels are select-only) so the
+		// per-hand Add note is reachable. The fixture's lone measure is measure 1 of
+		// section 1; its right-hand "Add note" seeds a default note.
+		expandRow(container, "Section 1");
+		expandRow(container, "Measure 1");
+		expandRow(container, "Right hand");
 		const addNote = fieldByName(
 			container,
 			"Add note to Right hand of measure 1 of section 1",
@@ -380,13 +398,14 @@ describe("Edit mode container", () => {
 /**
  * Select the SONG fixture's lone right-hand note through the structure tree (the
  * selection surface — the canvas no longer hit-tests). The tree is open by default,
- * so this drills straight down to the note row and clicks it. The fixture note is a
- * C5 → its row label is "C".
+ * but the label is select-only, so expand the section, its measure and the
+ * right-hand group via their chevrons before selecting the note row. The fixture
+ * note is a C5 → its row label is "C".
  */
 function selectLoneNote(container) {
-	clickByText(container, "Section 1");
-	clickByText(container, "Measure 1");
-	clickByText(container, "Right hand");
+	expandRow(container, "Section 1");
+	expandRow(container, "Measure 1");
+	expandRow(container, "Right hand");
 	clickByText(container, "C");
 }
 
@@ -449,10 +468,12 @@ describe("Edit — lifted structural mutators", () => {
 
 	it("onAddMeasure targets the section the structure tree fires for", () => {
 		const { container, calls } = renderEdit(SONG);
-		// The structure tree's per-section "Add measure" signals the lifted
-		// onAddMeasure with that section's explicit index — section 1 (the lone one).
-		// The tree is open by default, so the section-row action is present at once.
-		click(fieldByName(container, "Add measure to section 1"));
+		// The structure tree's per-section "Add measure" now lives in the section
+		// row's DropdownMenu (the always-open menu mock renders its items directly).
+		// The tree is open by default, so the section-row menu is present at once.
+		// "Add measure" appears only in a section menu, so its visible text is
+		// unambiguous and signals the lifted onAddMeasure with that section's index.
+		click(buttonByText(container, "Add measure"));
 		const persisted = JSON.parse(calls.at(-1));
 		expect(persisted.sections[0].measures).toHaveLength(2);
 		expect(persisted.sections[0].measures[1]).toEqual({});
@@ -551,8 +572,9 @@ describe("Edit — structure tree", () => {
 
 	it("selecting a tree measure row reveals the Measure and Section panels", () => {
 		const { container } = renderEdit(SONG);
-		// The tree is open by default: expand the section, then select its measure row.
-		clickByText(container, "Section 1");
+		// The tree is open by default: expand the section (via its chevron), then
+		// select its measure row.
+		expandRow(container, "Section 1");
 		clickByText(container, "Measure 1");
 		expect(panelByTitle(container, "Measure")).not.toBeNull();
 		expect(panelByTitle(container, "Section")).not.toBeNull();
@@ -561,11 +583,11 @@ describe("Edit — structure tree", () => {
 
 	it("selecting a tree note row reveals all three per-level panels", () => {
 		const { container } = renderEdit(SONG);
-		// The tree is open by default: drill down to the lone right-hand note and
-		// select it.
-		clickByText(container, "Section 1");
-		clickByText(container, "Measure 1");
-		clickByText(container, "Right hand");
+		// The tree is open by default: expand down to the lone right-hand note (via
+		// the chevrons — the labels are select-only) and select it.
+		expandRow(container, "Section 1");
+		expandRow(container, "Measure 1");
+		expandRow(container, "Right hand");
 		// The fixture note is a C5 → its row label is "C" (no octave).
 		clickByText(container, "C");
 		expect(panelByTitle(container, "Note")).not.toBeNull();

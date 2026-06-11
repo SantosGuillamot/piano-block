@@ -10,119 +10,146 @@
  * accessible primitive the List View is built on — so it gets the treegrid
  * keyboard model (roving tabindex, Up/Down between rows, Left/Right to
  * collapse/expand) for free, with the honest `role="treegrid"` rather than a
- * hand-rolled `role="tree"` (Design KD 3). `working.sections` is flattened into an
- * ordered list of *visible* rows (respecting expansion), each carrying its
- * `level`/`positionInSet`/`setSize` ARIA wiring and keyed by an **index-path**
- * string (`s0`, `s0/m1`, `s0/m1/rightHand`, `s0/m1/rightHand/e2`). Each row's label
- * `Button` also carries an inline `--pb-tree-depth` CSS var (`level - 1`, so
- * section=0…note=3) that `style.scss` turns into a depth `padding-left`, giving the
- * tree its visual indentation without relying on the runtime `aria-level` attribute
- * (Design KD 2); the action-button cell is left flush so only the label indents.
+ * hand-rolled `role="tree"`. Each row mirrors core's List View row: two
+ * `TreeGridCell`s, each forwarding the cell's `{ ref, tabIndex, onFocus }` to
+ * exactly one roving-tabindex focusable — a select-only label `Button` (with a
+ * non-focusable stock chevron beside it) and a single `DropdownMenu` of the
+ * row's kind-gated actions. `working.sections` is flattened into an ordered list
+ * of *visible* rows (respecting expansion), each carrying its
+ * `level`/`positionInSet`/`setSize` ARIA wiring. Indentation derives from the
+ * rendered `aria-level` (emitted by `TreeGridRow`'s `level`), styled in
+ * `style.scss` — no inline depth variable.
  *
  * It is a pure controlled component holding no song state: selecting a
  * section/measure/note row signals a kind-tagged `selection` through `onSelect`
- * (the same tuples the removed canvas/StructureList surfaces emitted, so
- * `resolveSelection` + the canvas `decorateSelection` highlight + the kind-gated
- * inspector panels all light up unchanged), and the per-row add/remove/duplicate
- * buttons signal intent through the lifted `edit.js` handlers (the single owner of
+ * (the same tuples the canvas/inspector resolve against, so `resolveSelection` +
+ * the canvas `decorateSelection` highlight + the kind-gated inspector panels all
+ * light up unchanged), and the per-row `DropdownMenu` items signal add / remove /
+ * duplicate intent through the lifted `edit.js` handlers (the single owner of
  * `working` + `commit`). **Hand-group rows are organizational, not selectable** —
- * the selection model has no "hand" kind — so they are disclosure-only labels that
- * host the per-hand "Add note" and toggle expansion (KD 14).
+ * the selection model has no "hand" kind — so they are disclosure-only labels
+ * that toggle expansion and host a single direct per-hand "Add note" `Button`
+ * (KD 14).
  *
- * Expansion is derived per disjoint regime, not just stored. An ancestor of the
- * resolved selection is auto-revealed so the selected branch is always visible
- * (regardless of the Set's index-path staleness) UNLESS its path is in the
- * `collapsedOverride` Set — a deliberate manual collapse that vetoes the
- * auto-reveal so it does not immediately re-expand (Design KD7). A non-ancestor
- * row follows the manual `expandedPaths` Set as before; the two Sets govern
- * disjoint paths, so they never conflict. A disclosure toggle routes to whichever
- * Set governs the clicked row's regime. Node labels are `name`-or-positional for
- * sections/measures and `noteLabel(event, system)` for notes. Only
- * `@wordpress/*` is used (AC13).
+ * Expansion is a single membership lookup against one `expanded` Set of
+ * coordinate-derived keys: `isExpanded(key) = expanded.has(key)` — no ancestor
+ * test, no veto Set, no auto-reveal. The chevron's pointer `onClick` (and the
+ * hand-group label's click) route to `onToggleExpanded(key)`; keyboard
+ * expand/collapse stays TreeGrid's Left/Right arrows over the chevron-less rows.
+ * Node labels are `name`-or-positional for sections/measures and
+ * `noteLabel(event, system)` for notes. Only `@wordpress/*` is used.
  */
 import {
 	Button,
+	DropdownMenu,
+	Icon,
+	MenuGroup,
+	MenuItem,
 	__experimentalTreeGrid as TreeGrid,
 	__experimentalTreeGridCell as TreeGridCell,
-	__experimentalTreeGridItem as TreeGridItem,
 	__experimentalTreeGridRow as TreeGridRow,
 } from "@wordpress/components";
-import { __, sprintf } from "@wordpress/i18n";
+import { __, isRTL, sprintf } from "@wordpress/i18n";
+import {
+	chevronDownSmall,
+	chevronLeftSmall,
+	chevronRightSmall,
+	moreVertical,
+} from "@wordpress/icons";
 import { noteLabel } from "./noteNames.js";
 
 /** The two hands, in render order, with their display labels' translator keys. */
 const HANDS = ["rightHand", "leftHand"];
 
 /**
- * The disclosure caret for an expandable row: `▾` when expanded, `▸` when
- * collapsed. A plain text glyph keeps the tree `@wordpress/*`-only and renders in
- * jsdom; the real keyboard model (Left/Right to collapse/expand) comes from
- * TreeGrid.
+ * The coordinate-derived expansion key for an expandable row (section, measure or
+ * hand group). It doubles as the row's React `key`: a per-row string built inline
+ * from the coordinates, never stored in app state. Notes are leaves (never
+ * expandable, never in the `expanded` Set), so they get a React key directly from
+ * their own coordinates and never call this.
  *
- * @param {boolean} isExpanded Whether the row is currently expanded.
- * @return {string} The caret glyph.
+ * @param {Object}  coords             The row's coordinates.
+ * @param {number}  coords.sectionIndex The section's index.
+ * @param {number}  [coords.measureIndex] The measure's index (measure/hand rows).
+ * @param {string}  [coords.hand]      The hand key (hand rows): `rightHand`/`leftHand`.
+ * @return {string} The expansion/React key (`s0`, `s0m1`, `s0m1rightHand`).
  */
-function caret(isExpanded) {
-	return isExpanded ? "▾" : "▸";
+function expansionKey({ sectionIndex, measureIndex, hand }) {
+	let key = `s${sectionIndex}`;
+	if (measureIndex !== undefined) {
+		key += `m${measureIndex}`;
+	}
+	if (hand !== undefined) {
+		key += hand;
+	}
+	return key;
 }
 
 /**
- * Whether a path is an ancestor of the resolved selection — used to auto-expand
- * the selected branch so it is always revealed (Design "Expansion state"). The
- * selection's ancestor paths are its section path, its measure path (for a
- * measure/event selection), and its hand path (for an event selection).
+ * The non-focusable stock disclosure chevron shown beside an expandable row's
+ * label, mirroring core's `ListViewExpander`: a `<span aria-hidden="true">`
+ * wrapping a stock `<Icon>` (right/left when collapsed per text direction, down
+ * when expanded). It carries a **pointer** `onClick` that toggles expansion but
+ * has **no `tabIndex` and no role** — it is a visual cue for sighted/pointer
+ * users, not a tab stop. Keyboard expand/collapse stays TreeGrid's Left/Right
+ * arrows reading each row's `aria-expanded`. A stable class gives jest and the
+ * e2e drill-down a deterministic, non-positional locator.
  *
- * @param {string}  path      The candidate ancestor index-path string.
- * @param {?Object} selection The resolved selection, or `null`.
- * @return {boolean} `true` when `path` is an ancestor of the selection.
+ * @param {Object}   props
+ * @param {boolean}  props.isExpanded Whether the row is currently expanded.
+ * @param {Function} props.onToggle   Pointer-only expansion toggle.
+ * @return {Object} The rendered chevron span.
  */
-function isSelectionAncestor(path, selection) {
-	if (!selection) {
-		return false;
-	}
-	const ancestors = [`s${selection.sectionIndex}`];
-	if (selection.measureIndex !== undefined) {
-		ancestors.push(`s${selection.sectionIndex}/m${selection.measureIndex}`);
-	}
-	if (selection.hand !== undefined) {
-		ancestors.push(
-			`s${selection.sectionIndex}/m${selection.measureIndex}/${selection.hand}`,
-		);
-	}
-	return ancestors.includes(path);
+function TreeExpander({ isExpanded, onToggle }) {
+	return (
+		// A non-focusable, aria-hidden visual cue (mirroring core's ListViewExpander):
+		// it has a pointer onClick but no role/tabIndex/key handler on purpose — the
+		// keyboard expand/collapse path is TreeGrid's Left/Right arrows over the row,
+		// so this span is invisible to keyboard and screen readers by design.
+		<span
+			aria-hidden="true"
+			className="wp-block-piano-block-piano__tree-expander"
+			onClick={onToggle}
+		>
+			<Icon
+				icon={
+					isExpanded
+						? chevronDownSmall
+						: isRTL()
+							? chevronLeftSmall
+							: chevronRightSmall
+				}
+			/>
+		</span>
+	);
 }
 
 /**
  * The left structure tree.
  *
  * @param {Object}   props
- * @param {Object}   props.song              The current working song object.
- * @param {?Object}  props.selection         The resolved selection, or `null`.
- * @param {string}   props.system            The song's note-name system, for note labels.
- * @param {Set}      props.expandedPaths     The manually-expanded index-path strings.
- * @param {Function} props.onToggleExpanded  Toggle a path's manual expansion.
- * @param {Set}      props.collapsedOverride The manually-collapsed index-path strings that
- *                                           veto auto-reveal (only consulted for selection-ancestor rows).
- * @param {Function} props.onToggleCollapsedOverride Toggle a path's manual-collapse veto.
- * @param {Function} props.onSelect          Receives a kind-tagged selection.
- * @param {Function} props.onRemoveSection   Lifted: remove the section at the index.
+ * @param {Object}   props.song               The current working song object.
+ * @param {?Object}  props.selection          The resolved selection, or `null`.
+ * @param {string}   props.system             The song's note-name system, for note labels.
+ * @param {Set}      props.expanded           The single Set of expanded coordinate keys.
+ * @param {Function} props.onToggleExpanded   Toggle a key's membership in `expanded`.
+ * @param {Function} props.onSelect           Receives a kind-tagged selection.
+ * @param {Function} props.onRemoveSection    Lifted: remove the section at the index.
  * @param {Function} props.onDuplicateSection Lifted: duplicate the section after itself.
- * @param {Function} props.onAddMeasure      Lifted: append a measure to a section.
- * @param {Function} props.onRemoveMeasure   Lifted: remove the measure at the coords.
+ * @param {Function} props.onAddMeasure       Lifted: append a measure to a section.
+ * @param {Function} props.onRemoveMeasure    Lifted: remove the measure at the coords.
  * @param {Function} props.onDuplicateMeasure Lifted: duplicate the measure after itself.
- * @param {Function} props.onAddNote         Lifted: add a note to a measure's hand.
- * @param {Function} props.onRemoveNote      Lifted: remove the note at the coords.
- * @param {Function} props.onDuplicateNote   Lifted: duplicate the note after itself.
+ * @param {Function} props.onAddNote          Lifted: add a note to a measure's hand.
+ * @param {Function} props.onRemoveNote       Lifted: remove the note at the coords.
+ * @param {Function} props.onDuplicateNote    Lifted: duplicate the note after itself.
  * @return {Object} The rendered structure tree.
  */
 export function StructureTree({
 	song,
 	selection,
 	system,
-	expandedPaths,
+	expanded,
 	onToggleExpanded,
-	collapsedOverride,
-	onToggleCollapsedOverride,
 	onSelect,
 	onRemoveSection,
 	onDuplicateSection,
@@ -135,32 +162,17 @@ export function StructureTree({
 }) {
 	const sections = Array.isArray(song?.sections) ? song.sections : [];
 
-	// Expansion is derived per disjoint regime. A selection-ancestor row is
-	// auto-revealed so the selected branch is always visible (regardless of the
-	// manual Set's index-path staleness) UNLESS its path is in `collapsedOverride`
-	// — a deliberate manual collapse that vetoes the auto-reveal so it does not
-	// immediately re-expand (KD7). A non-ancestor row follows `expandedPaths` as
-	// before. The two Sets govern disjoint paths, so they never conflict.
-	const isExpanded = (path) =>
-		isSelectionAncestor(path, selection)
-			? !(collapsedOverride?.has(path) ?? false)
-			: (expandedPaths?.has(path) ?? false);
-
-	// Route a disclosure toggle to the Set that governs the row's regime: an
-	// ancestor of the selection writes the manual-collapse veto (add on collapse,
-	// delete on re-expand); a non-ancestor writes `expandedPaths` as today. This
-	// keeps `edit.js` a dumb two-Set owner while the ancestor test lives here.
-	const toggleRow = (path) =>
-		isSelectionAncestor(path, selection)
-			? onToggleCollapsedOverride?.(path)
-			: onToggleExpanded?.(path);
+	// Expansion is a single membership lookup against the one `expanded` Set: no
+	// ancestor test, no veto, no auto-reveal. A row whose key is absent stays
+	// collapsed, hiding its descendants (the flatten below skips them).
+	const isExpanded = (key) => expanded?.has(key) ?? false;
 
 	const rows = [];
 
 	sections.forEach((section, sectionIndex) => {
 		const sectionNumber = sectionIndex + 1;
-		const sectionPath = `s${sectionIndex}`;
-		const sectionExpanded = isExpanded(sectionPath);
+		const sectionKey = expansionKey({ sectionIndex });
+		const sectionExpanded = isExpanded(sectionKey);
 		const measures = Array.isArray(section?.measures) ? section.measures : [];
 		const sectionLabel =
 			section?.name ||
@@ -174,8 +186,7 @@ export function StructureTree({
 
 		rows.push(
 			<TreeGridRow
-				key={sectionPath}
-				data-path={sectionPath}
+				key={sectionKey}
 				level={1}
 				positionInSet={sectionNumber}
 				setSize={sections.length}
@@ -183,69 +194,49 @@ export function StructureTree({
 			>
 				<TreeGridCell>
 					{(cellProps) => (
-						<Button
-							{...cellProps}
-							className="wp-block-piano-block-piano__tree-label"
-							style={{ "--pb-tree-depth": 0 }}
-							variant="tertiary"
-							aria-expanded={sectionExpanded}
-							aria-current={sectionSelected ? "true" : undefined}
-							onClick={() => {
-								toggleRow(sectionPath);
-								onSelect?.({ kind: "section", sectionIndex });
-							}}
-						>
-							{`${caret(sectionExpanded)} ${sectionLabel}`}
-						</Button>
+						<>
+							<TreeExpander
+								isExpanded={sectionExpanded}
+								onToggle={() => onToggleExpanded?.(sectionKey)}
+							/>
+							<Button
+								{...cellProps}
+								className="wp-block-piano-block-piano__tree-label"
+								variant="tertiary"
+								aria-current={sectionSelected ? "true" : undefined}
+								onClick={() => onSelect?.({ kind: "section", sectionIndex })}
+							>
+								{sectionLabel}
+							</Button>
+						</>
 					)}
 				</TreeGridCell>
 				<TreeGridCell>
-					{() => (
-						<>
-							<TreeGridItem>
-								{() => (
-									<Button
-										icon="trash"
-										variant="secondary"
-										label={sprintf(
-											// translators: %d: section number.
-											__("Remove section %d", "piano-block"),
-											sectionNumber,
-										)}
-										isDestructive
-										onClick={() => onRemoveSection?.(sectionIndex)}
-									/>
-								)}
-							</TreeGridItem>
-							<TreeGridItem>
-								{() => (
-									<Button
-										icon="admin-page"
-										variant="secondary"
-										label={sprintf(
-											// translators: %d: section number.
-											__("Duplicate section %d", "piano-block"),
-											sectionNumber,
-										)}
-										onClick={() => onDuplicateSection?.(sectionIndex)}
-									/>
-								)}
-							</TreeGridItem>
-							<TreeGridItem>
-								{() => (
-									<Button
-										icon="plus"
-										variant="secondary"
-										label={sprintf(
-											// translators: %d: section number the measure is added to.
-											__("Add measure to section %d", "piano-block"),
-											sectionNumber,
-										)}
-										onClick={() => onAddMeasure?.(sectionIndex)}
-									/>
-								)}
-							</TreeGridItem>
-						</>
+					{({ ref, tabIndex, onFocus }) => (
+						<DropdownMenu
+							icon={moreVertical}
+							toggleProps={{ ref, tabIndex, onFocus }}
+							label={sprintf(
+								// translators: %d: section number.
+								__("Actions for Section %d", "piano-block"),
+								sectionNumber,
+							)}
+						>
+							<MenuGroup>
+								<MenuItem onClick={() => onDuplicateSection?.(sectionIndex)}>
+									{__("Duplicate", "piano-block")}
+								</MenuItem>
+								<MenuItem onClick={() => onAddMeasure?.(sectionIndex)}>
+									{__("Add measure", "piano-block")}
+								</MenuItem>
+								<MenuItem
+									isDestructive
+									onClick={() => onRemoveSection?.(sectionIndex)}
+								>
+									{__("Remove", "piano-block")}
+								</MenuItem>
+							</MenuGroup>
+						</DropdownMenu>
 					)}
 				</TreeGridCell>
 			</TreeGridRow>,
@@ -257,8 +248,8 @@ export function StructureTree({
 
 		measures.forEach((measure, measureIndex) => {
 			const measureNumber = measureIndex + 1;
-			const measurePath = `s${sectionIndex}/m${measureIndex}`;
-			const measureExpanded = isExpanded(measurePath);
+			const measureKey = expansionKey({ sectionIndex, measureIndex });
+			const measureExpanded = isExpanded(measureKey);
 			const measureLabel =
 				measure?.name ||
 				sprintf(
@@ -273,8 +264,7 @@ export function StructureTree({
 
 			rows.push(
 				<TreeGridRow
-					key={measurePath}
-					data-path={measurePath}
+					key={measureKey}
 					level={2}
 					positionInSet={measureNumber}
 					setSize={measures.length}
@@ -282,71 +272,59 @@ export function StructureTree({
 				>
 					<TreeGridCell>
 						{(cellProps) => (
-							<Button
-								{...cellProps}
-								className="wp-block-piano-block-piano__tree-label"
-								style={{ "--pb-tree-depth": 1 }}
-								variant="tertiary"
-								aria-expanded={measureExpanded}
-								aria-current={measureSelected ? "true" : undefined}
-								onClick={() => {
-									toggleRow(measurePath);
-									onSelect?.({
-										kind: "measure",
-										sectionIndex,
-										measureIndex,
-									});
-								}}
-							>
-								{`${caret(measureExpanded)} ${measureLabel}`}
-							</Button>
+							<>
+								<TreeExpander
+									isExpanded={measureExpanded}
+									onToggle={() => onToggleExpanded?.(measureKey)}
+								/>
+								<Button
+									{...cellProps}
+									className="wp-block-piano-block-piano__tree-label"
+									variant="tertiary"
+									aria-current={measureSelected ? "true" : undefined}
+									onClick={() =>
+										onSelect?.({
+											kind: "measure",
+											sectionIndex,
+											measureIndex,
+										})
+									}
+								>
+									{measureLabel}
+								</Button>
+							</>
 						)}
 					</TreeGridCell>
 					<TreeGridCell>
-						{() => (
-							<>
-								<TreeGridItem>
-									{() => (
-										<Button
-											icon="trash"
-											variant="secondary"
-											label={sprintf(
-												// translators: 1: measure number, 2: section number.
-												__(
-													"Remove measure %1$d of section %2$d",
-													"piano-block",
-												),
-												measureNumber,
-												sectionNumber,
-											)}
-											isDestructive
-											onClick={() =>
-												onRemoveMeasure?.(sectionIndex, measureIndex)
-											}
-										/>
-									)}
-								</TreeGridItem>
-								<TreeGridItem>
-									{() => (
-										<Button
-											icon="admin-page"
-											variant="secondary"
-											label={sprintf(
-												// translators: 1: measure number, 2: section number.
-												__(
-													"Duplicate measure %1$d of section %2$d",
-													"piano-block",
-												),
-												measureNumber,
-												sectionNumber,
-											)}
-											onClick={() =>
-												onDuplicateMeasure?.(sectionIndex, measureIndex)
-											}
-										/>
-									)}
-								</TreeGridItem>
-							</>
+						{({ ref, tabIndex, onFocus }) => (
+							<DropdownMenu
+								icon={moreVertical}
+								toggleProps={{ ref, tabIndex, onFocus }}
+								label={sprintf(
+									// translators: 1: measure number, 2: section number.
+									__("Actions for Measure %1$d of section %2$d", "piano-block"),
+									measureNumber,
+									sectionNumber,
+								)}
+							>
+								<MenuGroup>
+									<MenuItem
+										onClick={() =>
+											onDuplicateMeasure?.(sectionIndex, measureIndex)
+										}
+									>
+										{__("Duplicate", "piano-block")}
+									</MenuItem>
+									<MenuItem
+										isDestructive
+										onClick={() =>
+											onRemoveMeasure?.(sectionIndex, measureIndex)
+										}
+									>
+										{__("Remove", "piano-block")}
+									</MenuItem>
+								</MenuGroup>
+							</DropdownMenu>
 						)}
 					</TreeGridCell>
 				</TreeGridRow>,
@@ -357,8 +335,8 @@ export function StructureTree({
 			}
 
 			HANDS.forEach((hand, handPosition) => {
-				const handPath = `s${sectionIndex}/m${measureIndex}/${hand}`;
-				const handExpanded = isExpanded(handPath);
+				const handKey = expansionKey({ sectionIndex, measureIndex, hand });
+				const handExpanded = isExpanded(handKey);
 				const events = Array.isArray(measure?.[hand]) ? measure[hand] : [];
 				// Hand-group labels carry the section/measure ordinals so an exact-name
 				// lookup never collides across measures.
@@ -374,12 +352,12 @@ export function StructureTree({
 					sectionNumber,
 				);
 
-				// Hand-group rows are organizational/non-selecting (KD 14): they toggle
-				// expansion and host the per-hand "Add note", but never call onSelect.
+				// Hand-group rows are organizational/non-selecting (KD 14): the label
+				// toggles expansion (the non-selecting expander) and the actions cell
+				// holds a single direct "Add note" Button, never onSelect.
 				rows.push(
 					<TreeGridRow
-						key={handPath}
-						data-path={handPath}
+						key={handKey}
 						level={3}
 						positionInSet={handPosition + 1}
 						setSize={HANDS.length}
@@ -387,32 +365,31 @@ export function StructureTree({
 					>
 						<TreeGridCell>
 							{(cellProps) => (
-								<Button
-									{...cellProps}
-									className="wp-block-piano-block-piano__tree-label"
-									style={{ "--pb-tree-depth": 2 }}
-									variant="tertiary"
-									aria-expanded={handExpanded}
-									onClick={() => toggleRow(handPath)}
-								>
-									{`${caret(handExpanded)} ${handLabel}`}
-								</Button>
+								<>
+									<TreeExpander
+										isExpanded={handExpanded}
+										onToggle={() => onToggleExpanded?.(handKey)}
+									/>
+									<Button
+										{...cellProps}
+										className="wp-block-piano-block-piano__tree-label"
+										variant="tertiary"
+										onClick={() => onToggleExpanded?.(handKey)}
+									>
+										{handLabel}
+									</Button>
+								</>
 							)}
 						</TreeGridCell>
 						<TreeGridCell>
-							{() => (
-								<TreeGridItem>
-									{() => (
-										<Button
-											icon="plus"
-											variant="secondary"
-											label={addNoteLabel}
-											onClick={() =>
-												onAddNote?.(sectionIndex, measureIndex, hand)
-											}
-										/>
-									)}
-								</TreeGridItem>
+							{(cellProps) => (
+								<Button
+									{...cellProps}
+									icon="plus"
+									variant="secondary"
+									label={addNoteLabel}
+									onClick={() => onAddNote?.(sectionIndex, measureIndex, hand)}
+								/>
 							)}
 						</TreeGridCell>
 					</TreeGridRow>,
@@ -424,7 +401,7 @@ export function StructureTree({
 
 				events.forEach((event, eventIndex) => {
 					const eventNumber = eventIndex + 1;
-					const eventPath = `${handPath}/e${eventIndex}`;
+					const eventKey = `${handKey}e${eventIndex}`;
 					const eventSelected =
 						selection?.kind === "event" &&
 						selection.sectionIndex === sectionIndex &&
@@ -434,8 +411,7 @@ export function StructureTree({
 
 					rows.push(
 						<TreeGridRow
-							key={eventPath}
-							data-path={eventPath}
+							key={eventKey}
 							level={4}
 							positionInSet={eventNumber}
 							setSize={events.length}
@@ -445,7 +421,6 @@ export function StructureTree({
 									<Button
 										{...cellProps}
 										className="wp-block-piano-block-piano__tree-label"
-										style={{ "--pb-tree-depth": 3 }}
 										variant="tertiary"
 										aria-current={eventSelected ? "true" : undefined}
 										onClick={() =>
@@ -463,64 +438,50 @@ export function StructureTree({
 								)}
 							</TreeGridCell>
 							<TreeGridCell>
-								{() => (
-									<>
-										<TreeGridItem>
-											{() => (
-												<Button
-													icon="trash"
-													variant="secondary"
-													label={sprintf(
-														// translators: 1: note number, 2: hand name, 3: measure number, 4: section number.
-														__(
-															"Remove note %1$d of %2$s of measure %3$d of section %4$d",
-															"piano-block",
-														),
-														eventNumber,
-														handLabel,
-														measureNumber,
-														sectionNumber,
-													)}
-													isDestructive
-													onClick={() =>
-														onRemoveNote?.(
-															sectionIndex,
-															measureIndex,
-															hand,
-															eventIndex,
-														)
-													}
-												/>
-											)}
-										</TreeGridItem>
-										<TreeGridItem>
-											{() => (
-												<Button
-													icon="admin-page"
-													variant="secondary"
-													label={sprintf(
-														// translators: 1: note number, 2: hand name, 3: measure number, 4: section number.
-														__(
-															"Duplicate note %1$d of %2$s of measure %3$d of section %4$d",
-															"piano-block",
-														),
-														eventNumber,
-														handLabel,
-														measureNumber,
-														sectionNumber,
-													)}
-													onClick={() =>
-														onDuplicateNote?.(
-															sectionIndex,
-															measureIndex,
-															hand,
-															eventIndex,
-														)
-													}
-												/>
-											)}
-										</TreeGridItem>
-									</>
+								{({ ref, tabIndex, onFocus }) => (
+									<DropdownMenu
+										icon={moreVertical}
+										toggleProps={{ ref, tabIndex, onFocus }}
+										label={sprintf(
+											// translators: 1: note number, 2: hand name, 3: measure number, 4: section number.
+											__(
+												"Actions for Note %1$d of %2$s of measure %3$d of section %4$d",
+												"piano-block",
+											),
+											eventNumber,
+											handLabel,
+											measureNumber,
+											sectionNumber,
+										)}
+									>
+										<MenuGroup>
+											<MenuItem
+												onClick={() =>
+													onDuplicateNote?.(
+														sectionIndex,
+														measureIndex,
+														hand,
+														eventIndex,
+													)
+												}
+											>
+												{__("Duplicate", "piano-block")}
+											</MenuItem>
+											<MenuItem
+												isDestructive
+												onClick={() =>
+													onRemoveNote?.(
+														sectionIndex,
+														measureIndex,
+														hand,
+														eventIndex,
+													)
+												}
+											>
+												{__("Remove", "piano-block")}
+											</MenuItem>
+										</MenuGroup>
+									</DropdownMenu>
 								)}
 							</TreeGridCell>
 						</TreeGridRow>,
