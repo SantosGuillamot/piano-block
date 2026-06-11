@@ -17,17 +17,19 @@
  * the raw JSON editor.
  *
  * Authoring no longer happens with on-canvas add buttons. The structure tree
- * navigates Section → Measure → {Right hand, Left hand} → Note and carries the
- * structural add/remove/duplicate controls at every level; an empty measure's
+ * navigates Section → Measure → {Right hand, Left hand} → Note. Each row mirrors
+ * core's List View row: a select-only label cell (with a non-focusable stock
+ * chevron beside it that drives expansion) and an actions cell holding a single
+ * `DropdownMenu` of the row's add/remove/duplicate actions (hand groups host a
+ * direct "Add note" button instead). Because the label is select-only, drilling
+ * into the tree expands through the chevron, not the label; an empty measure's
  * first note is seeded from its hand group's "Add note" (the canvas add-grid is
- * gone). Tree rows carry a leading disclosure caret, so they are located by an
- * accessible/contains name lookup rather than an exact match. Once an event is
- * selected, the Note panel's contextual "Add note" inserts a sibling in the same
- * hand (inferred from the selection) and "Remove note" deletes it; sections and
- * measures are renamed via the "Section name"/"Measure name" fields in their
- * inspector panels. The Song panel's "Note language" selector converts the whole
- * song between English and Spanish spellings and stores the choice in an additive
- * `language` field.
+ * gone). Once an event is selected, the Note panel's contextual "Add note"
+ * inserts a sibling in the same hand (inferred from the selection) and "Remove
+ * note" deletes it; sections and measures are renamed via the "Section
+ * name"/"Measure name" fields in their inspector panels. The Song panel's "Note
+ * language" selector converts the whole song between English and Spanish
+ * spellings and stores the choice in an additive `language` field.
  *
  * The raw `Song (JSON)` textarea is reached by switching the block into JSON
  * mode from the block toolbar; in that mode the raw string persists
@@ -277,32 +279,95 @@ function structureTree(editor) {
 /**
  * A structure-tree label row's select button, by the 1-based ordinal/hand name
  * its label carries ("Section N" / "Measure M" / "Right hand" / a note's pitch).
- * Expandable rows prefix the label with a disclosure caret glyph (`▸`/`▾`), so an
- * `exact` match would miss them; matching the row by its trailing label with a
- * CASE-SENSITIVE, end-anchored regex both tolerates the caret prefix AND avoids
- * the row's own action buttons. Those buttons spell the ordinal lowercase
- * ("Remove section 1", "Add note to Right hand of measure 1 of section 1"), so a
- * case-sensitive `/…Section 1$/` never matches them, while the capitalized,
- * end-of-name row label does. Clicking a section/measure/note row toggles its
- * expansion and drives the kind-tagged selection; a hand-group row only toggles
- * expansion (it never selects). Scoped to the tree container.
+ * The redesigned row's label is plain text — the disclosure chevron is a
+ * non-focusable sibling `<span>`, not part of the label — so the row is matched
+ * by its EXACT visible name (src/editor/StructureTree.js). The exact match never
+ * collides with the row's own controls: the actions `DropdownMenu` trigger is
+ * named "Actions for Section 1" (so "Section 1" exact misses it) and the
+ * hand-row "Add note" button spells its target lowercase ("Add note to Right
+ * hand of …"), so the capitalized "Right hand" exact name misses that too.
+ *
+ * After DD4 the label is SELECT-ONLY for section/measure/note rows: clicking it
+ * drives the kind-tagged selection but no longer toggles expansion — expansion
+ * is driven by the sibling chevron (see `expandRow`). The hand-group row is the
+ * exception: it is non-selecting, so its label/button click toggles expansion.
+ * Scoped to the tree container.
  *
  * @param {Object} editor The Playwright editor fixture.
- * @param {string} name   The row's trailing label (e.g. "Section 1", "C").
+ * @param {string} name   The row's exact label (e.g. "Section 1", "C").
  */
 function treeRow(editor, name) {
-	const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-	return structureTree(editor).getByRole("button", {
-		name: new RegExp(`${escaped}$`),
-	});
+	return structureTree(editor).getByRole("button", { name, exact: true });
 }
 
 /**
- * A structure-tree action button, by its precise full label (src/editor/
- * StructureTree.js — e.g. "Add measure to section 1", "Remove section 2",
- * "Duplicate measure 1 of section 1", "Add note to Right hand of measure 1 of
- * section 1"). These labels are unique and verb-prefixed, so they are matched
- * exactly and never collide with a row's caret-prefixed label.
+ * The non-focusable disclosure chevron for the structure-tree row whose label is
+ * `name`: the sibling `.wp-block-piano-block-piano__tree-expander` span inside
+ * the same row (src/editor/StructureTree.js `TreeExpander`). It is `aria-hidden`
+ * with no role/tabIndex — a pointer-only affordance — so it is located by its
+ * stable class scoped to the row that holds the matching label button, not by a
+ * role. `TreeGridRow` renders each row as a `<tr>`, so the chevron is found via
+ * the row element that `has` the label button.
+ *
+ * @param {Object} editor The Playwright editor fixture.
+ * @param {string} name   The row's exact label (e.g. "Section 1").
+ */
+function rowChevron(editor, name) {
+	return structureTree(editor)
+		.locator("tr")
+		.filter({ has: treeRow(editor, name) })
+		.locator(".wp-block-piano-block-piano__tree-expander");
+}
+
+/**
+ * Expand a structure-tree row by clicking its disclosure chevron, revealing its
+ * children. Under DD4 the label is select-only, so a label click no longer
+ * expands — drilling into the tree goes through the chevron. (Hand-group rows
+ * also toggle on their label click, but `expandRow` works for them too via the
+ * same chevron, giving every level one consistent expand interaction.)
+ *
+ * @param {Object} editor The Playwright editor fixture.
+ * @param {string} name   The row's exact label to expand (e.g. "Section 1").
+ */
+async function expandRow(editor, name) {
+	await rowChevron(editor, name).click();
+}
+
+/**
+ * Open a structure-tree row's actions `DropdownMenu` by its trigger's accessible
+ * name (the `label` src/editor/StructureTree.js gives each menu, e.g.
+ * "Actions for Section 2", "Actions for Measure 1 of section 1",
+ * "Actions for Note 1 of Right hand of measure 1 of section 1") and return the
+ * locator for the menu item with the given visible name ("Duplicate", "Remove",
+ * "Add measure").
+ *
+ * The trigger lives inside the tree, but the real `DropdownMenu` opens its
+ * content in a `Popover` that portals out of the tree container (to the editor
+ * canvas document) — so the trigger is located inside `structureTree` while the
+ * `MenuItem` is queried on `editor.canvas`, scoped to the open `menu` role so it
+ * never matches a same-named item in another row's (closed) menu.
+ *
+ * @param {Object} editor       The Playwright editor fixture.
+ * @param {string} actionsLabel The menu trigger's accessible name.
+ * @param {string} itemName     The visible name of the menu item to return.
+ * @return {import('@playwright/test').Locator} The menu item locator.
+ */
+async function openRowAction(editor, actionsLabel, itemName) {
+	await structureTree(editor)
+		.getByRole("button", { name: actionsLabel, exact: true })
+		.click();
+	return editor.canvas
+		.getByRole("menu")
+		.getByRole("menuitem", { name: itemName, exact: true });
+}
+
+/**
+ * A structure-tree direct action button, by its precise full label. After the
+ * redesign the per-row add/remove/duplicate controls live in each row's actions
+ * `DropdownMenu` (reached via `openRowAction`); the only remaining direct action
+ * button is the hand-group "Add note" (src/editor/StructureTree.js — e.g. "Add
+ * note to Right hand of measure 1 of section 1"). Its label is unique and
+ * verb-prefixed, matched exactly, and never collides with a row's plain label.
  */
 function treeAction(editor, name) {
 	return structureTree(editor).getByRole("button", { name, exact: true });
@@ -403,12 +468,14 @@ test.describe("Piano block — editor authoring, persistence and validation", ()
 
 		// The seeded empty song has no on-canvas add affordance — the canvas
 		// add-grid is gone. The first note is bootstrapped from the structure tree,
-		// which is open by default: expand the seeded section then its measure, and
-		// click the right hand's "Add note" (the only first-note entry point for an
-		// empty measure; it seeds a default RIGHT-hand note).
+		// which is open by default: expand the seeded section then its measure (via
+		// the disclosure chevrons — the label is select-only and no longer expands),
+		// which reveals the hand rows, then click the right hand's "Add note" (the
+		// only first-note entry point for an empty measure; it seeds a default
+		// RIGHT-hand note).
 		await expect(structureTree(editor)).toBeVisible();
-		await treeRow(editor, "Section 1").click();
-		await treeRow(editor, "Measure 1").click();
+		await expandRow(editor, "Section 1");
+		await expandRow(editor, "Measure 1");
 		await treeAction(
 			editor,
 			"Add note to Right hand of measure 1 of section 1",
@@ -467,9 +534,11 @@ test.describe("Piano block — editor authoring, persistence and validation", ()
 		await switchToVisualMode(editor);
 		const sidebar = await openSettingsSidebar(editor, page);
 		await assertStructureTreeOpen(editor);
-		await treeRow(editor, "Section 1").click();
-		await treeRow(editor, "Measure 1").click();
-		await treeRow(editor, "Right hand").click();
+		// Expand down to the note via the chevrons (the labels are select-only), then
+		// SELECT the note row by clicking its (plain) label.
+		await expandRow(editor, "Section 1");
+		await expandRow(editor, "Measure 1");
+		await expandRow(editor, "Right hand");
 		await treeRow(editor, "C").click();
 		await expect(inspectorPanel(sidebar, "Note")).toBeVisible();
 
@@ -510,15 +579,21 @@ test.describe("Piano block — editor authoring, persistence and validation", ()
 		await editor.insertBlock({ name: "piano-block/piano" });
 
 		// Seed a single-section, single-measure song; the structure tree is open by
-		// default, so expand the section so its measures' row controls are reachable.
+		// default. Expand the section (via its chevron — the label is select-only) so
+		// its measure rows, and their actions menus, are reachable.
 		await seedSongViaJson(editor, CONFORMANT_SONG);
 		await switchToVisualMode(editor);
 		const sidebar = await openSettingsSidebar(editor, page);
 		await assertStructureTreeOpen(editor);
-		await treeRow(editor, "Section 1").click();
+		await expandRow(editor, "Section 1");
 
-		// Add a measure to section 1 → that section now has two measures.
-		await treeAction(editor, "Add measure to section 1").click();
+		// Add a measure from the section's actions menu → that section now has two
+		// measures. (The structural actions moved from always-on icon buttons into a
+		// per-row DropdownMenu; "Add measure" is a menu item under "Actions for
+		// Section 1".)
+		await (
+			await openRowAction(editor, "Actions for Section 1", "Add measure")
+		).click();
 		await expect
 			.poll(async () => {
 				const parsed = await storedSongObject(editor);
@@ -526,9 +601,15 @@ test.describe("Piano block — editor authoring, persistence and validation", ()
 			})
 			.toBe(2);
 
-		// Duplicate measure 1 of section 1 → a deep copy lands right after it, so
-		// that section now has three measures.
-		await treeAction(editor, "Duplicate measure 1 of section 1").click();
+		// Duplicate measure 1 from its actions menu → a deep copy lands right after
+		// it, so that section now has three measures.
+		await (
+			await openRowAction(
+				editor,
+				"Actions for Measure 1 of section 1",
+				"Duplicate",
+			)
+		).click();
 		await expect
 			.poll(async () => {
 				const parsed = await storedSongObject(editor);
@@ -545,15 +626,24 @@ test.describe("Piano block — editor authoring, persistence and validation", ()
 			.poll(async () => (await storedSongObject(editor)).sections.length)
 			.toBe(2);
 
-		// Duplicate section 1 → its deep copy lands right after it, so the song now
-		// has three sections.
-		await treeAction(editor, "Duplicate section 1").click();
+		// Duplicate section 1 from its actions menu → its deep copy lands right after
+		// it, so the song now has three sections.
+		await (
+			await openRowAction(editor, "Actions for Section 1", "Duplicate")
+		).click();
 		await expect
 			.poll(async () => (await storedSongObject(editor)).sections.length)
 			.toBe(3);
 
-		// Remove the third measure of section 1 (the duplicate) → back to two there.
-		await treeAction(editor, "Remove measure 3 of section 1").click();
+		// Remove the third measure of section 1 (the duplicate) from its actions menu
+		// → back to two there. (Remove is the `isDestructive` menu item.)
+		await (
+			await openRowAction(
+				editor,
+				"Actions for Measure 3 of section 1",
+				"Remove",
+			)
+		).click();
 		await expect
 			.poll(async () => {
 				const parsed = await storedSongObject(editor);
@@ -561,8 +651,10 @@ test.describe("Piano block — editor authoring, persistence and validation", ()
 			})
 			.toBe(2);
 
-		// Remove the third (empty) section → back to two sections.
-		await treeAction(editor, "Remove section 3").click();
+		// Remove the third (empty) section from its actions menu → back to two.
+		await (
+			await openRowAction(editor, "Actions for Section 3", "Remove")
+		).click();
 		await expect
 			.poll(async () => (await storedSongObject(editor)).sections.length)
 			.toBe(2);
@@ -581,13 +673,15 @@ test.describe("Piano block — editor authoring, persistence and validation", ()
 		await assertStructureTreeOpen(editor);
 
 		// Selecting the SECTION row reveals the Section panel only (every kind has a
-		// section), not the Measure/Note panels. (Clicking it also expands the
-		// section, surfacing its measure row.) A section selection decorates nothing
-		// on the canvas — section/measure are surfaced through the tree and panels.
+		// section), not the Measure/Note panels. The label is select-only — it no
+		// longer also expands — so reveal the measure row through the chevron. A
+		// section selection decorates nothing on the canvas: section/measure are
+		// surfaced through the tree and panels.
 		await treeRow(editor, "Section 1").click();
 		await expect(inspectorPanel(sidebar, "Section")).toBeVisible();
 		await expect(inspectorPanel(sidebar, "Measure")).toHaveCount(0);
 		await expect(inspectorPanel(sidebar, "Note")).toHaveCount(0);
+		await expandRow(editor, "Section 1");
 
 		// Selecting the MEASURE row reveals Measure + Section (a measure has both),
 		// still not the Note panel. A measure selection likewise decorates nothing on
