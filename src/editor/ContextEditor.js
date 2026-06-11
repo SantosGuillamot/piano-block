@@ -20,10 +20,24 @@
  * sub-objects: the draft is what the fields display, while only the conformant
  * (complete) projection of the draft is ever emitted upward. The hand configs
  * carry no required fields, so they need no draft and emit straight through.
+ *
+ * Two visible arrangements share that one draft/projection/emit core, chosen by
+ * the `layout` prop so both the Section panel and the Song panel can compose this
+ * editor instead of forking its logic:
+ *   - `"flat"` (default) renders every member in order — bpm, beat unit, beats,
+ *     beat type, both hand configs — used by the Section panel inside its own
+ *     coarse "Section overrides" disclosure.
+ *   - `"tiered"` keeps the common tempo bpm / beats / beat type directly visible
+ *     and tucks `beatUnit` and each hand config into an `Advanced` `ToolsPanel` as
+ *     separate, individually deselectable items — reproducing the Song panel's
+ *     layout, where each advanced member has its own `hasValue`/`onDeselect` and a
+ *     `resetAll` clears them together.
  */
 import {
 	__experimentalNumberControl as NumberControl,
 	SelectControl,
+	__experimentalToolsPanel as ToolsPanel,
+	__experimentalToolsPanelItem as ToolsPanelItem,
 } from "@wordpress/components";
 import { useState } from "@wordpress/element";
 import { __ } from "@wordpress/i18n";
@@ -73,13 +87,22 @@ function projectTimeSignature(draft) {
 /**
  * Edit a `context` object's optional members.
  *
- * @param {Object}   props
- * @param {Object}   [props.context={}] The current context object.
- * @param {Function} props.onChange     Receives the next context object.
- * @param {string}   [props.heading]    An optional heading for the group.
+ * @param {Object}            props
+ * @param {Object}            [props.context={}]    The current context object.
+ * @param {Function}          props.onChange        Receives the next context object.
+ * @param {string}            [props.heading]       An optional heading for the group.
+ * @param {"flat"|"tiered"}   [props.layout="flat"] How the members are arranged:
+ *                                                  all in order (`flat`), or common
+ *                                                  fields visible with the rest under
+ *                                                  an `Advanced` disclosure (`tiered`).
  * @return {Object} The rendered context editor.
  */
-export function ContextEditor({ context = {}, onChange, heading }) {
+export function ContextEditor({
+	context = {},
+	onChange,
+	heading,
+	layout = "flat",
+}) {
 	// Local drafts for the two sub-objects that have required fields, so a
 	// half-filled value survives between field edits without being emitted. Each
 	// draft seeds from whatever the incoming context already carries.
@@ -108,58 +131,139 @@ export function ContextEditor({ context = {}, onChange, heading }) {
 		emitMember(context, "timeSignature", projectTimeSignature(draft), onChange);
 	};
 
+	// The individual member controls, defined once and arranged differently per
+	// layout so both arrangements share the exact same draft/projection/emit wiring.
+	const bpmControl = (
+		<NumberControl
+			label={__("Tempo (BPM)", "piano-block")}
+			value={Number.isFinite(tempoDraft.bpm) ? tempoDraft.bpm : ""}
+			min={1}
+			step={1}
+			onChange={(value) => editTempo({ bpm: toBoundedInt(value, 1) })}
+			__nextHasNoMarginBottom
+		/>
+	);
+	const beatUnitControl = (
+		<SelectControl
+			label={__("Beat unit", "piano-block")}
+			value={tempoDraft.beatUnit ?? ""}
+			options={[{ label: __("—", "piano-block"), value: "" }, ...DURATIONS]}
+			onChange={(value) =>
+				editTempo({ beatUnit: value === "" ? undefined : value })
+			}
+			__nextHasNoMarginBottom
+		/>
+	);
+	const beatsControl = (
+		<NumberControl
+			label={__("Beats per measure", "piano-block")}
+			value={Number.isInteger(timeDraft.beats) ? timeDraft.beats : ""}
+			min={BEATS_MIN}
+			step={1}
+			onChange={(value) =>
+				editTimeSignature({ beats: toBoundedInt(value, BEATS_MIN) })
+			}
+			__nextHasNoMarginBottom
+		/>
+	);
+	const beatTypeControl = (
+		<SelectControl
+			label={__("Beat type", "piano-block")}
+			value={timeDraft.beatType ?? ""}
+			options={[{ label: __("—", "piano-block"), value: "" }, ...BEAT_TYPES]}
+			onChange={(value) =>
+				editTimeSignature({ beatType: value === "" ? null : value })
+			}
+			__nextHasNoMarginBottom
+		/>
+	);
+	const rightHandControl = (
+		<HandConfigEditor
+			label={__("Right hand", "piano-block")}
+			handConfig={context.rightHand ?? {}}
+			onChange={(value) => emitMember(context, "rightHand", value, onChange)}
+		/>
+	);
+	const leftHandControl = (
+		<HandConfigEditor
+			label={__("Left hand", "piano-block")}
+			handConfig={context.leftHand ?? {}}
+			onChange={(value) => emitMember(context, "leftHand", value, onChange)}
+		/>
+	);
+
+	if (layout === "tiered") {
+		return (
+			<>
+				{heading ? <h3>{heading}</h3> : null}
+
+				{bpmControl}
+				{beatsControl}
+				{beatTypeControl}
+
+				<ToolsPanel
+					label={__("Advanced", "piano-block")}
+					resetAll={() => {
+						// Reset the disclosed members back to absent: drop beatUnit from
+						// the tempo and clear both hand configs in one emission.
+						setTempoDraft((draft) => ({ ...draft, beatUnit: undefined }));
+						const next = { ...context };
+						delete next.rightHand;
+						delete next.leftHand;
+						if (next.tempo) {
+							const tempo = { ...next.tempo };
+							delete tempo.beatUnit;
+							next.tempo = tempo;
+						}
+						onChange(next);
+					}}
+				>
+					<ToolsPanelItem
+						label={__("Beat unit", "piano-block")}
+						hasValue={() => Boolean(context.tempo?.beatUnit)}
+						onDeselect={() => editTempo({ beatUnit: undefined })}
+					>
+						{beatUnitControl}
+					</ToolsPanelItem>
+
+					<ToolsPanelItem
+						label={__("Right hand", "piano-block")}
+						hasValue={() =>
+							Boolean(context.rightHand) &&
+							Object.keys(context.rightHand).length > 0
+						}
+						onDeselect={() => emitMember(context, "rightHand", {}, onChange)}
+					>
+						{rightHandControl}
+					</ToolsPanelItem>
+
+					<ToolsPanelItem
+						label={__("Left hand", "piano-block")}
+						hasValue={() =>
+							Boolean(context.leftHand) &&
+							Object.keys(context.leftHand).length > 0
+						}
+						onDeselect={() => emitMember(context, "leftHand", {}, onChange)}
+					>
+						{leftHandControl}
+					</ToolsPanelItem>
+				</ToolsPanel>
+			</>
+		);
+	}
+
 	return (
 		<>
 			{heading ? <h3>{heading}</h3> : null}
 
-			<NumberControl
-				label={__("Tempo (BPM)", "piano-block")}
-				value={Number.isFinite(tempoDraft.bpm) ? tempoDraft.bpm : ""}
-				min={1}
-				step={1}
-				onChange={(value) => editTempo({ bpm: toBoundedInt(value, 1) })}
-				__nextHasNoMarginBottom
-			/>
-			<SelectControl
-				label={__("Beat unit", "piano-block")}
-				value={tempoDraft.beatUnit ?? ""}
-				options={[{ label: __("—", "piano-block"), value: "" }, ...DURATIONS]}
-				onChange={(value) =>
-					editTempo({ beatUnit: value === "" ? undefined : value })
-				}
-				__nextHasNoMarginBottom
-			/>
+			{bpmControl}
+			{beatUnitControl}
 
-			<NumberControl
-				label={__("Beats per measure", "piano-block")}
-				value={Number.isInteger(timeDraft.beats) ? timeDraft.beats : ""}
-				min={BEATS_MIN}
-				step={1}
-				onChange={(value) =>
-					editTimeSignature({ beats: toBoundedInt(value, BEATS_MIN) })
-				}
-				__nextHasNoMarginBottom
-			/>
-			<SelectControl
-				label={__("Beat type", "piano-block")}
-				value={timeDraft.beatType ?? ""}
-				options={[{ label: __("—", "piano-block"), value: "" }, ...BEAT_TYPES]}
-				onChange={(value) =>
-					editTimeSignature({ beatType: value === "" ? null : value })
-				}
-				__nextHasNoMarginBottom
-			/>
+			{beatsControl}
+			{beatTypeControl}
 
-			<HandConfigEditor
-				label={__("Right hand", "piano-block")}
-				handConfig={context.rightHand ?? {}}
-				onChange={(value) => emitMember(context, "rightHand", value, onChange)}
-			/>
-			<HandConfigEditor
-				label={__("Left hand", "piano-block")}
-				handConfig={context.leftHand ?? {}}
-				onChange={(value) => emitMember(context, "leftHand", value, onChange)}
-			/>
+			{rightHandControl}
+			{leftHandControl}
 		</>
 	);
 }

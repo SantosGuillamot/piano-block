@@ -125,6 +125,29 @@ function renderContext() {
 	return { container: handle.container, calls };
 }
 
+/**
+ * Render a `ContextEditor` in its `"tiered"` layout (common fields visible, the
+ * rest behind an `Advanced` disclosure) that feeds its own emission back in.
+ *
+ * @return {{ container: HTMLElement, calls: Object[] }} The render handle.
+ */
+function renderTieredContext() {
+	const calls = [];
+	let context = {};
+	let handle;
+	const onChange = (next) => {
+		context = next;
+		calls.push(next);
+		handle.rerender(
+			createElement(ContextEditor, { context, onChange, layout: "tiered" }),
+		);
+	};
+	handle = render(
+		createElement(ContextEditor, { context, onChange, layout: "tiered" }),
+	);
+	return { container: handle.container, calls };
+}
+
 describe("MetadataEditor", () => {
 	it("emits only the non-empty fields and clears a key when emptied", () => {
 		const calls = [];
@@ -218,6 +241,45 @@ describe("ContextEditor — hand configs", () => {
 
 	it("emits a rightHand fragment when its clef is set", () => {
 		const { container, calls } = renderContext();
+		change(fieldByName(container, "Right hand clef"), "bass");
+		expect(calls.at(-1).rightHand).toEqual({ clef: "bass" });
+		expectContextConformant(calls.at(-1));
+	});
+});
+
+describe("ContextEditor — tiered layout", () => {
+	it("keeps tempo bpm, beats and beat type out of the Advanced disclosure", () => {
+		const { container } = renderTieredContext();
+		const advanced = container.querySelector('[aria-label="Advanced"]');
+		expect(advanced).not.toBeNull();
+		// The common fields render at the top level, not inside Advanced.
+		for (const name of ["Tempo (BPM)", "Beats per measure", "Beat type"]) {
+			const field = fieldByName(container, name);
+			expect(field).not.toBeNull();
+			expect(advanced.contains(field)).toBe(false);
+		}
+	});
+
+	it("tucks beat unit and both hand configs inside the Advanced disclosure", () => {
+		const { container } = renderTieredContext();
+		const advanced = container.querySelector('[aria-label="Advanced"]');
+		// The uncommon members live under Advanced (the ToolsPanel mock renders its
+		// items unconditionally, so they are queryable without a reveal step).
+		for (const name of ["Beat unit", "Right hand clef", "Left hand clef"]) {
+			const field = fieldByName(container, name);
+			expect(field).not.toBeNull();
+			expect(advanced.contains(field)).toBe(true);
+		}
+	});
+
+	it("emits the same conformant fragments as the flat layout", () => {
+		const { container, calls } = renderTieredContext();
+
+		change(fieldByName(container, "Tempo (BPM)"), "90");
+		change(fieldByName(container, "Beat unit"), "quarter");
+		expect(calls.at(-1).tempo).toEqual({ bpm: 90, beatUnit: "quarter" });
+		expectContextConformant(calls.at(-1));
+
 		change(fieldByName(container, "Right hand clef"), "bass");
 		expect(calls.at(-1).rightHand).toEqual({ clef: "bass" });
 		expectContextConformant(calls.at(-1));
