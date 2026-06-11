@@ -13,10 +13,12 @@ const moreVertical = "moreVertical";
 const chevronRightSmall = "chevronRightSmall";
 const chevronDownSmall = "chevronDownSmall";
 const chevronLeftSmall = "chevronLeftSmall";
+const plus = "plus";
 
 module.exports = {
 	moreVertical,
 	chevronRightSmall,
 	chevronDownSmall,
 	chevronLeftSmall,
+	plus,
 };

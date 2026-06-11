@@ -328,11 +328,26 @@ const Icon = ({ icon: _icon, size: _size, ...rest }) =>
  * that opens a focus-trapped popover holding the menu content; here the trigger
  * is a real `<button>` carrying `aria-label={label}` and spreading `toggleProps`
  * (so any roving-tabindex props — `ref`/`tabIndex`/`onFocus` — reach the DOM
- * button), and the `children` (the menu content) render directly in the DOM so
- * their `MenuItem`s are always queryable. Like the TreeGrid mock leaves roving
- * tabindex to e2e, this stub simulates no focus trap or open/close: the menu
- * content is always present, and the real composition (open the menu, focus the
- * first item) is left to the e2e suite. `icon` is accepted and ignored.
+ * button), and the menu content renders directly in the DOM so its `MenuItem`s
+ * are always queryable. Like the TreeGrid mock leaves roving tabindex to e2e,
+ * this stub simulates no focus trap or open/close: the menu content is always
+ * present, and the real composition (open the menu, focus the first item) is
+ * left to the e2e suite. `icon` is accepted and ignored.
+ *
+ * This mock MIRRORS core's `UnconnectedDropdownMenu` top-of-body guard
+ * (`if ( ! controls?.length && ! isFunction( children ) ) return null;`): it
+ * returns `null` — rendering NO toggle and NO content — when there is no
+ * `controls` array and `children` is not a render function. That is the whole
+ * point of hardening it: review 6 shipped plain-element children, which core's
+ * guard renders as nothing (the toggle never reaches the DOM), yet the old
+ * always-render mock hid that regression by rendering element children
+ * unconditionally. Under this guard, regressing back to plain-element children
+ * makes the toggle vanish, so the toggle-presence and menu-item assertions go
+ * red. The fixed code passes render-function children — invoked here with
+ * core's `{ isOpen, onToggle, onClose }` arg (`onClose` is a real no-op the
+ * production `() => { handler(); onClose(); }` calls) — so the items render into
+ * the same wrapping `<div>` as the toggle and the existing find-trigger-then-
+ * query-items traversals survive verbatim.
  *
  * Note: under jest the `TreeGridCell` render-prop child receives `{}`, so the
  * `{ ref, tabIndex, onFocus }` a caller forwards into `toggleProps` are all
@@ -342,17 +357,22 @@ const Icon = ({ icon: _icon, size: _size, ...rest }) =>
  * `ref`/`tabIndex`/`onFocus`.
  *
  * @param {Object} props DropdownMenu props.
- * @return {Object} A React element: the trigger button followed by the menu content.
+ * @return {Object} A React element (trigger button + menu content), or `null` when core's guard would fire.
  */
 const DropdownMenu = ({
 	label,
 	children,
+	controls,
 	toggleProps = {},
 	// Swallow props with no behavior the tests assert.
 	icon: _icon,
 	...rest
-}) =>
-	createElement(
+}) => {
+	if (!controls?.length && typeof children !== "function") {
+		// Byte-mirrors core's `if ( ! controls?.length && ! isFunction( children ) ) return null;`.
+		return null;
+	}
+	return createElement(
 		"div",
 		rest,
 		createElement("button", {
@@ -360,8 +380,11 @@ const DropdownMenu = ({
 			"aria-label": label,
 			...toggleProps,
 		}),
-		children,
+		typeof children === "function"
+			? children({ isOpen: false, onToggle: () => {}, onClose: () => {} })
+			: children,
 	);
+};
 
 /**
  * Minimal `MenuGroup` stand-in. The real component groups menu items under an

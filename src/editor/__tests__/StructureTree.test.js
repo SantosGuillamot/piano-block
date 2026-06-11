@@ -393,6 +393,30 @@ describe("StructureTree — select-only label vs chevron toggle", () => {
 	});
 });
 
+describe("StructureTree — row-action toggle present", () => {
+	it("renders the action-menu toggle at section, measure and note level", () => {
+		// Under the hardened DropdownMenu mock (which mirrors core's `return null`
+		// when children are not a render function), this assertion FAILS if the
+		// per-row menus regress to plain-element children — the component renders
+		// null, so no toggle button reaches the DOM. With the render-function
+		// children in place, each representative row's three-dots toggle is present
+		// by its "Actions for …" accessible name. This names the exact regression
+		// (the toggle is in the DOM), belt-and-suspenders to the item assertions.
+		const { container, unmount } = renderTree();
+		expect(buttonByLabel(container, "Actions for Section 1")).toBeTruthy();
+		expect(
+			buttonByLabel(container, "Actions for Measure 1 of section 1"),
+		).toBeTruthy();
+		expect(
+			buttonByLabel(
+				container,
+				"Actions for Note 1 of Right hand of measure 1 of section 1",
+			),
+		).toBeTruthy();
+		unmount();
+	});
+});
+
 describe("StructureTree — row actions", () => {
 	it("removes and duplicates a section from its DropdownMenu", () => {
 		const { container, unmount, calls } = renderTree();

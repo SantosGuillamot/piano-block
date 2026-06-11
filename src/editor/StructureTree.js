@@ -55,6 +55,7 @@ import {
 	chevronLeftSmall,
 	chevronRightSmall,
 	moreVertical,
+	plus,
 } from "@wordpress/icons";
 import { noteLabel } from "./noteNames.js";
 import { expansionKey } from "./selection.js";
@@ -199,20 +200,35 @@ export function StructureTree({
 								sectionNumber,
 							)}
 						>
-							<MenuGroup>
-								<MenuItem onClick={() => onDuplicateSection?.(sectionIndex)}>
-									{__("Duplicate", "piano-block")}
-								</MenuItem>
-								<MenuItem onClick={() => onAddMeasure?.(sectionIndex)}>
-									{__("Add measure", "piano-block")}
-								</MenuItem>
-								<MenuItem
-									isDestructive
-									onClick={() => onRemoveSection?.(sectionIndex)}
-								>
-									{__("Remove", "piano-block")}
-								</MenuItem>
-							</MenuGroup>
+							{({ onClose }) => (
+								<MenuGroup>
+									<MenuItem
+										onClick={() => {
+											onDuplicateSection?.(sectionIndex);
+											onClose();
+										}}
+									>
+										{__("Duplicate", "piano-block")}
+									</MenuItem>
+									<MenuItem
+										onClick={() => {
+											onAddMeasure?.(sectionIndex);
+											onClose();
+										}}
+									>
+										{__("Add measure", "piano-block")}
+									</MenuItem>
+									<MenuItem
+										isDestructive
+										onClick={() => {
+											onRemoveSection?.(sectionIndex);
+											onClose();
+										}}
+									>
+										{__("Remove", "piano-block")}
+									</MenuItem>
+								</MenuGroup>
+							)}
 						</DropdownMenu>
 					)}
 				</TreeGridCell>
@@ -284,23 +300,27 @@ export function StructureTree({
 									sectionNumber,
 								)}
 							>
-								<MenuGroup>
-									<MenuItem
-										onClick={() =>
-											onDuplicateMeasure?.(sectionIndex, measureIndex)
-										}
-									>
-										{__("Duplicate", "piano-block")}
-									</MenuItem>
-									<MenuItem
-										isDestructive
-										onClick={() =>
-											onRemoveMeasure?.(sectionIndex, measureIndex)
-										}
-									>
-										{__("Remove", "piano-block")}
-									</MenuItem>
-								</MenuGroup>
+								{({ onClose }) => (
+									<MenuGroup>
+										<MenuItem
+											onClick={() => {
+												onDuplicateMeasure?.(sectionIndex, measureIndex);
+												onClose();
+											}}
+										>
+											{__("Duplicate", "piano-block")}
+										</MenuItem>
+										<MenuItem
+											isDestructive
+											onClick={() => {
+												onRemoveMeasure?.(sectionIndex, measureIndex);
+												onClose();
+											}}
+										>
+											{__("Remove", "piano-block")}
+										</MenuItem>
+									</MenuGroup>
+								)}
 							</DropdownMenu>
 						)}
 					</TreeGridCell>
@@ -362,7 +382,7 @@ export function StructureTree({
 							{(cellProps) => (
 								<Button
 									{...cellProps}
-									icon="plus"
+									icon={plus}
 									variant="secondary"
 									label={addNoteLabel}
 									onClick={() => onAddNote?.(sectionIndex, measureIndex, hand)}
@@ -431,33 +451,37 @@ export function StructureTree({
 											sectionNumber,
 										)}
 									>
-										<MenuGroup>
-											<MenuItem
-												onClick={() =>
-													onDuplicateNote?.(
-														sectionIndex,
-														measureIndex,
-														hand,
-														eventIndex,
-													)
-												}
-											>
-												{__("Duplicate", "piano-block")}
-											</MenuItem>
-											<MenuItem
-												isDestructive
-												onClick={() =>
-													onRemoveNote?.(
-														sectionIndex,
-														measureIndex,
-														hand,
-														eventIndex,
-													)
-												}
-											>
-												{__("Remove", "piano-block")}
-											</MenuItem>
-										</MenuGroup>
+										{({ onClose }) => (
+											<MenuGroup>
+												<MenuItem
+													onClick={() => {
+														onDuplicateNote?.(
+															sectionIndex,
+															measureIndex,
+															hand,
+															eventIndex,
+														);
+														onClose();
+													}}
+												>
+													{__("Duplicate", "piano-block")}
+												</MenuItem>
+												<MenuItem
+													isDestructive
+													onClick={() => {
+														onRemoveNote?.(
+															sectionIndex,
+															measureIndex,
+															hand,
+															eventIndex,
+														);
+														onClose();
+													}}
+												>
+													{__("Remove", "piano-block")}
+												</MenuItem>
+											</MenuGroup>
+										)}
 									</DropdownMenu>
 								)}
 							</TreeGridCell>
