@@ -338,8 +338,8 @@ async function expandRow(editor, name) {
  * name (the `label` src/editor/StructureTree.js gives each menu, e.g.
  * "Actions for Section 2", "Actions for Measure 1 of section 1",
  * "Actions for Note 1 of Right hand of measure 1 of section 1") and return the
- * locator for the menu item with the given visible name ("Duplicate", "Remove",
- * "Add measure").
+ * locator for the menu item with the given visible name ("Duplicate", "Add
+ * before", "Add after", "Remove").
  *
  * The trigger lives inside the tree, but the real `DropdownMenu` opens its
  * content in a `Popover` that portals out of the tree container (to the editor
@@ -587,13 +587,17 @@ test.describe("Piano block — editor authoring, persistence and validation", ()
 		await assertStructureTreeOpen(editor);
 		await expandRow(editor, "Section 1");
 
-		// Add a measure from the section's actions menu → that section now has two
-		// measures. (The structural actions moved from always-on icon buttons into a
-		// per-row DropdownMenu; "Add measure" is a menu item under "Actions for
-		// Section 1".)
-		await (
-			await openRowAction(editor, "Actions for Section 1", "Add measure")
-		).click();
+		// Add a measure via the Section panel's "Add measure" button → that section
+		// now has two measures. (The block-menu reshape dropped "Add measure" from the
+		// section row menu; the capability re-homed to a SectionPanel sidebar button.
+		// Selecting the section row reveals that panel.) Scoped to the `sidebar` and
+		// `exact`, mirroring the "Add section" step below, so it never matches the
+		// tree's "Add note to …" actions.
+		await treeRow(editor, "Section 1").click();
+		await expect(inspectorPanel(sidebar, "Section")).toBeVisible();
+		await sidebar
+			.getByRole("button", { name: "Add measure", exact: true })
+			.click();
 		await expect
 			.poll(async () => {
 				const parsed = await storedSongObject(editor);
@@ -658,6 +662,87 @@ test.describe("Piano block — editor authoring, persistence and validation", ()
 		await expect
 			.poll(async () => (await storedSongObject(editor)).sections.length)
 			.toBe(2);
+	});
+
+	test("a measure row's Add before / Add after insert at the right index and auto-select", async ({
+		editor,
+		page,
+	}) => {
+		await editor.insertBlock({ name: "piano-block/piano" });
+
+		// Seed the single-measure song (its one measure carries a right-hand C4 note,
+		// so it is identifiable by content regardless of where positional inserts push
+		// it). The structure tree is open by default; expand the section so its measure
+		// rows and their actions menus are reachable.
+		await seedSongViaJson(editor, CONFORMANT_SONG);
+		await switchToVisualMode(editor);
+		const sidebar = await openSettingsSidebar(editor, page);
+		await assertStructureTreeOpen(editor);
+		await expandRow(editor, "Section 1");
+
+		// The original note-bearing measure is the only one with a `rightHand` — empty
+		// `newMeasure()` inserts carry none — so its live index is ordinal-independent.
+		const noteMeasureIndex = async () => {
+			const parsed = await storedSongObject(editor);
+			return parsed.sections[0].measures.findIndex(
+				(measure) => measure.rightHand?.length === 1,
+			);
+		};
+		const measureCount = async () =>
+			(await storedSongObject(editor)).sections[0].measures.length;
+
+		// "Add before" on the only measure (row "Measure 1", index 0) inserts a fresh
+		// empty measure AT index 0, pushing the note-bearing measure to index 1. The
+		// menu item is exact, so "Add before" never loosely matches another "Add"
+		// control.
+		await (
+			await openRowAction(
+				editor,
+				"Actions for Measure 1 of section 1",
+				"Add before",
+			)
+		).click();
+
+		// The measure count grew to two, the new (empty) measure landed at index 0, and
+		// the note-bearing original is now at index 1 (the ordinal shift "Add before"
+		// causes).
+		await expect.poll(measureCount).toBe(2);
+		await expect.poll(noteMeasureIndex).toBe(1);
+
+		// The inserted measure is auto-selected: the Measure panel opened on it and its
+		// tree row carries `aria-current`. The insert sits at index 0, so its row is the
+		// re-derived "Measure 1" (NOT a stale lookup — the note-bearing measure is now
+		// "Measure 2").
+		await expect(inspectorPanel(sidebar, "Measure")).toBeVisible();
+		await expect(treeRow(editor, "Measure 1")).toHaveAttribute(
+			"aria-current",
+			"true",
+		);
+
+		// "Add after" must target the note-bearing measure, whose row is now the
+		// RE-DERIVED "Measure 2" (it was "Measure 1" before the insert above). Its
+		// actions menu name shifts with it.
+		await (
+			await openRowAction(
+				editor,
+				"Actions for Measure 2 of section 1",
+				"Add after",
+			)
+		).click();
+
+		// The count grew to three and the new measure landed one past the note-bearing
+		// measure: the note-bearing measure stays at index 1, the fresh measure sits at
+		// index 2.
+		await expect.poll(measureCount).toBe(3);
+		await expect.poll(noteMeasureIndex).toBe(1);
+
+		// The "Add after" insert is auto-selected at index 2 — its re-derived row is
+		// "Measure 3" — with the Measure panel still open on it.
+		await expect(inspectorPanel(sidebar, "Measure")).toBeVisible();
+		await expect(treeRow(editor, "Measure 3")).toHaveAttribute(
+			"aria-current",
+			"true",
+		);
 	});
 
 	test("selecting structure-tree rows reveals the right panels", async ({
