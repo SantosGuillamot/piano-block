@@ -59,9 +59,7 @@ import {
 } from "@wordpress/icons";
 import { noteLabel } from "./noteNames.js";
 import { eventKey, expansionKey, expansionKeyOf } from "./selection.js";
-
-/** The two hands, in render order, with their display labels' translator keys. */
-const HANDS = ["rightHand", "leftHand"];
+import { HANDS } from "./songModel.js";
 
 /**
  * The non-focusable stock disclosure chevron shown beside an expandable row's
@@ -416,16 +414,12 @@ export function StructureTree({
 				return;
 			}
 
-			HANDS.forEach((hand, handPosition) => {
+			HANDS.forEach(({ key: hand, label: handLabel }, handPosition) => {
 				const handKey = expansionKey({ sectionIndex, measureIndex, hand });
 				const handExpanded = isExpanded(handKey);
 				const events = Array.isArray(measure?.[hand]) ? measure[hand] : [];
 				// Hand-group labels carry the section/measure ordinals so an exact-name
 				// lookup never collides across measures.
-				const handLabel =
-					hand === "rightHand"
-						? __("Right hand", "piano-block")
-						: __("Left hand", "piano-block");
 				const addNoteLabel = sprintf(
 					// translators: 1: hand name, 2: measure number, 3: section number.
 					__("Add note to %1$s of measure %2$d of section %3$d", "piano-block"),
