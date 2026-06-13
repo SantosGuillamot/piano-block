@@ -965,6 +965,56 @@ test.describe("Piano block — editor authoring, persistence and validation", ()
 		await expect(handPrefixedLabel).toHaveCount(0);
 	});
 
+	// S4 real-component proof: the __list-row className CSS hook engages in the
+	// sidebar DOM and the trash button is correctly positioned in its row.
+	//
+	// Flow: open Song panel → expand Advanced → add an alters entry → verify that
+	// the alters-row HStack carries the __list-row class in the sidebar (proving
+	// the real HStack forwards className to the DOM) and that the trash button is
+	// the last child of that row (the CSS rule targets > button:last-child to
+	// give it flex: 0 0 auto so it does not collapse or float mid-row).
+	test("list-row HStack carries __list-row className and trash button is last child (S4 CSS hook)", async ({
+		editor,
+		page,
+	}) => {
+		await editor.insertBlock({ name: "piano-block/piano" });
+		await seedSongViaJson(editor, CONFORMANT_SONG);
+		await switchToVisualMode(editor);
+		const sidebar = await openSettingsSidebar(editor, page);
+
+		// Expand the Song panel's Advanced tiered disclosure to reach the hand-config controls.
+		const advanced = sidebar.getByRole("region", { name: "Advanced" });
+		if (!(await advanced.isVisible())) {
+			await sidebar
+				.getByRole("button", { name: "Advanced", exact: true })
+				.click();
+		}
+
+		// Add a Right-hand alteration entry so an alters row appears.
+		const addAlteration = sidebar.getByRole("button", {
+			name: "Right hand add alteration",
+			exact: true,
+		});
+		await addAlteration.click();
+
+		// The alters-row HStack must carry the __list-row class so the top-level
+		// editor.scss rule can reach the sidebar DOM. The real HStack forwards
+		// className to its wrapper div, so the class lands in the sidebar DOM.
+		const listRow = sidebar.locator(".wp-block-piano-block-piano__list-row");
+		await expect(listRow).toBeVisible();
+
+		// The trash button must be the last child of the row: the CSS rule
+		// > button:last-child gives it flex: 0 0 auto so it stays fixed-size and
+		// does not float mid-row when the leading editor is wide.
+		const trashButton = listRow.locator("button").last();
+		await expect(trashButton).toBeVisible();
+		// Confirm the trash is accessible (aria-label from the real Button component).
+		await expect(trashButton).toHaveAttribute(
+			"aria-label",
+			"Right hand remove alteration",
+		);
+	});
+
 	test("a conformant song shows no error and is stored", async ({ editor }) => {
 		await editor.insertBlock({ name: "piano-block/piano" });
 

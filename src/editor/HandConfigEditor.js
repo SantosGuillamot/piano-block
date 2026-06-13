@@ -159,7 +159,11 @@ export function HandConfigEditor({ handConfig = {}, onChange, label }) {
 				__next40pxDefaultSize
 			/>
 			{rows.map((row, index) => (
-				<HStack key={row.note}>
+				<HStack
+					key={row.note}
+					alignment="flex-start"
+					className="wp-block-piano-block-piano__list-row"
+				>
 					<SelectControl
 						label={__("Alteration note", "piano-block")}
 						aria-label={fieldLabel(__("alteration note", "piano-block"))}

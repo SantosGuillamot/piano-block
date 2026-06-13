@@ -9,6 +9,27 @@
  * which WordPress styles.
  */
 
+// Top-level: the inspector sidebar renders OUTSIDE the block wrapper, so this
+// rule must live at the stylesheet root to reach the sidebar DOM. Mirrors the
+// BEM convention of the __tree and __canvas rules in the nested block below.
+//
+// Child-selector rationale:
+//   > button:last-child  — the trailing trash Button (always an icon-only <button>
+//                          rendered last in each list row); flex: 0 0 auto gives
+//                          it a fixed, non-shrinking footprint so it does not
+//                          collapse when the leading editor is wide.
+//   > :first-child       — the leading leaf editor (PitchEditor / AnnotationEditor
+//                          / the SelectControl+NumberControl pair in HandConfig);
+//                          min-width keeps it from shrinking to zero at narrow
+//                          inspector widths. 8em matches roughly the minimum
+//                          usable width of a SelectControl option list, which is
+//                          the narrowest common leading control (similar in intent
+//                          to the 280px floor on __canvas-svg below).
+.wp-block-piano-block-piano__list-row {
+	> button:last-child { flex: 0 0 auto; }   // trailing trash: fixed-size, non-shrinking
+	> :first-child { min-width: 8em; }         // leading editor keeps a sensible minimum width
+}
+
 .wp-block-piano-block-piano {
 
 	/* The editor workspace: the left structure tree beside the canvas, laid out as a

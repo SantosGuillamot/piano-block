@@ -52,7 +52,11 @@ export function AnnotationList({ annotations = [], kind, onChange }) {
 			{annotations.map((annotation, index) => (
 				// Annotations have no stable identity, so the index is the only key
 				// available; rows are simple controlled editors, so this is safe.
-				<HStack key={index} alignment="flex-start">
+				<HStack
+					key={index}
+					alignment="flex-start"
+					className="wp-block-piano-block-piano__list-row"
+				>
 					<AnnotationEditor
 						annotation={annotation}
 						kind={kind}

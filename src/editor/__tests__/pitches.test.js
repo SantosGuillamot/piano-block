@@ -340,4 +340,14 @@ describe("PitchList", () => {
 		]);
 		expectPitchesConformant(calls.at(-1));
 	});
+
+	// S4 className hook: each pitch-row HStack carries the __list-row class so
+	// the top-level editor.scss rule can target it (the HStack mock spreads
+	// ...rest onto the <div>, so className reaches the DOM).
+	it("pitch rows carry the __list-row className hook (S4 CSS engagement)", () => {
+		const { container } = renderList([{ step: "C", octave: 4 }], "english");
+		expect(
+			container.querySelector(".wp-block-piano-block-piano__list-row"),
+		).not.toBeNull();
+	});
 });

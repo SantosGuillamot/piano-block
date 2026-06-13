@@ -321,4 +321,16 @@ describe("AnnotationList", () => {
 			expectEventAnnotationConformant(annotation);
 		}
 	});
+
+	// S4 className hook: each annotation-row HStack carries the __list-row class
+	// so the top-level editor.scss rule can target it (the HStack mock spreads
+	// ...rest onto the <div>, so className reaches the DOM).
+	it("annotation rows carry the __list-row className hook (S4 CSS engagement)", () => {
+		const { container } = renderList("event", [
+			{ text: "cresc.", placement: "above" },
+		]);
+		expect(
+			container.querySelector(".wp-block-piano-block-piano__list-row"),
+		).not.toBeNull();
+	});
 });
