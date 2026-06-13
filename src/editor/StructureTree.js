@@ -58,7 +58,7 @@ import {
 	plus,
 } from "@wordpress/icons";
 import { noteLabel } from "./noteNames.js";
-import { expansionKey } from "./selection.js";
+import { eventKey, expansionKey, expansionKeyOf } from "./selection.js";
 
 /** The two hands, in render order, with their display labels' translator keys. */
 const HANDS = ["rightHand", "leftHand"];
@@ -148,6 +148,13 @@ export function StructureTree({
 	onAddNoteBefore,
 	onAddNoteAfter,
 }) {
+	// Shared handler for both onExpandRow and onCollapseRow: reads the focused row's
+	// data-expansion-key and routes to the single onToggleExpanded callback.
+	const onExpandCollapseRow = (row) => {
+		const key = expansionKeyOf(row);
+		if (key) onToggleExpanded?.(key);
+	};
+
 	const sections = Array.isArray(song?.sections) ? song.sections : [];
 
 	// Expansion is a single membership lookup against the one `expanded` Set: no
@@ -179,6 +186,7 @@ export function StructureTree({
 				positionInSet={sectionNumber}
 				setSize={sections.length}
 				isExpanded={sectionExpanded}
+				data-expansion-key={sectionKey}
 			>
 				<TreeGridCell>
 					{(cellProps) => (
@@ -284,6 +292,7 @@ export function StructureTree({
 					positionInSet={measureNumber}
 					setSize={measures.length}
 					isExpanded={measureExpanded}
+					data-expansion-key={measureKey}
 				>
 					<TreeGridCell>
 						{(cellProps) => (
@@ -401,6 +410,7 @@ export function StructureTree({
 						positionInSet={handPosition + 1}
 						setSize={HANDS.length}
 						isExpanded={handExpanded}
+						data-expansion-key={handKey}
 					>
 						<TreeGridCell>
 							{(cellProps) => (
@@ -440,7 +450,12 @@ export function StructureTree({
 
 				events.forEach((event, eventIndex) => {
 					const eventNumber = eventIndex + 1;
-					const eventKey = `${handKey}e${eventIndex}`;
+					const noteKey = eventKey({
+						sectionIndex,
+						measureIndex,
+						hand,
+						eventIndex,
+					});
 					const eventSelected =
 						selection?.kind === "event" &&
 						selection.sectionIndex === sectionIndex &&
@@ -450,7 +465,7 @@ export function StructureTree({
 
 					rows.push(
 						<TreeGridRow
-							key={eventKey}
+							key={noteKey}
 							level={4}
 							positionInSet={eventNumber}
 							setSize={events.length}
@@ -566,7 +581,13 @@ export function StructureTree({
 
 	return (
 		<div className="wp-block-piano-block-piano__tree">
-			<TreeGrid label={__("Song structure", "piano-block")}>{rows}</TreeGrid>
+			<TreeGrid
+				label={__("Song structure", "piano-block")}
+				onExpandRow={onExpandCollapseRow}
+				onCollapseRow={onExpandCollapseRow}
+			>
+				{rows}
+			</TreeGrid>
 		</div>
 	);
 }
