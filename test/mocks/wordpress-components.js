@@ -16,13 +16,19 @@
  * only assert that each advanced control exists and is wired, leaving the
  * reveal/hide behavior to the e2e suite.
  */
-const { createElement } = require("@wordpress/element");
+const {
+	createElement,
+	isValidElement,
+	cloneElement,
+} = require("@wordpress/element");
 
 /**
- * Minimal `Button` stand-in. `icon`/`variant`/`isDestructive` are accepted and
- * ignored (they carry no behavior the tests assert); the accessible name comes
- * from `label` (mapped to `aria-label`) or, failing that, the button's text
- * children.
+ * Minimal `Button` stand-in. `variant`/`isDestructive` are accepted and ignored
+ * (they carry no behavior the tests assert); the accessible name comes from
+ * `label` (mapped to `aria-label`) or, failing that, the button's text children.
+ * When `icon` is provided it is rendered through `Icon` so the sentinel
+ * `<svg data-wp-icon>` reaches the DOM — a string icon produces `null` here, so
+ * the project-wide string-icon guard goes RED if any button receives a string.
  *
  * @param {Object} props Button props.
  * @return {Object} A React `<button>` element.
@@ -33,8 +39,8 @@ const Button = ({
 	label,
 	"aria-label": ariaLabel,
 	children,
+	icon,
 	// Swallow props that have no DOM meaning in the mock.
-	icon: _icon,
 	variant: _variant,
 	isDestructive: _isDestructive,
 	...rest
@@ -48,6 +54,7 @@ const Button = ({
 			"aria-label": ariaLabel ?? label,
 			...rest,
 		},
+		icon ? createElement(Icon, { icon }) : null,
 		children,
 	);
 
@@ -291,15 +298,19 @@ const ToolsPanelItem = ({
 }) => createElement("div", { ...rest }, children);
 
 /**
- * Minimal `Icon` stand-in. The real component renders an SVG glyph; here it
- * renders an inert marker carrying no behavior the tests assert. `icon`/`size`
- * are accepted and ignored.
+ * Minimal `Icon` stand-in. The real component `cloneElement`s the icon when it
+ * is a valid React element (producing the glyph inline) and falls back to other
+ * render strategies otherwise. This mock mirrors that: for a valid element it
+ * `cloneElement`s it (so the sentinel `<svg data-wp-icon>` reaches the DOM and
+ * the project-wide string-icon guard can assert it), and returns `null` for a
+ * non-element — which is what a string icon produces, making the guard go RED
+ * when a string icon slips through.
  *
  * @param {Object} props Icon props.
- * @return {Object} A React `<span>` element.
+ * @return {Object|null} The cloned element, or `null`.
  */
-const Icon = ({ icon: _icon, size: _size, ...rest }) =>
-	createElement("span", { "data-icon": true, ...rest });
+const Icon = ({ icon, size: _size, ...rest }) =>
+	isValidElement(icon) ? cloneElement(icon, rest) : null;
 
 /**
  * Minimal `DropdownMenu` stand-in. The real component renders a trigger button
@@ -342,8 +353,7 @@ const DropdownMenu = ({
 	children,
 	controls,
 	toggleProps = {},
-	// Swallow props with no behavior the tests assert.
-	icon: _icon,
+	icon,
 	...rest
 }) => {
 	if (!controls?.length && typeof children !== "function") {
@@ -353,11 +363,11 @@ const DropdownMenu = ({
 	return createElement(
 		"div",
 		rest,
-		createElement("button", {
-			type: "button",
-			"aria-label": label,
-			...toggleProps,
-		}),
+		createElement(
+			"button",
+			{ type: "button", "aria-label": label, ...toggleProps },
+			icon ? createElement(Icon, { icon }) : null,
+		),
 		typeof children === "function"
 			? children({ isOpen: false, onToggle: () => {}, onClose: () => {} })
 			: children,

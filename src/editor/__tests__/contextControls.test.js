@@ -62,6 +62,13 @@ function buttonByName(container, name) {
 	);
 }
 
+/** Look up a button by its exact visible text content. */
+function buttonByText(container, name) {
+	return [...container.querySelectorAll("button")].find(
+		(button) => button.textContent === name,
+	);
+}
+
 /**
  * Set a controlled field's value and dispatch a change event inside `act`.
  *
@@ -337,7 +344,7 @@ describe("HandConfigEditor", () => {
 	it("adds an alters entry emitting { alters: { <note>: <int> } } and drops alters when the last entry goes", () => {
 		const { container, calls } = renderHand();
 
-		click(buttonByName(container, "Right hand add alteration"));
+		click(buttonByText(container, "Right hand add alteration"));
 		// A freshly added row seeds a recognised note and an in-range value, so the
 		// emitted fragment is already conformant.
 		const added = calls.at(-1);
@@ -361,7 +368,7 @@ describe("HandConfigEditor", () => {
 
 	it("keeps alters keys to recognised note names so the fragment validates", () => {
 		const { container, calls } = renderHand();
-		click(buttonByName(container, "Right hand add alteration"));
+		click(buttonByText(container, "Right hand add alteration"));
 		// The note-name select offers only recognised note names.
 		const noteSelect = fieldByName(container, "Right hand alteration note");
 		const values = [...noteSelect.querySelectorAll("option")].map(
@@ -375,7 +382,7 @@ describe("HandConfigEditor", () => {
 
 	it("replaces on a duplicate key rather than producing two entries", () => {
 		const { container, calls } = renderHand({ alters: { C: 1 } });
-		click(buttonByName(container, "Right hand add alteration"));
+		click(buttonByText(container, "Right hand add alteration"));
 		// The new row seeds another note; switch it to the existing key C and
 		// confirm the map collapses to a single C entry rather than two.
 		const noteSelects = [...container.querySelectorAll("select")].filter(

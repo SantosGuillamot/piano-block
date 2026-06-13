@@ -13,6 +13,7 @@
  */
 import { Button } from "@wordpress/components";
 import { __ } from "@wordpress/i18n";
+import { trash } from "@wordpress/icons";
 import { AddButton } from "./ListControls.js";
 import { noteNameOptions } from "./noteNames.js";
 import { PitchEditor } from "./PitchEditor.js";
@@ -44,7 +45,8 @@ export function PitchList({ pitches = [], system, onChange }) {
 						onChange={(next) => onChange(replaceAt(pitches, index, next))}
 					/>
 					<Button
-						icon="trash"
+						icon={trash}
+						isDestructive
 						label={__("Remove pitch", "piano-block")}
 						onClick={() => onChange(removeAt(pitches, index))}
 						// The note invariant: never let the last pitch be removed.

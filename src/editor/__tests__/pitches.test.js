@@ -66,6 +66,13 @@ function buttonByName(container, name) {
 	);
 }
 
+/** Look up a button by its exact visible text content. */
+function buttonByText(container, name) {
+	return [...container.querySelectorAll("button")].find(
+		(button) => button.textContent === name,
+	);
+}
+
 /**
  * Set a controlled field's value and dispatch a change event inside `act`.
  *
@@ -284,7 +291,7 @@ describe("PitchList", () => {
 			[{ step: "do", octave: 4 }],
 			"spanish",
 		);
-		click(buttonByName(container, "Add pitch"));
+		click(buttonByText(container, "Add pitch"));
 		// The seeded pitch uses the system's first name; octave 4.
 		expect(calls.at(-1)).toEqual([
 			{ step: "do", octave: 4 },

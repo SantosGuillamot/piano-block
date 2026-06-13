@@ -63,6 +63,13 @@ function buttonByName(container, name) {
 	);
 }
 
+/** Look up a button by its exact visible text content. */
+function buttonByText(container, name) {
+	return [...container.querySelectorAll("button")].find(
+		(button) => button.textContent === name,
+	);
+}
+
 /**
  * Set a controlled field's value and dispatch a change event inside `act`.
  *
@@ -268,14 +275,14 @@ describe("AnnotationList", () => {
 
 	it("appends a fully-required event annotation and validates", () => {
 		const { container, calls } = renderList("event");
-		click(buttonByName(container, "Add annotation"));
+		click(buttonByText(container, "Add annotation"));
 		expect(calls.at(-1)).toEqual([{ text: "", placement: "above" }]);
 		expectEventAnnotationConformant(calls.at(-1)[0]);
 	});
 
 	it("appends a fully-required standalone annotation carrying a staff", () => {
 		const { container, calls } = renderList("standalone");
-		click(buttonByName(container, "Add annotation"));
+		click(buttonByText(container, "Add annotation"));
 		expect(calls.at(-1)).toEqual([
 			{ text: "", placement: "above", staff: "rightHand" },
 		]);
@@ -285,8 +292,8 @@ describe("AnnotationList", () => {
 	it("signals removal (no empty array) once the last annotation is removed", () => {
 		const { container, calls } = renderList("event");
 
-		click(buttonByName(container, "Add annotation"));
-		click(buttonByName(container, "Add annotation"));
+		click(buttonByText(container, "Add annotation"));
+		click(buttonByText(container, "Add annotation"));
 		expect(calls.at(-1)).toHaveLength(2);
 
 		click(buttonByName(container, "Remove annotation"));

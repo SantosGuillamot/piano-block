@@ -15,6 +15,7 @@
  */
 import { Button } from "@wordpress/components";
 import { __ } from "@wordpress/i18n";
+import { trash } from "@wordpress/icons";
 import { AnnotationEditor } from "./AnnotationEditor.js";
 import { AddButton } from "./ListControls.js";
 import {
@@ -58,7 +59,8 @@ export function AnnotationList({ annotations = [], kind, onChange }) {
 						onChange={(next) => emit(replaceAt(annotations, index, next))}
 					/>
 					<Button
-						icon="trash"
+						icon={trash}
+						isDestructive
 						label={__("Remove annotation", "piano-block")}
 						onClick={() => emit(removeAt(annotations, index))}
 					/>

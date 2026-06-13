@@ -12,6 +12,7 @@
  * the handler that actually mutates it.
  */
 import { Button } from "@wordpress/components";
+import { plus } from "@wordpress/icons";
 
 /**
  * The standalone "add" affordance a list places at its end to append a new item.
@@ -23,7 +24,7 @@ import { Button } from "@wordpress/components";
  */
 export function AddButton({ onClick, label }) {
 	return (
-		<Button variant="secondary" icon="plus" label={label} onClick={onClick}>
+		<Button variant="secondary" icon={plus} onClick={onClick}>
 			{label}
 		</Button>
 	);

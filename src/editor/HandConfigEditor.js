@@ -23,6 +23,7 @@ import {
 	SelectControl,
 } from "@wordpress/components";
 import { __ } from "@wordpress/i18n";
+import { trash } from "@wordpress/icons";
 import { AddButton } from "./ListControls.js";
 import { noteNameOptions } from "./noteNames.js";
 import {
@@ -170,7 +171,8 @@ export function HandConfigEditor({ handConfig = {}, onChange, label }) {
 						__nextHasNoMarginBottom
 					/>
 					<Button
-						icon="trash"
+						icon={trash}
+						isDestructive
 						label={fieldLabel(__("remove alteration", "piano-block"))}
 						onClick={() => emitRows(removeAt(rows, index))}
 					/>
