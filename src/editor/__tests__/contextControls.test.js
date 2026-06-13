@@ -411,4 +411,13 @@ describe("HandConfigEditor", () => {
 			container.querySelector(".wp-block-piano-block-piano__list-row"),
 		).not.toBeNull();
 	});
+
+	// R-LR2: the Alteration NumberControl in alters rows carries an inline
+	// min-width so it does not collapse when sharing the list-row flex container
+	// with the leading note-name select.
+	it("Alteration NumberControl in alters rows has a min-width of 4em (R-LR2)", () => {
+		const { container } = renderHand({ alters: { C: 1 } });
+		const alterInput = fieldByName(container, "Right hand alteration");
+		expect(alterInput.style.minWidth).toBe("4em");
+	});
 });

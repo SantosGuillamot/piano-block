@@ -208,11 +208,27 @@ describe("PitchEditor", () => {
 		expect(octave.getAttribute("max")).toBe("9");
 	});
 
+	// R-LR2: the Octave NumberControl carries an inline min-width so it does not
+	// collapse when sharing the list-row flex container with the leading select.
+	it("Octave NumberControl has a min-width of 4em (R-LR2)", () => {
+		const { container } = renderEditor({ step: "C", octave: 4 }, "english");
+		const octave = fieldByName(container, "Octave");
+		expect(octave.style.minWidth).toBe("4em");
+	});
+
 	it("clamps alter to its bounds", () => {
 		const { container } = renderEditor({ step: "C", octave: 4 }, "english");
 		const alter = fieldByName(container, "Alteration");
 		expect(alter.getAttribute("min")).toBe("-2");
 		expect(alter.getAttribute("max")).toBe("2");
+	});
+
+	// R-LR2: the Alteration NumberControl carries an inline min-width so it does
+	// not collapse when sharing the list-row flex container with the leading select.
+	it("Alteration NumberControl has a min-width of 4em (R-LR2)", () => {
+		const { container } = renderEditor({ step: "C", octave: 4 }, "english");
+		const alter = fieldByName(container, "Alteration");
+		expect(alter.style.minWidth).toBe("4em");
 	});
 
 	it("emits alter only when non-zero and omits it at zero", () => {

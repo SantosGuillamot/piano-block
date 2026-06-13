@@ -75,6 +75,7 @@ export function PitchEditor({ pitch, system, onChange }) {
 				onChange={(value) =>
 					emit({ ...pitch, octave: clampInt(value, OCTAVE_MIN, OCTAVE_MAX) })
 				}
+				style={{ minWidth: "4em" }}
 				__next40pxDefaultSize
 			/>
 			<NumberControl
@@ -86,6 +87,7 @@ export function PitchEditor({ pitch, system, onChange }) {
 				onChange={(value) =>
 					emit({ ...pitch, alter: clampInt(value, ALTER_MIN, ALTER_MAX) })
 				}
+				style={{ minWidth: "4em" }}
 				__next40pxDefaultSize
 			/>
 		</>

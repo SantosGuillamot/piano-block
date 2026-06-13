@@ -40,7 +40,7 @@ export function PitchList({ pitches = [], system, onChange }) {
 				// available; rows are simple controlled editors, so this is safe.
 				<HStack
 					key={index}
-					alignment="flex-start"
+					alignment="center"
 					className="wp-block-piano-block-piano__list-row"
 				>
 					<PitchEditor
