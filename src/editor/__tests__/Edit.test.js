@@ -458,9 +458,8 @@ describe("Edit — lifted structural mutators", () => {
 		const { container, calls } = renderEdit(SONG);
 		selectLoneNote(container);
 		expect(panelByTitle(container, "Section")).not.toBeNull();
-		// The SectionPanel button now opens a ConfirmDialog (entry A); confirm to fire the remove.
+		// The SectionPanel button removes immediately — no confirm dialog.
 		click(buttonByText(container, "Remove section"));
-		click(buttonByText(container, "OK"));
 
 		// The only section is removed (a conformant empty sections array), and the
 		// selection that pointed under it is cleared, so the per-level panels vanish.
