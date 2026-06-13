@@ -34,15 +34,15 @@ The block opens to a **visual editor by default** — no JSON required. A **fres
 
 **Configure the selection in the sidebar.** Selecting a tree row opens the matching settings panel in the **block settings sidebar**:
 
-- A **Note** panel for a selected note — its type (note or rest) and duration, a note's chord **pitches**, and, behind a small *Advanced* disclosure, its **dots, dynamic, tie, slur, crescendo/decrescendo, and annotations**. It also offers **Add note** (in the same hand as the selection) and **Remove note**.
-- A **Measure** panel for a selected measure — a **Name** field (see below) and, behind *Advanced*, its barlines and annotations.
-- A **Section** panel for a selected section — a **Name** field (see below) and, behind *Advanced*, the section's overrides. It also offers an **Add measure** button (the way to add a measure to the section, including re-seeding one whose last measure was removed) and a convenience **Remove section**.
+- A **Note** panel for a selected note — its type (note or rest) and duration, a note's chord **pitches**, and, behind a small **Note details** disclosure, its **dots, dynamic, tie, slur, crescendo/decrescendo, and annotations**. It also offers **Add note** (in the same hand as the selection) and **Remove note**.
+- A **Measure** panel for a selected measure — a **Name** field (see below) and, behind **Barlines & annotations**, its barlines and standalone annotations.
+- A **Section** panel for a selected section — a **Name** field (see below) and, behind **Section overrides**, the section's overrides. It also offers an **Add measure** button (the way to add a measure to the section, including re-seeding one whose last measure was removed) and a convenience **Remove section**.
 
-A **Song** panel is **always present** in the sidebar, whether or not anything is selected: it holds the song's **title and composer**, the song-wide musical **defaults** — tempo, time signature, and (behind *Advanced*) the beat unit and each hand's clef, accidentals, and octave shift — and the **Add section** control, so a section can be added even with nothing selected. When nothing is selected, the sidebar shows just this Song panel.
+A **Song** panel is **always present** in the sidebar, whether or not anything is selected: it holds the song's **title and composer**, the song-wide musical **defaults** — tempo, time signature, and (behind **Tempo & staves**) the beat unit and each hand's clef, accidentals, and octave shift — and the **Add section** control, so a section can be added even with nothing selected. When nothing is selected, the sidebar shows just this Song panel.
 
 **Name a section or measure.** Sections and measures have an **editable, persisted name**, set in the **Name** field of their **Section** / **Measure** sidebar panel. The name you type shows in the structure tree in place of the positional label and **survives save/reload** and a raw-JSON round-trip; clearing the field restores the positional fallback. See [`name`](docs/song-format.md#name) in the format reference for the stored field.
 
-**Progressive disclosure.** Each panel shows a small set of common settings up front and tucks the less-common ones behind an *Advanced* disclosure, so the sidebar stays shallow while still reaching the whole model.
+**Progressive disclosure.** Each panel shows a small set of common settings up front and tucks the less-common ones behind a small disclosure named for what it holds (**Note details**, **Barlines & annotations**, **Section overrides**, **Tempo & staves**), so the sidebar stays shallow while still reaching the whole model.
 
 Every control only lets you produce a **valid song**: each field offers the format's allowed values, and every tree operation, rename, and settings edit routes through the same re-validation guard, so the visual editor can't put the song into a non-conformant state. It does **not**, however, check musical *timing* — a bar's note durations need not add up to its time signature.
 
