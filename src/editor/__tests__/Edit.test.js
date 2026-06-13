@@ -66,6 +66,13 @@ const SONG = JSON.stringify({
 const INVALID_SONG = '{"foo":"bar"}';
 
 /**
+ * Valid JSON with two structural errors: both sections are missing the required
+ * `measures` property. Used to verify that the JSON-mode Notice renders every
+ * error, not just the first.
+ */
+const MULTI_ERROR_SONG = '{"sections":[{"hands":[]},{"hands":[]}]}';
+
+/**
  * Render an element into a fresh detached container and return both the
  * container and a `rerender` that re-renders the same root.
  *
@@ -297,16 +304,21 @@ describe("Edit mode container", () => {
 	});
 
 	it("shows the non-blocking error notice in JSON mode for a non-conformant song", () => {
-		const errors = validateSong(INVALID_SONG);
-		expect(errors.length).toBeGreaterThan(0);
+		const errors = validateSong(MULTI_ERROR_SONG);
+		expect(errors.length).toBeGreaterThan(1);
 
-		const { container } = renderEdit(INVALID_SONG);
+		const { container } = renderEdit(MULTI_ERROR_SONG);
 		click(buttonByText(container, "Edit as JSON"));
 
 		const notice = container.querySelector('[role="alert"]');
 		expect(notice).not.toBeNull();
 		expect(notice.getAttribute("data-status")).toBe("error");
-		expect(notice.textContent).toBe(errors[0]);
+		// Every validator message must appear — not just the first.
+		const items = notice.querySelectorAll("li");
+		expect(items).toHaveLength(errors.length);
+		errors.forEach((message, index) => {
+			expect(items[index].textContent).toBe(message);
+		});
 	});
 
 	it("does not show an error notice in JSON mode for a conformant song", () => {

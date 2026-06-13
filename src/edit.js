@@ -534,7 +534,13 @@ export default function Edit({ attributes, setAttributes }) {
 					/>
 					{errors.length > 0 && (
 						<Notice status="error" isDismissible={false}>
-							{errors[0]}
+							<ul>
+								{errors.map((message, index) => (
+									// Validator messages have no stable identity beyond their
+									// position; the list is short and rebuilt on every change.
+									<li key={index}>{message}</li>
+								))}
+							</ul>
 						</Notice>
 					)}
 				</>
