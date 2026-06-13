@@ -1177,6 +1177,61 @@ test.describe("Piano block — editor authoring, persistence and validation", ()
 		await switchToJsonMode(editor);
 		await expect(songField(editor)).toHaveValue(ROUND_TRIP_SONG);
 	});
+
+	// S7 real-component proof (entry A): the Section panel's "Remove section" button
+	// now opens a real `__experimentalConfirmDialog` before firing the remove. This
+	// test seeds a two-section song, selects a section, clicks the panel button,
+	// confirms the real dialog, and polls that `sections.length` dropped by one.
+	// The cancel path (closing without removing) is not retested here; it is covered
+	// by the SectionPanel unit tests.
+	test("the Section panel Remove section button confirms via a real dialog before removing", async ({
+		editor,
+		page,
+	}) => {
+		await editor.insertBlock({ name: "piano-block/piano" });
+
+		// Seed a two-section song so removing one still leaves a conformant song.
+		const TWO_SECTION_SONG = JSON.stringify({
+			sections: [
+				{
+					measures: [
+						{
+							rightHand: [
+								{
+									type: "note",
+									duration: "quarter",
+									pitches: [{ step: "C", octave: 4 }],
+								},
+							],
+						},
+					],
+				},
+				{ measures: [{ rightHand: [{ type: "rest", duration: "whole" }] }] },
+			],
+		});
+		await seedSongViaJson(editor, TWO_SECTION_SONG);
+		await switchToVisualMode(editor);
+
+		// Select section 1 so the Section panel appears in the sidebar.
+		const sidebar = await openSettingsSidebar(editor, page);
+		await assertStructureTreeOpen(editor);
+		await treeRow(editor, "Section 1").click();
+		await expect(inspectorPanel(sidebar, "Section")).toBeVisible();
+
+		// Click the panel's "Remove section" button — it opens the real ConfirmDialog.
+		await sidebar
+			.getByRole("button", { name: "Remove section", exact: true })
+			.click();
+
+		// Confirm via the real dialog's confirm button — the real ConfirmDialog renders
+		// its buttons in a modal/dialog; locate the confirm button by its default text.
+		await page.getByRole("button", { name: "OK" }).click();
+
+		// The section is removed: sections.length drops from 2 to 1.
+		await expect
+			.poll(async () => (await storedSongObject(editor)).sections.length)
+			.toBe(1);
+	});
 });
 
 // A conformant two-section song with two measures per section so every level of

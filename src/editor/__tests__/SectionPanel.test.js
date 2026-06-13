@@ -254,7 +254,9 @@ describe("SectionPanel — context overrides (omit-when-unset)", () => {
 describe("SectionPanel — remove section", () => {
 	it("calls the lifted onRemoveSection handler with the selected section index", () => {
 		const { container, removeSection, calls } = renderPanel();
+		// The button now opens a confirm dialog; the remove fires only on confirm.
 		click(buttonByText(container, "Remove section"));
+		click(buttonByText(container, "OK"));
 		expect(removeSection.count).toBe(1);
 		// The panel passes its resolved section coord to the lifted handler.
 		expect(removeSection.args).toEqual([0]);
@@ -270,7 +272,16 @@ describe("SectionPanel — remove section", () => {
 			},
 		});
 		click(buttonByText(container, "Remove section"));
+		click(buttonByText(container, "OK"));
 		expect(removeSection.args).toEqual([1]);
+	});
+
+	it("does not call onRemoveSection when the confirm dialog is cancelled", () => {
+		const { container, removeSection } = renderPanel();
+		click(buttonByText(container, "Remove section"));
+		click(buttonByText(container, "Cancel"));
+		// Cancel closes the dialog without firing the lifted handler.
+		expect(removeSection.count).toBe(0);
 	});
 });
 

@@ -29,12 +29,14 @@
  */
 import {
 	Button,
+	__experimentalConfirmDialog as ConfirmDialog,
 	__experimentalHStack as HStack,
 	PanelBody,
 	TextControl,
 	__experimentalToolsPanel as ToolsPanel,
 	__experimentalToolsPanelItem as ToolsPanelItem,
 } from "@wordpress/components";
+import { useState } from "@wordpress/element";
 import { __ } from "@wordpress/i18n";
 import { ContextEditor } from "../ContextEditor.js";
 import { omitFalsy } from "../emit.js";
@@ -80,6 +82,7 @@ export function SectionPanel({
 	onAddMeasure,
 }) {
 	const { section, sectionIndex } = selection;
+	const [confirmOpen, setConfirmOpen] = useState(false);
 
 	/**
 	 * Splice `nextSection` back into the whole `song` at the selection's section
@@ -147,12 +150,26 @@ export function SectionPanel({
 				<Button
 					variant="secondary"
 					isDestructive
-					onClick={() => onRemoveSection?.(sectionIndex)}
+					onClick={() => setConfirmOpen(true)}
 					__next40pxDefaultSize
 				>
 					{__("Remove section", "piano-block")}
 				</Button>
 			</HStack>
+
+			<ConfirmDialog
+				isOpen={confirmOpen}
+				onConfirm={() => {
+					setConfirmOpen(false);
+					onRemoveSection?.(sectionIndex);
+				}}
+				onCancel={() => setConfirmOpen(false)}
+			>
+				{__(
+					"Remove this section and all its measures and notes?",
+					"piano-block",
+				)}
+			</ConfirmDialog>
 		</PanelBody>
 	);
 }
