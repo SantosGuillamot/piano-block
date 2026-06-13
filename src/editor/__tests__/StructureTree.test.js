@@ -644,3 +644,19 @@ describe("StructureTree — keyboard expand/collapse wiring", () => {
 		unmount();
 	});
 });
+
+describe("StructureTree — accessible name", () => {
+	it("carries aria-label on the treegrid and no dead label attribute", () => {
+		// The <TreeGrid> is passed aria-label="Song structure" (not the old `label`
+		// prop). The mock spreads ...rest onto the <table>, so the aria-label reaches
+		// the DOM as a real attribute. The old mock mapped label→aria-label, so this
+		// test would still pass if the production prop were reverted to `label` — that
+		// is the point of de-translating the mock: this test goes RED if `label` is
+		// used, because the mock no longer maps it.
+		const { container, unmount } = renderTree();
+		const treegrid = container.querySelector('[role="treegrid"]');
+		expect(treegrid.getAttribute("aria-label")).toBe("Song structure");
+		expect(treegrid.getAttribute("label")).toBeNull();
+		unmount();
+	});
+});

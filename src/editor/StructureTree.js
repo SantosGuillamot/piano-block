@@ -582,7 +582,7 @@ export function StructureTree({
 	return (
 		<div className="wp-block-piano-block-piano__tree">
 			<TreeGrid
-				label={__("Song structure", "piano-block")}
+				aria-label={__("Song structure", "piano-block")}
 				onExpandRow={onExpandCollapseRow}
 				onCollapseRow={onExpandCollapseRow}
 			>

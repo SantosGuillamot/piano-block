@@ -425,14 +425,15 @@ const MenuItem = ({
  * and expand/collapse-key behavior to the e2e suite. The component under test
  * drives expansion through the explicit disclosure `Button`s it renders, so the
  * unit tests assert expansion via which rows are present rather than via these
- * keyboard callbacks. `className`/`label` pass through.
+ * keyboard callbacks. The accessible name flows through `...rest` — the
+ * production component passes `aria-label` directly, which the spread carries
+ * through as a real attribute on the rendered `<table>`.
  *
  * @param {Object} props TreeGrid props.
  * @return {Object} A React `<table role="treegrid">` element.
  */
 const TreeGrid = ({
 	children,
-	label,
 	// Swallow the keyboard-model callbacks the mock does not simulate.
 	onExpandRow: _onExpandRow,
 	onCollapseRow: _onCollapseRow,
@@ -441,7 +442,7 @@ const TreeGrid = ({
 }) =>
 	createElement(
 		"table",
-		{ role: "treegrid", "aria-label": label, ...rest },
+		{ role: "treegrid", ...rest },
 		createElement("tbody", null, children),
 	);
 
