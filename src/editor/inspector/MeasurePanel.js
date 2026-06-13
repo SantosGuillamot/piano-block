@@ -133,7 +133,7 @@ export function MeasurePanel({ song, selection, onChange, onRemoveMeasure }) {
 						kind="standalone"
 						onChange={(annotations) =>
 							emitMeasure(
-								omitFalsy(measure, "annotations", annotations ?? undefined),
+								omitFalsy(measure, "annotations", annotations),
 							)
 						}
 					/>

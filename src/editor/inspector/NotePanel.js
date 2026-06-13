@@ -232,7 +232,7 @@ export function NotePanel({
 						kind="event"
 						onChange={(annotations) =>
 							emitEvent(
-								omitFalsy(event, "annotations", annotations ?? undefined),
+								omitFalsy(event, "annotations", annotations),
 							)
 						}
 					/>
