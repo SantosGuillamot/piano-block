@@ -136,10 +136,9 @@ function fixtureSong() {
 function renderPanel({
 	song: initialSong = fixtureSong(),
 	selection = {
+		kind: "measure",
 		sectionIndex: 0,
 		measureIndex: 0,
-		hand: "rightHand",
-		eventIndex: 0,
 	},
 } = {}) {
 	const calls = [];
@@ -262,10 +261,9 @@ describe("MeasurePanel — remove measure", () => {
 	it("passes a later section/measure's coords through to onRemoveMeasure", () => {
 		const { container, removeMeasure } = renderPanel({
 			selection: {
+				kind: "measure",
 				sectionIndex: 1,
 				measureIndex: 0,
-				hand: "rightHand",
-				eventIndex: 0,
 			},
 		});
 		click(buttonByText(container, "Remove measure"));

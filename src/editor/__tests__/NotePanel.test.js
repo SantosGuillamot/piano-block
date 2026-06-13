@@ -133,6 +133,7 @@ function fixtureSong() {
 function renderPanel({
 	song: initialSong = fixtureSong(),
 	selection = {
+		kind: "event",
 		sectionIndex: 0,
 		measureIndex: 0,
 		hand: "rightHand",
@@ -206,6 +207,7 @@ describe("NotePanel — note↔rest cross-field rule", () => {
 	it("seeds one pitch when switching a rest to a note", () => {
 		const { container, calls } = renderPanel({
 			selection: {
+				kind: "event",
 				sectionIndex: 0,
 				measureIndex: 0,
 				hand: "rightHand",
@@ -300,6 +302,7 @@ describe("NotePanel — rest selection", () => {
 	it("omits the pitch list for a rest event", () => {
 		const { container } = renderPanel({
 			selection: {
+				kind: "event",
 				sectionIndex: 0,
 				measureIndex: 0,
 				hand: "rightHand",
@@ -342,6 +345,7 @@ describe("NotePanel — add note", () => {
 				],
 			},
 			selection: {
+				kind: "event",
 				sectionIndex: 0,
 				measureIndex: 0,
 				hand: "leftHand",
@@ -387,6 +391,7 @@ describe("NotePanel — remove note", () => {
 				],
 			},
 			selection: {
+				kind: "event",
 				sectionIndex: 0,
 				measureIndex: 0,
 				hand: "leftHand",

@@ -215,7 +215,13 @@ export default function Edit({ attributes, setAttributes }) {
 			index === sectionIndex ? { ...section, measures: nextMeasures } : current,
 		);
 		commit({ ...working, sections: nextSections });
-		setSelection({ sectionIndex, measureIndex, hand, eventIndex: insertIndex });
+		setSelection({
+			kind: "event",
+			sectionIndex,
+			measureIndex,
+			hand,
+			eventIndex: insertIndex,
+		});
 		// Open the new note's branch (section → measure → hand) so it is visible.
 		revealAncestors(
 			expansionKey({ sectionIndex }),

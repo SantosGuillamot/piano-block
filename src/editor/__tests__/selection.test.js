@@ -19,8 +19,11 @@
 import { buildLayoutModel } from "../../notation/layout.js";
 import { renderSvg } from "../../notation/svg.js";
 import {
+	ancestorKeys,
+	eventKey,
+	expansionKey,
+	expansionKeyOf,
 	globalMeasureNumber,
-	measureCoords,
 	resolveSelection,
 	selectionQuery,
 } from "../selection.js";
@@ -78,55 +81,15 @@ const SONG = {
 	],
 };
 
-describe("measureCoords", () => {
-	it("flattens sections-outer / measures-inner into 0-based global order", () => {
-		expect(measureCoords(SONG)).toEqual([
+describe("globalMeasureNumber", () => {
+	it("is the exact 1-based inverse of the flatten on the same fixture", () => {
+		// SONG has: section 0 → measure 0 (global 1), section 0 → measure 1 (global 2),
+		// section 1 → measure 0 (global 3).
+		const coords = [
 			{ sectionIndex: 0, measureIndex: 0 },
 			{ sectionIndex: 0, measureIndex: 1 },
 			{ sectionIndex: 1, measureIndex: 0 },
-		]);
-	});
-
-	it("mirrors the notation core's emitted data-measure order", () => {
-		// Render the REAL core and read the global measure numbers it emits, in
-		// document order. The helper must agree position-for-position, so the two
-		// cannot drift: `data-measure="N"` ⇒ measureCoords(song)[N - 1].
-		const svg = renderSvg(buildLayoutModel(SONG, 600));
-		const emitted = [...svg.querySelectorAll("[data-measure]")].map((node) =>
-			Number(node.getAttribute("data-measure")),
-		);
-		// One group per measure, numbered 1..N with no gaps, in flatten order.
-		expect(emitted).toEqual([1, 2, 3]);
-
-		const coords = measureCoords(SONG);
-		emitted.forEach((number) => {
-			const coord = coords[number - 1];
-			// The emitted group is the measure the helper says it is.
-			const measure =
-				SONG.sections[coord.sectionIndex].measures[coord.measureIndex];
-			expect(measure).toBe(
-				SONG.sections[coord.sectionIndex].measures[coord.measureIndex],
-			);
-		});
-		// And the count matches exactly — no extra or missing entries.
-		expect(coords).toHaveLength(emitted.length);
-	});
-
-	it("returns [] for a malformed or missing song", () => {
-		expect(measureCoords(undefined)).toEqual([]);
-		expect(measureCoords(null)).toEqual([]);
-		expect(measureCoords({})).toEqual([]);
-		expect(measureCoords({ sections: "nope" })).toEqual([]);
-		// A section missing its measures array contributes no entries (and does not throw).
-		expect(measureCoords({ sections: [{}, { measures: [{}] }] })).toEqual([
-			{ sectionIndex: 1, measureIndex: 0 },
-		]);
-	});
-});
-
-describe("globalMeasureNumber", () => {
-	it("is the exact 1-based inverse of measureCoords on the same fixture", () => {
-		const coords = measureCoords(SONG);
+		];
 		coords.forEach((coord, position) => {
 			expect(
 				globalMeasureNumber(SONG, coord.sectionIndex, coord.measureIndex),
@@ -144,6 +107,7 @@ describe("globalMeasureNumber", () => {
 describe("resolveSelection", () => {
 	it("resolves a live selection to its event/measure/section + coords", () => {
 		const resolved = resolveSelection(SONG, {
+			kind: "event",
 			sectionIndex: 0,
 			measureIndex: 0,
 			hand: "rightHand",
@@ -161,6 +125,7 @@ describe("resolveSelection", () => {
 
 	it("resolves a left-hand selection in a later section", () => {
 		const resolved = resolveSelection(SONG, {
+			kind: "event",
 			sectionIndex: 1,
 			measureIndex: 0,
 			hand: "rightHand",
@@ -233,17 +198,6 @@ describe("resolveSelection", () => {
 				eventIndex: 0,
 			}),
 		).toBeNull();
-	});
-
-	it('tags an untagged-complete event tuple as kind:"event" (backward compat)', () => {
-		const resolved = resolveSelection(SONG, {
-			sectionIndex: 0,
-			measureIndex: 0,
-			hand: "rightHand",
-			eventIndex: 1,
-		});
-		expect(resolved.kind).toBe("event");
-		expect(resolved.event).toBe(SONG.sections[0].measures[0].rightHand[1]);
 	});
 });
 
@@ -325,6 +279,54 @@ describe("resolveSelection — kind-tagged", () => {
 				eventIndex: 9,
 			}),
 		).toBeNull();
+	});
+});
+
+describe("expansionKey contract — ancestorKeys, eventKey, expansionKeyOf", () => {
+	it("ancestorKeys returns the three-key reveal array in top-down order", () => {
+		expect(
+			ancestorKeys({ sectionIndex: 0, measureIndex: 1, hand: "rightHand" }),
+		).toEqual(["s0", "s0m1", "s0m1rightHand"]);
+	});
+
+	it("ancestorKeys key shapes match expansionKey called individually", () => {
+		const { sectionIndex, measureIndex, hand } = {
+			sectionIndex: 0,
+			measureIndex: 1,
+			hand: "rightHand",
+		};
+		expect(ancestorKeys({ sectionIndex, measureIndex, hand })).toEqual([
+			expansionKey({ sectionIndex }),
+			expansionKey({ sectionIndex, measureIndex }),
+			expansionKey({ sectionIndex, measureIndex, hand }),
+		]);
+	});
+
+	it("eventKey produces the leaf-row React key", () => {
+		expect(
+			eventKey({
+				sectionIndex: 0,
+				measureIndex: 1,
+				hand: "rightHand",
+				eventIndex: 0,
+			}),
+		).toBe("s0m1rightHande0");
+	});
+
+	it("expansionKeyOf reads the data-expansion-key attribute from a DOM element", () => {
+		const row = document.createElement("tr");
+		row.setAttribute("data-expansion-key", "s0m1rightHand");
+		expect(expansionKeyOf(row)).toBe("s0m1rightHand");
+	});
+
+	it("expansionKeyOf returns null when the attribute is absent", () => {
+		const row = document.createElement("tr");
+		expect(expansionKeyOf(row)).toBeNull();
+	});
+
+	it("expansionKeyOf returns null for null/undefined", () => {
+		expect(expansionKeyOf(null)).toBeNull();
+		expect(expansionKeyOf(undefined)).toBeNull();
 	});
 });
 

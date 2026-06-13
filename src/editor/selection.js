@@ -49,6 +49,53 @@ export function expansionKey({ sectionIndex, measureIndex, hand }) {
 }
 
 /**
+ * The three-key reveal array for a hand-group row and all of its ancestors —
+ * section key, measure key, hand key — in top-down order. Used by `edit.js`
+ * to open the whole ancestor chain when a new deep node is added.
+ *
+ * @param {Object} coords               The hand's coordinates.
+ * @param {number} coords.sectionIndex  The section's index.
+ * @param {number} coords.measureIndex  The measure's index.
+ * @param {string} coords.hand          The hand key (`rightHand`/`leftHand`).
+ * @return {[string, string, string]} `[sectionKey, measureKey, handKey]`.
+ */
+export function ancestorKeys({ sectionIndex, measureIndex, hand }) {
+	return [
+		expansionKey({ sectionIndex }),
+		expansionKey({ sectionIndex, measureIndex }),
+		expansionKey({ sectionIndex, measureIndex, hand }),
+	];
+}
+
+/**
+ * The leaf-row React key for a note/rest event — a hand key suffixed with `"e"`
+ * and the per-measure event index. Used by `StructureTree` for the note row's
+ * React `key` prop.
+ *
+ * @param {Object} coords               The event's coordinates.
+ * @param {number} coords.sectionIndex  The section's index.
+ * @param {number} coords.measureIndex  The measure's index.
+ * @param {string} coords.hand          The hand key.
+ * @param {number} coords.eventIndex    The event's per-measure index.
+ * @return {string} E.g. `"s0m1rightHande0"`.
+ */
+export function eventKey({ sectionIndex, measureIndex, hand, eventIndex }) {
+	return `${expansionKey({ sectionIndex, measureIndex, hand })}e${eventIndex}`;
+}
+
+/**
+ * Read the expansion key stamped on a DOM row — the symmetric inverse of
+ * `expansionKey`. Pure and DOM-arg-only (no React). Returns the
+ * `data-expansion-key` attribute value, or `null` when the row carries none.
+ *
+ * @param {?Element} row A DOM element (typically a `<tr>`).
+ * @return {?string} The key string, or `null`.
+ */
+export function expansionKeyOf(row) {
+	return row?.getAttribute?.("data-expansion-key") ?? null;
+}
+
+/**
  * The ordered `(sectionIndex, measureIndex)` of every measure, indexed by its
  * **0-based global position** — the same flatten the notation core numbers from.
  *
@@ -64,7 +111,7 @@ export function expansionKey({ sectionIndex, measureIndex, hand }) {
  * @param {?Object} song The working song object.
  * @return {{ sectionIndex: number, measureIndex: number }[]} The per-global-measure coords.
  */
-export function measureCoords(song) {
+function measureCoords(song) {
 	const sections = Array.isArray(song?.sections) ? song.sections : [];
 	const coords = [];
 	// Sections outer, measures inner — the order `buildLayoutModel` numbers from.
@@ -117,14 +164,8 @@ export function globalMeasureNumber(song, sectionIndex, measureIndex) {
  * resolves to `null` and the sidebar falls back to Song-only — no edit ever
  * targets a missing object.
  *
- * **Backward compatibility:** an *untagged* selection that carries all four event
- * fields still resolves as an event (so a canvas selection set before its `onSelect`
- * stamps `kind` keeps working within a single rebase), and the returned object
- * carries `kind: "event"`. An untagged *partial* (e.g. only section + measure) has no
- * `kind` to make it well-formed, so it resolves to `null` (malformed).
- *
  * @param {?Object} song      The working song object.
- * @param {?Object} selection The selection `{ kind?, sectionIndex, measureIndex?, hand?, eventIndex? }`.
+ * @param {?Object} selection The selection `{ kind: string, sectionIndex: number, measureIndex?, hand?, eventIndex? }`.
  * @return {?{
  *   kind: string,
  *   section: Object,
@@ -141,16 +182,7 @@ export function resolveSelection(song, selection) {
 		return null;
 	}
 	const { sectionIndex, measureIndex, hand, eventIndex } = selection;
-	// Default the kind for an untagged-but-complete event tuple (backward compat);
-	// an untagged partial has no kind, so it stays malformed below.
-	const kind =
-		selection.kind ??
-		(sectionIndex !== undefined &&
-		measureIndex !== undefined &&
-		hand !== undefined &&
-		eventIndex !== undefined
-			? "event"
-			: undefined);
+	const { kind } = selection;
 	if (kind === undefined || sectionIndex === undefined) {
 		return null;
 	}

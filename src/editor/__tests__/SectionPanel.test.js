@@ -132,10 +132,8 @@ function fixtureSong() {
 function renderPanel({
 	song: initialSong = fixtureSong(),
 	selection = {
+		kind: "section",
 		sectionIndex: 0,
-		measureIndex: 0,
-		hand: "rightHand",
-		eventIndex: 0,
 	},
 } = {}) {
 	const calls = [];
@@ -267,10 +265,8 @@ describe("SectionPanel — remove section", () => {
 	it("passes a later section's index through to onRemoveSection", () => {
 		const { container, removeSection } = renderPanel({
 			selection: {
+				kind: "section",
 				sectionIndex: 1,
-				measureIndex: 0,
-				hand: "rightHand",
-				eventIndex: 0,
 			},
 		});
 		click(buttonByText(container, "Remove section"));
@@ -292,10 +288,8 @@ describe("SectionPanel — add measure", () => {
 	it("passes a later section's index through to onAddMeasure", () => {
 		const { container, addMeasure } = renderPanel({
 			selection: {
+				kind: "section",
 				sectionIndex: 1,
-				measureIndex: 0,
-				hand: "rightHand",
-				eventIndex: 0,
 			},
 		});
 		click(buttonByText(container, "Add measure"));
