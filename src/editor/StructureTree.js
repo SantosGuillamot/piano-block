@@ -103,6 +103,124 @@ function TreeExpander({ isExpanded, onToggle }) {
 }
 
 /**
+ * The shared label cell for section and measure rows — a non-focusable
+ * `TreeExpander` beside a select-only label `Button`. The `Button` carries
+ * `aria-current` when its row is selected, and signals `onSelect` on click;
+ * it never toggles expansion (that stays on the chevron and keyboard callbacks).
+ * The `TreeGridCell` stays at the call site so the roving-tabindex `cellProps`
+ * reach exactly this Button.
+ *
+ * @param {Object}   props
+ * @param {string}   props.expansionKey    The coordinate key for the row.
+ * @param {boolean}  props.isExpanded      Whether the row is currently expanded.
+ * @param {boolean}  props.selected        Whether this row is currently selected.
+ * @param {string}   props.label           The visible row label.
+ * @param {Function} props.onToggleExpanded Toggle expansion of this row's key.
+ * @param {Function} props.onSelect         Signal a selection for this row.
+ * @param {Object}   props.cellProps        The roving-tabindex props from `TreeGridCell`.
+ * @return {Object} The rendered label cell contents.
+ */
+function RowLabelCell({
+	expansionKey: rowKey,
+	isExpanded,
+	selected,
+	label,
+	onToggleExpanded,
+	onSelect,
+	cellProps,
+}) {
+	return (
+		<>
+			<TreeExpander
+				isExpanded={isExpanded}
+				onToggle={() => onToggleExpanded?.(rowKey)}
+			/>
+			<Button
+				{...cellProps}
+				className="wp-block-piano-block-piano__tree-label"
+				variant="tertiary"
+				aria-current={selected ? "true" : undefined}
+				onClick={() => onSelect?.()}
+			>
+				{label}
+			</Button>
+		</>
+	);
+}
+
+/**
+ * The shared actions `DropdownMenu` cell for section, measure, and note rows.
+ * Receives the roving-tabindex props as `toggleProps` (forwarded from the
+ * `TreeGridCell` render prop, mirroring core's List View pattern), and
+ * four action callbacks bound to the row's coordinates by the caller.
+ * Render-function children are used (required by the `DropdownMenu` mock and
+ * the real component) so the always-open mock canary stays green.
+ *
+ * @param {Object}   props
+ * @param {Object}   props.toggleProps  The roving-tabindex props for the toggle button.
+ * @param {string}   props.label        The accessible name for the toggle button.
+ * @param {Function} props.onDuplicate  Duplicate this row's item.
+ * @param {Function} props.onAddBefore  Insert a new item before this one.
+ * @param {Function} props.onAddAfter   Insert a new item after this one.
+ * @param {Function} props.onRemove     Remove this row's item.
+ * @return {Object} The rendered actions dropdown.
+ */
+function RowActionsMenu({
+	toggleProps,
+	label,
+	onDuplicate,
+	onAddBefore,
+	onAddAfter,
+	onRemove,
+}) {
+	return (
+		<DropdownMenu icon={moreVertical} toggleProps={toggleProps} label={label}>
+			{({ onClose }) => (
+				<>
+					<MenuGroup>
+						<MenuItem
+							onClick={() => {
+								onDuplicate?.();
+								onClose();
+							}}
+						>
+							{__("Duplicate", "piano-block")}
+						</MenuItem>
+						<MenuItem
+							onClick={() => {
+								onAddBefore?.();
+								onClose();
+							}}
+						>
+							{__("Add before", "piano-block")}
+						</MenuItem>
+						<MenuItem
+							onClick={() => {
+								onAddAfter?.();
+								onClose();
+							}}
+						>
+							{__("Add after", "piano-block")}
+						</MenuItem>
+					</MenuGroup>
+					<MenuGroup>
+						<MenuItem
+							isDestructive
+							onClick={() => {
+								onRemove?.();
+								onClose();
+							}}
+						>
+							{__("Remove", "piano-block")}
+						</MenuItem>
+					</MenuGroup>
+				</>
+			)}
+		</DropdownMenu>
+	);
+}
+
+/**
  * The left structure tree.
  *
  * @param {Object}   props
@@ -190,76 +308,31 @@ export function StructureTree({
 			>
 				<TreeGridCell>
 					{(cellProps) => (
-						<>
-							<TreeExpander
-								isExpanded={sectionExpanded}
-								onToggle={() => onToggleExpanded?.(sectionKey)}
-							/>
-							<Button
-								{...cellProps}
-								className="wp-block-piano-block-piano__tree-label"
-								variant="tertiary"
-								aria-current={sectionSelected ? "true" : undefined}
-								onClick={() => onSelect?.({ kind: "section", sectionIndex })}
-							>
-								{sectionLabel}
-							</Button>
-						</>
+						<RowLabelCell
+							expansionKey={sectionKey}
+							isExpanded={sectionExpanded}
+							selected={sectionSelected}
+							label={sectionLabel}
+							onToggleExpanded={onToggleExpanded}
+							onSelect={() => onSelect?.({ kind: "section", sectionIndex })}
+							cellProps={cellProps}
+						/>
 					)}
 				</TreeGridCell>
 				<TreeGridCell>
-					{({ ref, tabIndex, onFocus }) => (
-						<DropdownMenu
-							icon={moreVertical}
-							toggleProps={{ ref, tabIndex, onFocus }}
+					{(p) => (
+						<RowActionsMenu
+							toggleProps={p}
 							label={sprintf(
 								// translators: %d: section number.
 								__("Actions for Section %d", "piano-block"),
 								sectionNumber,
 							)}
-						>
-							{({ onClose }) => (
-								<>
-									<MenuGroup>
-										<MenuItem
-											onClick={() => {
-												onDuplicateSection?.(sectionIndex);
-												onClose();
-											}}
-										>
-											{__("Duplicate", "piano-block")}
-										</MenuItem>
-										<MenuItem
-											onClick={() => {
-												onAddSectionBefore?.(sectionIndex);
-												onClose();
-											}}
-										>
-											{__("Add before", "piano-block")}
-										</MenuItem>
-										<MenuItem
-											onClick={() => {
-												onAddSectionAfter?.(sectionIndex);
-												onClose();
-											}}
-										>
-											{__("Add after", "piano-block")}
-										</MenuItem>
-									</MenuGroup>
-									<MenuGroup>
-										<MenuItem
-											isDestructive
-											onClick={() => {
-												onRemoveSection?.(sectionIndex);
-												onClose();
-											}}
-										>
-											{__("Remove", "piano-block")}
-										</MenuItem>
-									</MenuGroup>
-								</>
-							)}
-						</DropdownMenu>
+							onDuplicate={() => onDuplicateSection?.(sectionIndex)}
+							onAddBefore={() => onAddSectionBefore?.(sectionIndex)}
+							onAddAfter={() => onAddSectionAfter?.(sectionIndex)}
+							onRemove={() => onRemoveSection?.(sectionIndex)}
+						/>
 					)}
 				</TreeGridCell>
 			</TreeGridRow>,
@@ -296,83 +369,44 @@ export function StructureTree({
 				>
 					<TreeGridCell>
 						{(cellProps) => (
-							<>
-								<TreeExpander
-									isExpanded={measureExpanded}
-									onToggle={() => onToggleExpanded?.(measureKey)}
-								/>
-								<Button
-									{...cellProps}
-									className="wp-block-piano-block-piano__tree-label"
-									variant="tertiary"
-									aria-current={measureSelected ? "true" : undefined}
-									onClick={() =>
-										onSelect?.({
-											kind: "measure",
-											sectionIndex,
-											measureIndex,
-										})
-									}
-								>
-									{measureLabel}
-								</Button>
-							</>
+							<RowLabelCell
+								expansionKey={measureKey}
+								isExpanded={measureExpanded}
+								selected={measureSelected}
+								label={measureLabel}
+								onToggleExpanded={onToggleExpanded}
+								onSelect={() =>
+									onSelect?.({
+										kind: "measure",
+										sectionIndex,
+										measureIndex,
+									})
+								}
+								cellProps={cellProps}
+							/>
 						)}
 					</TreeGridCell>
 					<TreeGridCell>
-						{({ ref, tabIndex, onFocus }) => (
-							<DropdownMenu
-								icon={moreVertical}
-								toggleProps={{ ref, tabIndex, onFocus }}
+						{(p) => (
+							<RowActionsMenu
+								toggleProps={p}
 								label={sprintf(
 									// translators: 1: measure number, 2: section number.
 									__("Actions for Measure %1$d of section %2$d", "piano-block"),
 									measureNumber,
 									sectionNumber,
 								)}
-							>
-								{({ onClose }) => (
-									<>
-										<MenuGroup>
-											<MenuItem
-												onClick={() => {
-													onDuplicateMeasure?.(sectionIndex, measureIndex);
-													onClose();
-												}}
-											>
-												{__("Duplicate", "piano-block")}
-											</MenuItem>
-											<MenuItem
-												onClick={() => {
-													onAddMeasureBefore?.(sectionIndex, measureIndex);
-													onClose();
-												}}
-											>
-												{__("Add before", "piano-block")}
-											</MenuItem>
-											<MenuItem
-												onClick={() => {
-													onAddMeasureAfter?.(sectionIndex, measureIndex);
-													onClose();
-												}}
-											>
-												{__("Add after", "piano-block")}
-											</MenuItem>
-										</MenuGroup>
-										<MenuGroup>
-											<MenuItem
-												isDestructive
-												onClick={() => {
-													onRemoveMeasure?.(sectionIndex, measureIndex);
-													onClose();
-												}}
-											>
-												{__("Remove", "piano-block")}
-											</MenuItem>
-										</MenuGroup>
-									</>
-								)}
-							</DropdownMenu>
+								onDuplicate={() =>
+									onDuplicateMeasure?.(sectionIndex, measureIndex)
+								}
+								onAddBefore={() =>
+									onAddMeasureBefore?.(sectionIndex, measureIndex)
+								}
+								onAddAfter={() =>
+									onAddMeasureAfter?.(sectionIndex, measureIndex)
+								}
+								onRemove={() => onRemoveMeasure?.(sectionIndex, measureIndex)}
+							/>
 						)}
 					</TreeGridCell>
 				</TreeGridRow>,
@@ -492,10 +526,9 @@ export function StructureTree({
 								)}
 							</TreeGridCell>
 							<TreeGridCell>
-								{({ ref, tabIndex, onFocus }) => (
-									<DropdownMenu
-										icon={moreVertical}
-										toggleProps={{ ref, tabIndex, onFocus }}
+								{(p) => (
+									<RowActionsMenu
+										toggleProps={p}
 										label={sprintf(
 											// translators: 1: note number, 2: hand name, 3: measure number, 4: section number.
 											__(
@@ -507,69 +540,39 @@ export function StructureTree({
 											measureNumber,
 											sectionNumber,
 										)}
-									>
-										{({ onClose }) => (
-											<>
-												<MenuGroup>
-													<MenuItem
-														onClick={() => {
-															onDuplicateNote?.(
-																sectionIndex,
-																measureIndex,
-																hand,
-																eventIndex,
-															);
-															onClose();
-														}}
-													>
-														{__("Duplicate", "piano-block")}
-													</MenuItem>
-													<MenuItem
-														onClick={() => {
-															onAddNoteBefore?.(
-																sectionIndex,
-																measureIndex,
-																hand,
-																eventIndex,
-															);
-															onClose();
-														}}
-													>
-														{__("Add before", "piano-block")}
-													</MenuItem>
-													<MenuItem
-														onClick={() => {
-															onAddNoteAfter?.(
-																sectionIndex,
-																measureIndex,
-																hand,
-																eventIndex,
-															);
-															onClose();
-														}}
-													>
-														{__("Add after", "piano-block")}
-													</MenuItem>
-												</MenuGroup>
-												<MenuGroup>
-													<MenuItem
-														isDestructive
-														onClick={() => {
-															onRemoveNote?.(
-																sectionIndex,
-																measureIndex,
-																hand,
-																eventIndex,
-															);
-															onClose();
-														}}
-													>
-														{__("Remove", "piano-block")}
-													</MenuItem>
-												</MenuGroup>
-											</>
-										)}
-									</DropdownMenu>
+										onDuplicate={() =>
+											onDuplicateNote?.(
+												sectionIndex,
+												measureIndex,
+												hand,
+												eventIndex,
+											)
+										}
+										onAddBefore={() =>
+											onAddNoteBefore?.(
+												sectionIndex,
+												measureIndex,
+												hand,
+												eventIndex,
+											)
+										}
+										onAddAfter={() =>
+											onAddNoteAfter?.(
+												sectionIndex,
+												measureIndex,
+												hand,
+												eventIndex,
+											)
+										}
+										onRemove={() =>
+											onRemoveNote?.(
+												sectionIndex,
+												measureIndex,
+												hand,
+												eventIndex,
+											)
+										}
+									/>
 								)}
 							</TreeGridCell>
 						</TreeGridRow>,
