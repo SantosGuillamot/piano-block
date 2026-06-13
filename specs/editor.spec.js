@@ -1073,3 +1073,156 @@ test.describe("Piano block — editor authoring, persistence and validation", ()
 		await expect(songField(editor)).toHaveValue(ROUND_TRIP_SONG);
 	});
 });
+
+// A conformant two-section song with two measures per section so every level of
+// the tree hierarchy (section → measure → hand → note) is reachable and each
+// expandable row carries a unique `data-expansion-key`.
+const KEYBOARD_EXPAND_SONG = JSON.stringify({
+	sections: [
+		{
+			measures: [
+				{
+					rightHand: [
+						{
+							type: "note",
+							duration: "quarter",
+							pitches: [{ step: "C", octave: 4 }],
+						},
+					],
+					leftHand: [
+						{
+							type: "note",
+							duration: "quarter",
+							pitches: [{ step: "G", octave: 3 }],
+						},
+					],
+				},
+			],
+		},
+	],
+});
+
+test.describe("Piano block — structure tree keyboard expand/collapse and accessible name", () => {
+	test.beforeAll(async ({ requestUtils }) => {
+		await requestUtils.activatePlugin("piano-block");
+	});
+
+	test.beforeEach(async ({ admin, requestUtils }) => {
+		await requestUtils.deleteAllPosts();
+		await admin.createNewPost();
+	});
+
+	test.afterAll(async ({ requestUtils }) => {
+		await requestUtils.deleteAllPosts();
+	});
+
+	test("the structure tree resolves by accessible name", async ({ editor }) => {
+		await editor.insertBlock({ name: "piano-block/piano" });
+
+		// The TreeGrid carries aria-label="Song structure" (StructureTree.js). It must
+		// be locatable by that name, which is the real-browser contract for screen
+		// readers and ARIA tooling.
+		await expect(
+			structureTree(editor).getByRole("treegrid", { name: "Song structure" }),
+		).toBeVisible();
+	});
+
+	test("ArrowRight/ArrowLeft on a section row expands and collapses its measures", async ({
+		editor,
+		page,
+	}) => {
+		await editor.insertBlock({ name: "piano-block/piano" });
+
+		// Seed a song that has a section with one measure; the structure tree is open
+		// by default. The section row must be present and collapsed (measure rows hidden)
+		// before the keyboard drive begins.
+		await seedSongViaJson(editor, KEYBOARD_EXPAND_SONG);
+		await switchToVisualMode(editor);
+		await assertStructureTreeOpen(editor);
+
+		// The section row carries data-expansion-key="s0". Confirm that measure rows
+		// are NOT yet visible — the tree starts collapsed at the section level.
+		const sectionRow = structureTree(editor).locator(
+			"tr[data-expansion-key='s0']",
+		);
+		await expect(sectionRow).toBeVisible();
+		await expect(treeRow(editor, "Measure 1")).toHaveCount(0);
+
+		// Focus the section row's select button (the label cell) so keyboard events
+		// route through it and the TreeGrid's onExpandRow fires on ArrowRight.
+		await treeRow(editor, "Section 1").focus();
+
+		// ArrowRight → TreeGrid fires onExpandRow on the focused row → the shared
+		// handler reads data-expansion-key="s0" and calls onToggleExpanded("s0") →
+		// the section's children (measure rows) become visible.
+		await page.keyboard.press("ArrowRight");
+		await expect(treeRow(editor, "Measure 1")).toBeVisible();
+
+		// ArrowLeft → TreeGrid fires onCollapseRow → the handler toggles "s0" back
+		// off → the measure rows disappear.
+		await page.keyboard.press("ArrowLeft");
+		await expect(treeRow(editor, "Measure 1")).toHaveCount(0);
+	});
+
+	test("ArrowRight/ArrowLeft on a measure row expands and collapses its hand rows", async ({
+		editor,
+		page,
+	}) => {
+		await editor.insertBlock({ name: "piano-block/piano" });
+
+		// Seed and open the tree; expand down to the measure level via the disclosure
+		// chevrons (pointer path) so the measure row is in focus range.
+		await seedSongViaJson(editor, KEYBOARD_EXPAND_SONG);
+		await switchToVisualMode(editor);
+		await assertStructureTreeOpen(editor);
+		await expandRow(editor, "Section 1");
+
+		// The measure row carries data-expansion-key="s0m0". Hand rows are hidden.
+		const measureRow = structureTree(editor).locator(
+			"tr[data-expansion-key='s0m0']",
+		);
+		await expect(measureRow).toBeVisible();
+		await expect(treeRow(editor, "Right hand")).toHaveCount(0);
+
+		// Focus the measure row's select button and press ArrowRight to expand.
+		await treeRow(editor, "Measure 1").focus();
+		await page.keyboard.press("ArrowRight");
+		await expect(treeRow(editor, "Right hand")).toBeVisible();
+
+		// ArrowLeft collapses: the hand rows disappear.
+		await page.keyboard.press("ArrowLeft");
+		await expect(treeRow(editor, "Right hand")).toHaveCount(0);
+	});
+
+	test("ArrowRight/ArrowLeft on a hand row expands and collapses its note rows", async ({
+		editor,
+		page,
+	}) => {
+		await editor.insertBlock({ name: "piano-block/piano" });
+
+		// Seed and open the tree; expand down to the hand level via the disclosure
+		// chevrons so the hand row is in focus range.
+		await seedSongViaJson(editor, KEYBOARD_EXPAND_SONG);
+		await switchToVisualMode(editor);
+		await assertStructureTreeOpen(editor);
+		await expandRow(editor, "Section 1");
+		await expandRow(editor, "Measure 1");
+
+		// The Right hand row carries data-expansion-key="s0m0rightHand". Note rows
+		// are hidden until the hand row is expanded.
+		const handRow = structureTree(editor).locator(
+			"tr[data-expansion-key='s0m0rightHand']",
+		);
+		await expect(handRow).toBeVisible();
+		await expect(treeRow(editor, "C")).toHaveCount(0);
+
+		// The hand-row label is its toggle button — focus it and press ArrowRight.
+		await treeRow(editor, "Right hand").focus();
+		await page.keyboard.press("ArrowRight");
+		await expect(treeRow(editor, "C")).toBeVisible();
+
+		// ArrowLeft collapses: the note row disappears.
+		await page.keyboard.press("ArrowLeft");
+		await expect(treeRow(editor, "C")).toHaveCount(0);
+	});
+});
