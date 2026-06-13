@@ -90,7 +90,7 @@ export function MeasurePanel({ song, selection, onChange, onRemoveMeasure }) {
 			/>
 
 			<ToolsPanel
-				label={__("Advanced", "piano-block")}
+				label={__("Barlines & annotations", "piano-block")}
 				resetAll={() => {
 					// Drop both barlines and the annotations in one emission, keeping
 					// only the measure's hands (and any other members).

@@ -123,14 +123,8 @@ export function SectionPanel({
 			/>
 
 			<ToolsPanel
-				label={__("Advanced", "piano-block")}
-				resetAll={() => {
-					// Drop every override in one emission, keeping only the section's
-					// non-override members (and `measures`).
-					const { tempo, timeSignature, rightHand, leftHand, ...keep } =
-						section;
-					emitSection(keep);
-				}}
+				label={__("Section overrides", "piano-block")}
+				resetAll={() => emitOverrides({})}
 			>
 				<ToolsPanelItem
 					label={__("Section overrides", "piano-block")}

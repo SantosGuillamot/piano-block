@@ -134,7 +134,7 @@ function renderContext() {
 
 /**
  * Render a `ContextEditor` in its `"tiered"` layout (common fields visible, the
- * rest behind an `Advanced` disclosure) that feeds its own emission back in.
+ * rest behind a `Tempo & staves` disclosure) that feeds its own emission back in.
  *
  * @return {{ container: HTMLElement, calls: Object[] }} The render handle.
  */
@@ -255,11 +255,11 @@ describe("ContextEditor — hand configs", () => {
 });
 
 describe("ContextEditor — tiered layout", () => {
-	it("keeps tempo bpm, beats and beat type out of the Advanced disclosure", () => {
+	it("keeps tempo bpm, beats and beat type out of the Tempo & staves disclosure", () => {
 		const { container } = renderTieredContext();
-		const advanced = container.querySelector('[aria-label="Advanced"]');
+		const advanced = container.querySelector('[aria-label="Tempo & staves"]');
 		expect(advanced).not.toBeNull();
-		// The common fields render at the top level, not inside Advanced.
+		// The common fields render at the top level, not inside Tempo & staves.
 		for (const name of ["Tempo (BPM)", "Beats per measure", "Beat type"]) {
 			const field = fieldByName(container, name);
 			expect(field).not.toBeNull();
@@ -267,10 +267,10 @@ describe("ContextEditor — tiered layout", () => {
 		}
 	});
 
-	it("tucks beat unit and both hand configs inside the Advanced disclosure", () => {
+	it("tucks beat unit and both hand configs inside the Tempo & staves disclosure", () => {
 		const { container } = renderTieredContext();
-		const advanced = container.querySelector('[aria-label="Advanced"]');
-		// The uncommon members live under Advanced (the ToolsPanel mock renders its
+		const advanced = container.querySelector('[aria-label="Tempo & staves"]');
+		// The uncommon members live under Tempo & staves (the ToolsPanel mock renders its
 		// items unconditionally, so they are queryable without a reveal step).
 		for (const name of ["Beat unit", "Right hand clef", "Left hand clef"]) {
 			const field = fieldByName(container, name);

@@ -192,7 +192,7 @@ export function ContextEditor({ context = {}, onChange, layout = "flat" }) {
 				{beatTypeControl}
 
 				<ToolsPanel
-					label={__("Advanced", "piano-block")}
+					label={__("Tempo & staves", "piano-block")}
 					resetAll={() => {
 						// Reset the disclosed members back to absent: drop beatUnit from
 						// the tempo and clear both hand configs in one emission.

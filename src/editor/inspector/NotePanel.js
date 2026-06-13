@@ -154,7 +154,7 @@ export function NotePanel({
 			) : null}
 
 			<ToolsPanel
-				label={__("Advanced", "piano-block")}
+				label={__("Note details", "piano-block")}
 				resetAll={() => {
 					// Drop every disclosed optional member in one emission, keeping
 					// only the required fields (and a note's pitches).

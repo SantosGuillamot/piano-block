@@ -278,10 +278,10 @@ describe("SongPanel — note language selector", () => {
 		expect(select).not.toBeNull();
 		expect(select.value).toBe("english");
 
-		// The selector is a common Song-level control, not buried in the Advanced
+		// The selector is a common Song-level control, not buried in the Tempo & staves
 		// ToolsPanel — assert it is not a descendant of that disclosure region
 		// (the ToolsPanel mock exposes its label as the region's aria-label).
-		const advanced = container.querySelector('[aria-label="Advanced"]');
+		const advanced = container.querySelector('[aria-label="Tempo & staves"]');
 		expect(advanced).not.toBeNull();
 		expect(advanced.contains(select)).toBe(false);
 	});
