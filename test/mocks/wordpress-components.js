@@ -10,7 +10,7 @@
  * reuses them.
  *
  * The canvas-first inspector panels add a few container/control mocks
- * (`PanelBody`, `ToggleControl`, `ToolsPanel`/`ToolsPanelItem`, `Icon`). The two
+ * (`PanelBody`, `ToolsPanel`/`ToolsPanelItem`, `Icon`). The two
  * `ToolsPanel*` stand-ins render their children UNCONDITIONALLY — the real
  * components hide an optional control until it is revealed, but the unit tests
  * only assert that each advanced control exists and is wired, leaving the
@@ -252,29 +252,6 @@ const PanelBody = ({
 }) => createElement("section", { "aria-label": title, ...rest }, children);
 
 /**
- * Minimal `ToggleControl` stand-in. Renders a real `<input type="checkbox">`
- * honoring `checked`/`label`; `onChange` receives the next boolean
- * (`event.target.checked`), mirroring the real control.
- *
- * @param {Object} props ToggleControl props.
- * @return {Object} A React `<input>` element.
- */
-const ToggleControl = ({
-	label,
-	checked,
-	onChange,
-	__nextHasNoMarginBottom: _margin,
-	...rest
-}) =>
-	createElement("input", {
-		type: "checkbox",
-		"aria-label": label,
-		checked: Boolean(checked),
-		onChange: (event) => onChange?.(event.target.checked),
-		...rest,
-	});
-
-/**
  * Minimal `__experimentalToolsPanel` (ToolsPanel) stand-in. The real component
  * groups optional controls behind progressive disclosure; here it renders a
  * container exposing its `label` (as `aria-label`) and its `children`
@@ -514,19 +491,6 @@ const TreeGridCell = ({ children, ...rest }) =>
 		typeof children === "function" ? children({}) : children,
 	);
 
-/**
- * Minimal `__experimentalTreeGridItem` (TreeGridItem) stand-in. The real item
- * wraps one focusable within a cell that holds several; here it renders its
- * render-prop child (`children(props)`) with an empty `props` object (or a plain
- * child as-is), with no wrapping element of its own so the buttons stay inside
- * their owning cell. Mirrors `TreeGridCell`'s render-prop handling.
- *
- * @param {Object} props TreeGridItem props.
- * @return {Object} The rendered focusable.
- */
-const TreeGridItem = ({ children }) =>
-	typeof children === "function" ? children({}) : children;
-
 module.exports = {
 	Button,
 	SelectControl,
@@ -537,7 +501,6 @@ module.exports = {
 	ToolbarGroup,
 	ToolbarButton,
 	PanelBody,
-	ToggleControl,
 	Icon,
 	DropdownMenu,
 	MenuGroup,
@@ -548,5 +511,4 @@ module.exports = {
 	__experimentalTreeGrid: TreeGrid,
 	__experimentalTreeGridRow: TreeGridRow,
 	__experimentalTreeGridCell: TreeGridCell,
-	__experimentalTreeGridItem: TreeGridItem,
 };

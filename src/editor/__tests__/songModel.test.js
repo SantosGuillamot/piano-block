@@ -19,7 +19,6 @@ import {
 	BARLINES,
 	BEAT_TYPES,
 	BEATS_MIN,
-	BPM_MIN_EXCLUSIVE,
 	CLEFS,
 	clampInt,
 	DOTS_MAX,
@@ -33,7 +32,6 @@ import {
 	newMeasure,
 	newNote,
 	newPitch,
-	newRest,
 	newSection,
 	newSong,
 	newStandaloneAnnotation,
@@ -50,7 +48,7 @@ import {
 	setMeasureAt,
 	setSectionAt,
 	toBoundedInt,
-	toNumber,
+	updateHandEvents,
 } from "../songModel.js";
 
 /** The raw values an option list presents, in order. */
@@ -175,10 +173,6 @@ describe("numeric bounds mirror the schema ranges", () => {
 		expect(DOTS_MIN).toBe(songSchema.$defs.event.properties.dots.minimum);
 		expect(DOTS_MAX).toBe(songSchema.$defs.event.properties.dots.maximum);
 	});
-
-	it("BPM_MIN_EXCLUSIVE is the strict lower bound (bpm > 0)", () => {
-		expect(BPM_MIN_EXCLUSIVE).toBe(0);
-	});
 });
 
 describe("factories produce conformant fragments", () => {
@@ -192,10 +186,6 @@ describe("factories produce conformant fragments", () => {
 		expect(note.type).toBe("note");
 		expect(note.duration).toBe("quarter");
 		expect(note.pitches).toEqual([{ step: "C", octave: 4 }]);
-	});
-
-	it("newRest is a typed quarter rest with no pitches", () => {
-		expect(newRest()).toEqual({ type: "rest", duration: "quarter" });
 	});
 
 	it("newMeasure is an empty (conformant) measure", () => {
@@ -239,7 +229,9 @@ describe("factories produce conformant fragments", () => {
 
 	it("a rest inside a measure is conformant", () => {
 		const song = newSong();
-		song.sections[0].measures[0].leftHand = [newRest()];
+		song.sections[0].measures[0].leftHand = [
+			{ type: "rest", duration: "quarter" },
+		];
 		expectConformant(song);
 	});
 
@@ -359,15 +351,6 @@ describe("numeric-input parse helpers", () => {
 		expect(clampInt(undefined, -2, 2)).toBe(-2);
 	});
 
-	it("toNumber returns a finite number or null for empty/invalid", () => {
-		expect(toNumber("4")).toBe(4);
-		expect(toNumber("4.5")).toBe(4.5);
-		expect(toNumber("")).toBeNull();
-		expect(toNumber(null)).toBeNull();
-		expect(toNumber(undefined)).toBeNull();
-		expect(toNumber("abc")).toBeNull();
-	});
-
 	it("toBoundedInt rounds, floors at min, and returns null when empty", () => {
 		expect(toBoundedInt("4", 1)).toBe(4);
 		expect(toBoundedInt("4.6", 1)).toBe(5);
@@ -454,5 +437,92 @@ describe("typed splice faces dispatch by caller depth, not by coords", () => {
 			type: "note",
 			duration: "quarter",
 		});
+	});
+});
+
+describe("updateHandEvents applies fn and encodes the empty-hand rule", () => {
+	// A song where section 0 / measure 0 has two right-hand events and no left-hand events.
+	const makeHandSong = () => ({
+		sections: [
+			{
+				measures: [
+					{
+						rightHand: [
+							{ type: "note", duration: "quarter" },
+							{ type: "rest", duration: "quarter" },
+						],
+					},
+				],
+			},
+		],
+	});
+
+	it("grow: fn returns a non-empty array on a hand that had events → key present with new array", () => {
+		const song = makeHandSong();
+		const extra = { type: "note", duration: "half" };
+		const next = updateHandEvents(
+			song,
+			{ sectionIndex: 0, measureIndex: 0, hand: "rightHand" },
+			(events) => [...events, extra],
+		);
+		expect(next.sections[0].measures[0].rightHand).toHaveLength(3);
+		expect(next.sections[0].measures[0].rightHand[2]).toEqual(extra);
+	});
+
+	it("grow on a missing hand: fn receives [] and returns non-empty → key created", () => {
+		const song = makeHandSong();
+		const newEvent = { type: "rest", duration: "quarter" };
+		const next = updateHandEvents(
+			song,
+			{ sectionIndex: 0, measureIndex: 0, hand: "leftHand" },
+			(events) => [...events, newEvent],
+		);
+		expect(next.sections[0].measures[0].leftHand).toEqual([newEvent]);
+	});
+
+	it("shrink-to-empty: fn returns [] → key absent (not an empty array)", () => {
+		const song = makeHandSong();
+		const next = updateHandEvents(
+			song,
+			{ sectionIndex: 0, measureIndex: 0, hand: "rightHand" },
+			() => [],
+		);
+		expect(next.sections[0].measures[0].rightHand).toBeUndefined();
+	});
+
+	it("shrink-non-last: fn returns a trimmed non-empty array → key present with trimmed array", () => {
+		const song = makeHandSong();
+		const next = updateHandEvents(
+			song,
+			{ sectionIndex: 0, measureIndex: 0, hand: "rightHand" },
+			(events) => events.slice(0, 1),
+		);
+		expect(next.sections[0].measures[0].rightHand).toHaveLength(1);
+		expect(next.sections[0].measures[0].rightHand[0]).toEqual({
+			type: "note",
+			duration: "quarter",
+		});
+	});
+
+	it("fn returns null → key absent", () => {
+		const song = makeHandSong();
+		const next = updateHandEvents(
+			song,
+			{ sectionIndex: 0, measureIndex: 0, hand: "rightHand" },
+			() => null,
+		);
+		expect(next.sections[0].measures[0].rightHand).toBeUndefined();
+	});
+
+	it("immutability: the input song is not mutated", () => {
+		const song = makeHandSong();
+		const original = song.sections[0].measures[0].rightHand;
+		updateHandEvents(
+			song,
+			{ sectionIndex: 0, measureIndex: 0, hand: "rightHand" },
+			(events) => events.slice(0, 1),
+		);
+		expect(song.sections[0].measures[0].rightHand).toBe(original);
+		expect(song.sections[0].measures[0].rightHand).toHaveLength(2);
 	});
 });

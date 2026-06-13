@@ -91,11 +91,25 @@ export const PLACEMENTS = [
 	{ label: __("Below", "piano-block"), value: "below" },
 ];
 
-/** Standalone-annotation `staff`. */
-export const STAVES = [
-	{ label: __("Right hand", "piano-block"), value: "rightHand" },
-	{ label: __("Left hand", "piano-block"), value: "leftHand" },
+/**
+ * The two hands, in score order (right above left). Used wherever the hand
+ * vocabulary needs to iterate — `StructureTree`, `ContextEditor` — so there is
+ * one canonical ordered list.
+ */
+export const HANDS = [
+	{ key: "rightHand", label: __("Right hand", "piano-block") },
+	{ key: "leftHand", label: __("Left hand", "piano-block") },
 ];
+
+/** Standalone-annotation `staff`. Derived from `HANDS` so label text stays in sync. */
+export const STAVES = HANDS.map((h) => ({ label: h.label, value: h.key }));
+
+/**
+ * The "none" select option shared by controls that offer an empty/absent
+ * choice — barline, clef, alteration note, staff. Centralised so the text is
+ * consistent across panels.
+ */
+export const NONE_OPTION = { label: __("None", "piano-block"), value: "" };
 
 /** Time-signature `beats`: at least one beat per measure. */
 export const BEATS_MIN = 1;
@@ -115,9 +129,6 @@ export const OCTAVE_SHIFT_MAX = 2;
 /** Event `dots` range. */
 export const DOTS_MIN = 0;
 export const DOTS_MAX = 2;
-
-/** Tempo `bpm`: the strict lower bound — bpm must be greater than this. */
-export const BPM_MIN_EXCLUSIVE = 0;
 
 /**
  * Coerce a numeric-input string to an integer clamped to `[min, max]`. A
@@ -146,7 +157,7 @@ export function clampInt(raw, min, max) {
  * @param {string} raw The raw field value.
  * @return {?number} The finite number, or `null`.
  */
-export function toNumber(raw) {
+function toNumber(raw) {
 	if (raw === "" || raw === null || raw === undefined) {
 		return null;
 	}
@@ -190,15 +201,6 @@ export function newPitch(step = "C", octave = 4) {
  */
 export function newNote() {
 	return { type: "note", duration: "quarter", pitches: [newPitch()] };
-}
-
-/**
- * A minimal rest.
- *
- * @return {Object} A conformant rest event.
- */
-export function newRest() {
-	return { type: "rest", duration: "quarter" };
 }
 
 /**
@@ -399,5 +401,43 @@ export function setEventAt(
 		...measure,
 		[hand]: replaceAt(measure[hand], eventIndex, nextEvent),
 	};
+	return setMeasureAt(song, { sectionIndex, measureIndex }, nextMeasure);
+}
+
+/**
+ * Apply `fn` to the events array of `hand` in the given measure, then return a
+ * new song reflecting the result. Encodes the empty-hand rule once: when `fn`
+ * returns an empty array or `null`, the hand key is deleted from the measure
+ * (a measure with no events on a hand must carry no key for that hand, not an
+ * empty array). When `fn` returns a non-empty array, the hand key is present
+ * with that array.
+ *
+ * `fn` receives `measure[hand] ?? []`: a grow `fn` called on a hand that did
+ * not previously exist gets `[]` and may return a non-empty array to create the
+ * key. Callers guard against missing section/measure; this helper does not.
+ *
+ * @param {Object}   song              The current song object.
+ * @param {Object}   coords            The selection coords.
+ * @param {number}   coords.sectionIndex The section index.
+ * @param {number}   coords.measureIndex The measure index.
+ * @param {string}   coords.hand        The hand key (`rightHand`/`leftHand`).
+ * @param {Function} fn                 Receives the current events array (or `[]`),
+ *                                      returns the next events array or `null`.
+ * @return {Object} A new song with the hand events updated or the hand key dropped.
+ */
+export function updateHandEvents(
+	song,
+	{ sectionIndex, measureIndex, hand },
+	fn,
+) {
+	const measure = song.sections[sectionIndex].measures[measureIndex];
+	const nextEvents = fn(measure[hand] ?? []);
+	let nextMeasure;
+	if (nextEvents == null || nextEvents.length === 0) {
+		const { [hand]: _dropped, ...rest } = measure;
+		nextMeasure = rest;
+	} else {
+		nextMeasure = { ...measure, [hand]: nextEvents };
+	}
 	return setMeasureAt(song, { sectionIndex, measureIndex }, nextMeasure);
 }
