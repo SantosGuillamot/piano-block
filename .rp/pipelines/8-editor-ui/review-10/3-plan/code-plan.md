@@ -11,7 +11,7 @@ The code phase runs **one fresh `code-writer` per task**, in the order below. Ea
 **Confirmed coordinate corrections carried into this plan** (the design has two stale paths; this plan uses the live ones):
 - `edit.js` is at **`src/edit.js`** (NOT `src/editor/edit.js`).
 - `SectionPanel.js` is at **`src/editor/inspector/SectionPanel.js`** (the design's "confirmed coordinates" line at design-doc.md:32 and the R-DEL edit at :137 wrongly write `src/editor/SectionPanel.js`; the intra-file line numbers are correct, and the filename is unique in the repo).
-- Inspector leaf editors are under **`src/editor/inspector/`** (`PitchList.js`, `PitchEditor.js`, `HandConfigEditor.js`, `AnnotationList.js`, `NotePanel.js`, `MeasurePanel.js`, `ContextEditor.js`, `SectionPanel.js`).
+- Inspector leaf editors are under **`src/editor/`** (`PitchList.js`, `PitchEditor.js`, `HandConfigEditor.js`, `AnnotationList.js`, `ContextEditor.js`). Only the panel files are under **`src/editor/inspector/`** (`NotePanel.js`, `MeasurePanel.js`, `SectionPanel.js`, `SongPanel.js`).
 - Test files are under **`src/editor/__tests__/`**; the components mock is at **`test/mocks/wordpress-components.js`**.
 
 **Cross-cutting guardrails every task must hold:**
@@ -205,18 +205,18 @@ This is the **largest task**. Plan it carefully. The mechanism is a monotonic `f
 **Scope (exact sites).** Re-confirm each by grep.
 
 **R-LR1 (alignment) — change `alignment="flex-start"` → `alignment="center"` on the three `__list-row` `HStack`s:**
-- `src/editor/inspector/PitchList.js:43`.
-- `src/editor/inspector/HandConfigEditor.js:164`.
-- `src/editor/inspector/AnnotationList.js:57` (applied for consistency even though only the two `NumberControl` rows have the collapse).
+- `src/editor/PitchList.js:43`.
+- `src/editor/HandConfigEditor.js:164`.
+- `src/editor/AnnotationList.js:57` (applied for consistency even though only the two `NumberControl` rows have the collapse).
 
 **R-LR2 (inline min-width) — add `style={{ minWidth: "4em" }}` to the three collapsing `NumberControl`s:**
-- `src/editor/inspector/PitchEditor.js:69` (Octave) and `:80` (Alteration).
-- `src/editor/inspector/HandConfigEditor.js:178` (Alteration). **Do NOT** add it to `HandConfigEditor.js:142` (that is the octave-shift `NumberControl`, a different control in a different row — leave it; it is one of the 7 R-NUM sites and is not a collapsing list-row middle field).
+- `src/editor/PitchEditor.js:69` (Octave) and `:80` (Alteration).
+- `src/editor/HandConfigEditor.js:178` (Alteration). **Do NOT** add it to `HandConfigEditor.js:142` (that is the octave-shift `NumberControl`, a different control in a different row — leave it; it is one of the 7 R-NUM sites and is not a collapsing list-row middle field).
 - Value is **4em**, not 8em (holds a signed 2–3-digit number; the leading selects keep the existing 8em first-child floor in `editor.scss`).
 - None of these currently has a `style=` prop, so this is a clean add.
 
 **R-LR3 (label) — change the visible label "Alteration note" → "Note":**
-- `src/editor/inspector/HandConfigEditor.js:168` (the visible `label=` string only).
+- `src/editor/HandConfigEditor.js:168` (the visible `label=` string only).
 - **Leave the scoped aria-label at `:169` unchanged** (`fieldLabel("alteration note")` → e.g. "Right hand alteration note"). The two `contextControls.test.js` tests locate this select off the **aria-label**, not the visible label.
 
 **TDD / tests.**
