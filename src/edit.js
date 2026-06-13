@@ -37,24 +37,7 @@ import {
 	updateHandEvents,
 } from "./editor/songModel.js";
 import { accessibleNameFor } from "./song/accessibleName.js";
-import validateSong from "./song/validate.js";
-
-/**
- * Parse a `song` string to its working object, returning `null` on a parse throw
- * rather than propagating. A defensive companion to the `errors` gate: a
- * non-conformant string never reaches a render that uses the parse, but a string
- * that is invalid JSON would otherwise throw here.
- *
- * @param {string} song The raw `song` string.
- * @return {?Object} The parsed working object, or `null` on a parse failure.
- */
-function safeParse(song) {
-	try {
-		return JSON.parse(song);
-	} catch {
-		return null;
-	}
-}
+import { parseAndValidate } from "./song/validate.js";
 
 /**
  * The block's editor — a thin mode container.
@@ -78,10 +61,11 @@ function safeParse(song) {
  *     side-computation surfacing a non-blocking error notice; it NEVER blocks
  *     saving, clears the field, or substitutes a parsed value.
  *
- * `errors = validateSong(song)` is computed once (memoized on the string; the
- * empty string is the "no song" state and is never validated) and gates both the
- * visual branch and the JSON notice. `mode` and the visual branch's `selection`
- * are editor-only UI state and are NOT persisted to attributes.
+ * `parseAndValidate(song)` is called once per change (memoized on the string;
+ * the empty string is the "no song" state and seeds `newSong()` instead) and
+ * returns both the parsed `data` and `errors`, gating the visual branch and the
+ * JSON notice. `mode` and the visual branch's `selection` are editor-only UI
+ * state and are NOT persisted to attributes.
  *
  * @param {Object}   props                 Block edit props.
  * @param {Object}   props.attributes      The block's attributes.
@@ -135,27 +119,24 @@ export default function Edit({ attributes, setAttributes }) {
 	const revealAncestors = (...keys) =>
 		setExpanded((current) => new Set([...current, ...keys]));
 
-	// Pure, presentational validation: re-run only when the text changes. The
-	// empty string is the "no song" state and is never validated.
-	const errors = useMemo(
-		() => (song.trim() === "" ? [] : validateSong(song)),
+	// Parse and validate in one pass: re-run only when the text changes. The
+	// empty string is the "no song" state and is seeded with `newSong()` so the
+	// canvas shows an empty grand staff (the attribute stays `""` until a first
+	// edit commits — lazy seeding, never persisted on mount).
+	const { data, errors } = useMemo(
+		() =>
+			song.trim() === ""
+				? { data: newSong(), errors: [] }
+				: parseAndValidate(song),
 		[song],
 	);
 
 	// The single source of truth stays the string; every edit persists it raw.
 	const onChangeSong = (next) => setAttributes({ song: next });
 
-	// The working object the visual branch edits. An empty song is seeded with
-	// `newSong()` so the canvas shows an empty grand staff (the attribute stays
-	// `""` until a first edit commits — lazy seeding, never persisted on mount); a
-	// non-empty conformant song is parsed; a non-empty invalid one is `null` (it
-	// routes to `InvalidState` below).
-	const working = useMemo(() => {
-		if (song.trim() === "") {
-			return newSong();
-		}
-		return errors.length > 0 ? null : safeParse(song);
-	}, [song, errors]);
+	// The working object the visual branch edits: a non-empty invalid song is
+	// `null` (it routes to `InvalidState` below); otherwise use the parsed data.
+	const working = errors.length > 0 ? null : data;
 
 	// The accessible name announced on the canvas's SVG `<title>`, derived from the
 	// song's metadata only when it is conformant (mirrors the front end). A
