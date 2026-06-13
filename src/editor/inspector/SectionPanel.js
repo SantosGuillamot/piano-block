@@ -29,6 +29,7 @@
  */
 import {
 	Button,
+	__experimentalHStack as HStack,
 	PanelBody,
 	TextControl,
 	__experimentalToolsPanel as ToolsPanel,
@@ -118,6 +119,7 @@ export function SectionPanel({
 				value={section.name ?? ""}
 				onChange={changeName}
 				__nextHasNoMarginBottom
+				__next40pxDefaultSize
 			/>
 
 			<ToolsPanel
@@ -139,17 +141,24 @@ export function SectionPanel({
 				</ToolsPanelItem>
 			</ToolsPanel>
 
-			<Button variant="secondary" onClick={() => onAddMeasure?.(sectionIndex)}>
-				{__("Add measure", "piano-block")}
-			</Button>
+			<HStack>
+				<Button
+					variant="secondary"
+					onClick={() => onAddMeasure?.(sectionIndex)}
+					__next40pxDefaultSize
+				>
+					{__("Add measure", "piano-block")}
+				</Button>
 
-			<Button
-				variant="secondary"
-				isDestructive
-				onClick={() => onRemoveSection?.(sectionIndex)}
-			>
-				{__("Remove section", "piano-block")}
-			</Button>
+				<Button
+					variant="secondary"
+					isDestructive
+					onClick={() => onRemoveSection?.(sectionIndex)}
+					__next40pxDefaultSize
+				>
+					{__("Remove section", "piano-block")}
+				</Button>
+			</HStack>
 		</PanelBody>
 	);
 }

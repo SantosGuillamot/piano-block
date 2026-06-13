@@ -130,7 +130,7 @@ export function ContextEditor({ context = {}, onChange, layout = "flat" }) {
 			min={1}
 			step={1}
 			onChange={(value) => editTempo({ bpm: toBoundedInt(value, 1) })}
-			__nextHasNoMarginBottom
+			__next40pxDefaultSize
 		/>
 	);
 	const beatUnitControl = (
@@ -142,6 +142,7 @@ export function ContextEditor({ context = {}, onChange, layout = "flat" }) {
 				editTempo({ beatUnit: value === "" ? undefined : value })
 			}
 			__nextHasNoMarginBottom
+			__next40pxDefaultSize
 		/>
 	);
 	const beatsControl = (
@@ -153,7 +154,7 @@ export function ContextEditor({ context = {}, onChange, layout = "flat" }) {
 			onChange={(value) =>
 				editTimeSignature({ beats: toBoundedInt(value, BEATS_MIN) })
 			}
-			__nextHasNoMarginBottom
+			__next40pxDefaultSize
 		/>
 	);
 	const beatTypeControl = (
@@ -165,6 +166,7 @@ export function ContextEditor({ context = {}, onChange, layout = "flat" }) {
 				editTimeSignature({ beatType: value === "" ? null : value })
 			}
 			__nextHasNoMarginBottom
+			__next40pxDefaultSize
 		/>
 	);
 	const rightHandControl = (

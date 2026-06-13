@@ -13,7 +13,7 @@
  * the parent drops the `annotations` key entirely. Every add/remove runs through
  * the shared array helpers, so the list never mutates its input.
  */
-import { Button } from "@wordpress/components";
+import { Button, __experimentalHStack as HStack } from "@wordpress/components";
 import { __ } from "@wordpress/i18n";
 import { trash } from "@wordpress/icons";
 import { AnnotationEditor } from "./AnnotationEditor.js";
@@ -52,7 +52,7 @@ export function AnnotationList({ annotations = [], kind, onChange }) {
 			{annotations.map((annotation, index) => (
 				// Annotations have no stable identity, so the index is the only key
 				// available; rows are simple controlled editors, so this is safe.
-				<div key={index}>
+				<HStack key={index} alignment="flex-start">
 					<AnnotationEditor
 						annotation={annotation}
 						kind={kind}
@@ -63,8 +63,9 @@ export function AnnotationList({ annotations = [], kind, onChange }) {
 						isDestructive
 						label={__("Remove annotation", "piano-block")}
 						onClick={() => emit(removeAt(annotations, index))}
+						__next40pxDefaultSize
 					/>
-				</div>
+				</HStack>
 			))}
 			<AddButton
 				label={__("Add annotation", "piano-block")}

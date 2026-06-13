@@ -19,6 +19,7 @@
  */
 import {
 	Button,
+	__experimentalHStack as HStack,
 	__experimentalNumberControl as NumberControl,
 	SelectControl,
 } from "@wordpress/components";
@@ -133,6 +134,7 @@ export function HandConfigEditor({ handConfig = {}, onChange, label }) {
 					emitField("clef", value === "" ? undefined : value)
 				}
 				__nextHasNoMarginBottom
+				__next40pxDefaultSize
 			/>
 			<NumberControl
 				label={fieldLabel(__("octave shift", "piano-block"))}
@@ -150,10 +152,10 @@ export function HandConfigEditor({ handConfig = {}, onChange, label }) {
 							: clampInt(value, OCTAVE_SHIFT_MIN, OCTAVE_SHIFT_MAX),
 					)
 				}
-				__nextHasNoMarginBottom
+				__next40pxDefaultSize
 			/>
 			{rows.map((row, index) => (
-				<div key={row.note}>
+				<HStack key={row.note}>
 					<SelectControl
 						label={fieldLabel(__("alteration note", "piano-block"))}
 						value={row.note}
@@ -162,6 +164,7 @@ export function HandConfigEditor({ handConfig = {}, onChange, label }) {
 							emitRows(replaceAt(rows, index, { ...row, note }))
 						}
 						__nextHasNoMarginBottom
+						__next40pxDefaultSize
 					/>
 					<NumberControl
 						label={fieldLabel(__("alteration", "piano-block"))}
@@ -177,15 +180,16 @@ export function HandConfigEditor({ handConfig = {}, onChange, label }) {
 								}),
 							)
 						}
-						__nextHasNoMarginBottom
+						__next40pxDefaultSize
 					/>
 					<Button
 						icon={trash}
 						isDestructive
 						label={fieldLabel(__("remove alteration", "piano-block"))}
 						onClick={() => emitRows(removeAt(rows, index))}
+						__next40pxDefaultSize
 					/>
-				</div>
+				</HStack>
 			))}
 			<AddButton
 				label={fieldLabel(__("add alteration", "piano-block"))}

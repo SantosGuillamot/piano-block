@@ -11,7 +11,7 @@
  * array helpers, so the list never mutates its input, and an untouched pitch is
  * passed straight through to its editor, preserving its spelling verbatim.
  */
-import { Button } from "@wordpress/components";
+import { Button, __experimentalHStack as HStack } from "@wordpress/components";
 import { __ } from "@wordpress/i18n";
 import { trash } from "@wordpress/icons";
 import { AddButton } from "./ListControls.js";
@@ -38,7 +38,7 @@ export function PitchList({ pitches = [], system, onChange }) {
 			{pitches.map((pitch, index) => (
 				// Pitches have no stable identity, so the index is the only key
 				// available; rows are simple controlled editors, so this is safe.
-				<div key={index}>
+				<HStack key={index} alignment="flex-start">
 					<PitchEditor
 						pitch={pitch}
 						system={system}
@@ -51,8 +51,9 @@ export function PitchList({ pitches = [], system, onChange }) {
 						onClick={() => onChange(removeAt(pitches, index))}
 						// The note invariant: never let the last pitch be removed.
 						disabled={pitches.length <= 1}
+						__next40pxDefaultSize
 					/>
-				</div>
+				</HStack>
 			))}
 			<AddButton
 				label={__("Add pitch", "piano-block")}

@@ -64,6 +64,7 @@ export function PitchEditor({ pitch, system, onChange }) {
 				options={noteNameOptions(system)}
 				onChange={(step) => emit({ ...pitch, step })}
 				__nextHasNoMarginBottom
+				__next40pxDefaultSize
 			/>
 			<NumberControl
 				label={__("Octave", "piano-block")}
@@ -74,7 +75,7 @@ export function PitchEditor({ pitch, system, onChange }) {
 				onChange={(value) =>
 					emit({ ...pitch, octave: clampInt(value, OCTAVE_MIN, OCTAVE_MAX) })
 				}
-				__nextHasNoMarginBottom
+				__next40pxDefaultSize
 			/>
 			<NumberControl
 				label={__("Alteration", "piano-block")}
@@ -85,7 +86,7 @@ export function PitchEditor({ pitch, system, onChange }) {
 				onChange={(value) =>
 					emit({ ...pitch, alter: clampInt(value, ALTER_MIN, ALTER_MAX) })
 				}
-				__nextHasNoMarginBottom
+				__next40pxDefaultSize
 			/>
 		</>
 	);

@@ -24,7 +24,12 @@ import { plus } from "@wordpress/icons";
  */
 export function AddButton({ onClick, label }) {
 	return (
-		<Button variant="secondary" icon={plus} onClick={onClick}>
+		<Button
+			variant="secondary"
+			icon={plus}
+			onClick={onClick}
+			__next40pxDefaultSize
+		>
 			{label}
 		</Button>
 	);

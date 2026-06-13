@@ -43,6 +43,7 @@ const Button = ({
 	// Swallow props that have no DOM meaning in the mock.
 	variant: _variant,
 	isDestructive: _isDestructive,
+	__next40pxDefaultSize: _size,
 	...rest
 }) =>
 	createElement(
@@ -76,6 +77,7 @@ const SelectControl = ({
 	onChange,
 	// Swallow props with no behavior the tests assert.
 	__nextHasNoMarginBottom: _margin,
+	__next40pxDefaultSize: _size,
 	...rest
 }) =>
 	createElement(
@@ -120,6 +122,7 @@ const NumberControl = ({
 	step,
 	onChange,
 	__nextHasNoMarginBottom: _margin,
+	__next40pxDefaultSize: _size,
 	...rest
 }) =>
 	createElement("input", {
@@ -145,6 +148,7 @@ const TextControl = ({
 	value,
 	onChange,
 	__nextHasNoMarginBottom: _margin,
+	__next40pxDefaultSize: _size,
 	...rest
 }) =>
 	createElement("input", {
@@ -176,6 +180,33 @@ const TextareaControl = ({
 		onChange: (event) => onChange?.(event.target.value),
 		...rest,
 	});
+
+/**
+ * Minimal `Flex` stand-in. The real component renders a flex container; here it
+ * renders a `<div>` wrapping its children so tests can assert the presence of
+ * the buttons inside without the full component library.
+ *
+ * @param {Object} props Flex props.
+ * @return {Object} A React `<div>` element.
+ */
+const Flex = ({ children, ...rest }) =>
+	createElement("div", { ...rest }, children);
+
+/**
+ * Minimal `__experimentalHStack` stand-in. The real component renders a
+ * horizontal flex stack; here it renders a `<div>` wrapping its children so
+ * tests can assert the presence of the controls inside without the full library.
+ *
+ * @param {Object} props HStack props.
+ * @return {Object} A React `<div>` element.
+ */
+const HStack = ({
+	children,
+	// Swallow layout props with no behavior the tests assert.
+	alignment: _alignment,
+	spacing: _spacing,
+	...rest
+}) => createElement("div", { ...rest }, children);
 
 /**
  * Minimal `Notice` stand-in. Renders its children inside a `role="alert"`
@@ -505,6 +536,7 @@ const TreeGridCell = ({ children, ...rest }) =>
 
 module.exports = {
 	Button,
+	Flex,
 	SelectControl,
 	NumberControl,
 	TextControl,
@@ -518,6 +550,7 @@ module.exports = {
 	MenuGroup,
 	MenuItem,
 	__experimentalNumberControl: NumberControl,
+	__experimentalHStack: HStack,
 	__experimentalToolsPanel: ToolsPanel,
 	__experimentalToolsPanelItem: ToolsPanelItem,
 	__experimentalTreeGrid: TreeGrid,

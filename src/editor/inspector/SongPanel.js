@@ -22,7 +22,7 @@
  * Every control is one of the bounded leaf editors or a closed-vocabulary select,
  * so the panel is conformant by construction.
  */
-import { Button, PanelBody, SelectControl } from "@wordpress/components";
+import { Button, Flex, PanelBody, SelectControl } from "@wordpress/components";
 import { __ } from "@wordpress/i18n";
 import { ContextEditor } from "../ContextEditor.js";
 import { omitEmpty } from "../emit.js";
@@ -66,6 +66,7 @@ export function SongPanel({ song, system, onChange, onAddSection }) {
 				options={LANGUAGES}
 				onChange={(target) => onChange(mapSong(song, target))}
 				__nextHasNoMarginBottom
+				__next40pxDefaultSize
 			/>
 
 			<ContextEditor
@@ -74,9 +75,15 @@ export function SongPanel({ song, system, onChange, onAddSection }) {
 				onChange={(next) => onChange(omitEmpty(song, "defaults", next))}
 			/>
 
-			<Button variant="secondary" onClick={() => onAddSection?.()}>
-				{__("Add section", "piano-block")}
-			</Button>
+			<Flex>
+				<Button
+					variant="secondary"
+					onClick={() => onAddSection?.()}
+					__next40pxDefaultSize
+				>
+					{__("Add section", "piano-block")}
+				</Button>
+			</Flex>
 		</PanelBody>
 	);
 }

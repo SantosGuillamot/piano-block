@@ -28,12 +28,14 @@ export function MetadataEditor({ metadata = {}, onChange }) {
 				value={metadata.title ?? ""}
 				onChange={(value) => onChange(omitFalsy(metadata, "title", value))}
 				__nextHasNoMarginBottom
+				__next40pxDefaultSize
 			/>
 			<TextControl
 				label={__("Composer", "piano-block")}
 				value={metadata.composer ?? ""}
 				onChange={(value) => onChange(omitFalsy(metadata, "composer", value))}
 				__nextHasNoMarginBottom
+				__next40pxDefaultSize
 			/>
 		</>
 	);

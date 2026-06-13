@@ -33,6 +33,7 @@ export function AnnotationEditor({ annotation, kind, onChange }) {
 				value={annotation.text ?? ""}
 				onChange={(text) => onChange({ ...annotation, text })}
 				__nextHasNoMarginBottom
+				__next40pxDefaultSize
 			/>
 			<SelectControl
 				label={__("Annotation placement", "piano-block")}
@@ -40,6 +41,7 @@ export function AnnotationEditor({ annotation, kind, onChange }) {
 				options={PLACEMENTS}
 				onChange={(placement) => onChange({ ...annotation, placement })}
 				__nextHasNoMarginBottom
+				__next40pxDefaultSize
 			/>
 			{kind === "standalone" ? (
 				<SelectControl
@@ -48,6 +50,7 @@ export function AnnotationEditor({ annotation, kind, onChange }) {
 					options={STAVES}
 					onChange={(staff) => onChange({ ...annotation, staff })}
 					__nextHasNoMarginBottom
+					__next40pxDefaultSize
 				/>
 			) : null}
 		</>

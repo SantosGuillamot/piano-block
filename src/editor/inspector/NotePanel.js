@@ -28,6 +28,7 @@
  */
 import {
 	Button,
+	__experimentalHStack as HStack,
 	__experimentalNumberControl as NumberControl,
 	PanelBody,
 	SelectControl,
@@ -134,6 +135,7 @@ export function NotePanel({
 				options={EVENT_TYPES}
 				onChange={changeType}
 				__nextHasNoMarginBottom
+				__next40pxDefaultSize
 			/>
 			<SelectControl
 				label={__("Duration", "piano-block")}
@@ -141,6 +143,7 @@ export function NotePanel({
 				options={DURATIONS}
 				onChange={(duration) => emitEvent({ ...event, duration })}
 				__nextHasNoMarginBottom
+				__next40pxDefaultSize
 			/>
 			{event.type === "note" ? (
 				<PitchList
@@ -182,7 +185,7 @@ export function NotePanel({
 						onChange={(value) =>
 							changeOptional("dots", clampInt(value, DOTS_MIN, DOTS_MAX))
 						}
-						__nextHasNoMarginBottom
+						__next40pxDefaultSize
 					/>
 				</ToolsPanelItem>
 
@@ -197,6 +200,7 @@ export function NotePanel({
 						options={[NONE_OPTION, ...DYNAMICS]}
 						onChange={(dynamic) => changeOptional("dynamic", dynamic)}
 						__nextHasNoMarginBottom
+						__next40pxDefaultSize
 					/>
 				</ToolsPanelItem>
 
@@ -213,6 +217,7 @@ export function NotePanel({
 							options={[NONE_OPTION, ...SPAN_STATES]}
 							onChange={(value) => changeOptional(key, value)}
 							__nextHasNoMarginBottom
+							__next40pxDefaultSize
 						/>
 					</ToolsPanelItem>
 				))}
@@ -238,21 +243,25 @@ export function NotePanel({
 			    Remove the selected note. The parent's `onAddNote` inserts right after
 			    the selection and auto-selects the new note; the parent's `onRemoveNote`
 			    owns the splice and clears the now-stale selection. */}
-			<Button
-				variant="secondary"
-				onClick={() => onAddNote?.(sectionIndex, measureIndex, hand)}
-			>
-				{__("Add note", "piano-block")}
-			</Button>
-			<Button
-				variant="secondary"
-				isDestructive
-				onClick={() =>
-					onRemoveNote?.(sectionIndex, measureIndex, hand, eventIndex)
-				}
-			>
-				{__("Remove note", "piano-block")}
-			</Button>
+			<HStack>
+				<Button
+					variant="secondary"
+					onClick={() => onAddNote?.(sectionIndex, measureIndex, hand)}
+					__next40pxDefaultSize
+				>
+					{__("Add note", "piano-block")}
+				</Button>
+				<Button
+					variant="secondary"
+					isDestructive
+					onClick={() =>
+						onRemoveNote?.(sectionIndex, measureIndex, hand, eventIndex)
+					}
+					__next40pxDefaultSize
+				>
+					{__("Remove note", "piano-block")}
+				</Button>
+			</HStack>
 		</PanelBody>
 	);
 }

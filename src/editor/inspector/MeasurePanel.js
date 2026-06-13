@@ -86,6 +86,7 @@ export function MeasurePanel({ song, selection, onChange, onRemoveMeasure }) {
 				value={measure.name ?? ""}
 				onChange={changeName}
 				__nextHasNoMarginBottom
+				__next40pxDefaultSize
 			/>
 
 			<ToolsPanel
@@ -115,6 +116,7 @@ export function MeasurePanel({ song, selection, onChange, onRemoveMeasure }) {
 							options={[NONE_OPTION, ...BARLINES]}
 							onChange={(value) => changeBarline(key, value)}
 							__nextHasNoMarginBottom
+							__next40pxDefaultSize
 						/>
 					</ToolsPanelItem>
 				))}
@@ -142,6 +144,7 @@ export function MeasurePanel({ song, selection, onChange, onRemoveMeasure }) {
 				variant="secondary"
 				isDestructive
 				onClick={() => onRemoveMeasure?.(sectionIndex, measureIndex)}
+				__next40pxDefaultSize
 			>
 				{__("Remove measure", "piano-block")}
 			</Button>
