@@ -14,7 +14,7 @@
  * validity — the parent passes the already-computed `errors` and the
  * mode-switching callback.
  */
-import { Button, Notice } from "@wordpress/components";
+import { Button, Notice, __experimentalVStack as VStack } from "@wordpress/components";
 import { __ } from "@wordpress/i18n";
 
 /**
@@ -27,14 +27,8 @@ import { __ } from "@wordpress/i18n";
  */
 export function InvalidState({ errors, onEditAsJson }) {
 	return (
-		<div>
+		<VStack>
 			<Notice status="error" isDismissible={false}>
-				<p>
-					{__(
-						"This song can't be edited visually because it doesn't conform to the format. Edit as JSON to fix it.",
-						"piano-block",
-					)}
-				</p>
 				<ul>
 					{errors.map((message, index) => (
 						// Validator messages have no stable identity beyond their
@@ -46,6 +40,6 @@ export function InvalidState({ errors, onEditAsJson }) {
 			<Button variant="secondary" onClick={onEditAsJson} __next40pxDefaultSize>
 				{__("Edit as JSON", "piano-block")}
 			</Button>
-		</div>
+		</VStack>
 	);
 }

@@ -209,6 +209,22 @@ const HStack = ({
 }) => createElement("div", { ...rest }, children);
 
 /**
+ * Minimal `__experimentalVStack` stand-in. The real component renders a
+ * vertical flex stack; here it renders a `<div>` wrapping its children so
+ * tests can assert the presence of the controls inside without the full library.
+ *
+ * @param {Object} props VStack props.
+ * @return {Object} A React `<div>` element.
+ */
+const VStack = ({
+	children,
+	// Swallow layout props with no behavior the tests assert.
+	alignment: _alignment,
+	spacing: _spacing,
+	...rest
+}) => createElement("div", { ...rest }, children);
+
+/**
  * Minimal `Notice` stand-in. Renders its children inside a `role="alert"`
  * element tagged with `data-status`, so tests can find the notice and assert its
  * status without the full component library. `isDismissible` is accepted and
@@ -610,6 +626,7 @@ module.exports = {
 	MenuItem,
 	__experimentalNumberControl: NumberControl,
 	__experimentalHStack: HStack,
+	__experimentalVStack: VStack,
 	__experimentalToolsPanel: ToolsPanel,
 	__experimentalToolsPanelItem: ToolsPanelItem,
 	__experimentalTreeGrid: TreeGrid,
