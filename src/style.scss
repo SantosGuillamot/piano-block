@@ -1,7 +1,7 @@
 /**
- * Piano block — shared styles (applied in the editor and on the front end).
- * Editor-only rules live in editor.scss; only the @font-face declaration and
- * the shared wrapper rules are loaded on the front end.
+ * Piano block — front-end stylesheet.
+ * Editor-only rules live in editor.scss; only the @font-face declaration
+ * is loaded on the front end.
  */
 
 /**
@@ -20,10 +20,4 @@
 	font-weight: normal;
 	font-style: normal;
 	font-display: swap;
-}
-
-.wp-block-piano-block-piano {
-	border: 1px dashed #767676;
-	padding: 1em;
-	color: #767676;
 }

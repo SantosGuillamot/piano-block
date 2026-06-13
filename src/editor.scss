@@ -1,19 +1,15 @@
 /**
  * Piano block — editor-only styles.
  * These rules style the editor surface and are never loaded on the front end.
- * The front-end stylesheet (style.scss) carries only the @font-face declaration
- * and the shared wrapper rules (border, padding, color).
+ * The front-end stylesheet (style.scss) carries only the @font-face declaration;
+ * all editor surface rules (canvas, tree, selection highlight) live here.
+ * The interactive sheet-music canvas is the surface the author both reads and
+ * selects notes on, with on-canvas add affordances beside it; the song-level
+ * and selected-event settings live in the block's `InspectorControls` sidebar,
+ * which WordPress styles.
  */
 
 .wp-block-piano-block-piano {
-	/**
-	 * Canvas-first editor styles. These rules style the editor surface only; the
-	 * front end renders the SVG directly and never sees these classes. The
-	 * interactive sheet-music canvas is the surface the author both reads and
-	 * selects notes on, with on-canvas add affordances beside it; the song-level
-	 * and selected-event settings live in the block's `InspectorControls` sidebar,
-	 * which WordPress styles.
-	 */
 
 	/* The editor workspace: the left structure tree beside the canvas, laid out as a
 	 * flex row (tree left, canvas right). The toolbar toggle is the escape hatch at
