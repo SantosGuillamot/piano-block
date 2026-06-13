@@ -284,10 +284,9 @@ export default function Edit({ attributes, setAttributes }) {
 	};
 
 	// Remove an event from a measure's hand (the lifted note-level remove the Note
-	// panel signals, so the splice lives in one place). Reproduces
-	// `NotePanel.removeEvent`: drop the `[hand]` key when its list empties, else set
-	// it; rebuild measure → section → song immutably; commit. If the selection
-	// pointed at the removed event, it is now stale, so clear it.
+	// panel signals, so the splice lives in one place). Drops the `[hand]` key when
+	// its list empties; rebuilds measure → section → song immutably; commits. If the
+	// selection pointed at the removed event, it is now stale, so clear it.
 	const onRemoveNote = (sectionIndex, measureIndex, hand, eventIndex) => {
 		const section = working.sections[sectionIndex];
 		if (!section) {

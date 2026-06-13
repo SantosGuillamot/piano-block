@@ -14,7 +14,7 @@
  * validity — the parent passes the already-computed `errors` and the
  * mode-switching callback.
  */
-import { Button, Flex, Notice } from "@wordpress/components";
+import { Button, Notice } from "@wordpress/components";
 import { __ } from "@wordpress/i18n";
 
 /**
@@ -31,7 +31,7 @@ export function InvalidState({ errors, onEditAsJson }) {
 			<Notice status="error" isDismissible={false}>
 				<p>
 					{__(
-						"This song can't be edited visually because it doesn't conform to the format. Switch to JSON to fix it.",
+						"This song can't be edited visually because it doesn't conform to the format. Edit as JSON to fix it.",
 						"piano-block",
 					)}
 				</p>
@@ -43,15 +43,9 @@ export function InvalidState({ errors, onEditAsJson }) {
 					))}
 				</ul>
 			</Notice>
-			<Flex>
-				<Button
-					variant="secondary"
-					onClick={onEditAsJson}
-					__next40pxDefaultSize
-				>
-					{__("Edit as JSON", "piano-block")}
-				</Button>
-			</Flex>
+			<Button variant="secondary" onClick={onEditAsJson} __next40pxDefaultSize>
+				{__("Edit as JSON", "piano-block")}
+			</Button>
 		</div>
 	);
 }

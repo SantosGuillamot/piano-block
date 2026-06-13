@@ -167,13 +167,20 @@ function RowLabelCell({
  * Render-function children are used (required by the `DropdownMenu` mock and
  * the real component) so the always-open mock canary stays green.
  *
- * @param {Object}   props
- * @param {Object}   props.toggleProps  The roving-tabindex props for the toggle button.
- * @param {string}   props.label        The accessible name for the toggle button.
- * @param {Function} props.onDuplicate  Duplicate this row's item.
- * @param {Function} props.onAddBefore  Insert a new item before this one.
- * @param {Function} props.onAddAfter   Insert a new item after this one.
- * @param {Function} props.onRemove     Remove this row's item.
+ * The optional `onRename` prop gates a "Rename" `MenuItem` that selects the row
+ * (so its inspector panel opens and the row's name field is editable). Pass
+ * `onRename` only at call sites where the row has a name field (sections and
+ * measures); omit it at note rows, which have no name field.
+ *
+ * @param {Object}    props
+ * @param {Object}    props.toggleProps  The roving-tabindex props for the toggle button.
+ * @param {string}    props.label        The accessible name for the toggle button.
+ * @param {Function}  props.onDuplicate  Duplicate this row's item.
+ * @param {Function}  props.onAddBefore  Insert a new item before this one.
+ * @param {Function}  props.onAddAfter   Insert a new item after this one.
+ * @param {Function}  props.onRemove     Remove this row's item.
+ * @param {Function}  [props.onRename]   Optional: select the row to reveal its name
+ *                                       field. Absent on note rows (no name field).
  * @return {Object} The rendered actions dropdown.
  */
 function RowActionsMenu({
@@ -183,12 +190,23 @@ function RowActionsMenu({
 	onAddBefore,
 	onAddAfter,
 	onRemove,
+	onRename,
 }) {
 	return (
 		<DropdownMenu icon={moreVertical} toggleProps={toggleProps} label={label}>
 			{({ onClose }) => (
 				<>
 					<MenuGroup>
+						{onRename && (
+							<MenuItem
+								onClick={() => {
+									onRename?.();
+									onClose();
+								}}
+							>
+								{__("Rename", "piano-block")}
+							</MenuItem>
+						)}
 						<MenuItem
 							onClick={() => {
 								onDuplicate?.();
@@ -344,6 +362,7 @@ export function StructureTree({
 								__("Actions for Section %d", "piano-block"),
 								sectionNumber,
 							)}
+							onRename={() => onSelect?.({ kind: "section", sectionIndex })}
 							onDuplicate={() => onDuplicateSection?.(sectionIndex)}
 							onAddBefore={() => onAddSectionBefore?.(sectionIndex)}
 							onAddAfter={() => onAddSectionAfter?.(sectionIndex)}
@@ -412,6 +431,9 @@ export function StructureTree({
 									measureNumber,
 									sectionNumber,
 								)}
+								onRename={() =>
+									onSelect?.({ kind: "measure", sectionIndex, measureIndex })
+								}
 								onDuplicate={() =>
 									onDuplicateMeasure?.(sectionIndex, measureIndex)
 								}

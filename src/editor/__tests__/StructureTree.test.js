@@ -589,6 +589,51 @@ describe("StructureTree — row actions", () => {
 	});
 });
 
+describe("StructureTree — Rename MenuItem", () => {
+	it("renders a Rename item in a section row's menu", () => {
+		const { container, unmount } = renderTree();
+		const sectionOneMenu = buttonByLabel(
+			container,
+			"Actions for Section 1",
+		).closest("div");
+		expect(selectButtonByText(sectionOneMenu, "Rename")).toBeTruthy();
+		unmount();
+	});
+
+	it("renders a Rename item in a measure row's menu", () => {
+		const { container, unmount } = renderTree();
+		const measureOneMenu = buttonByLabel(
+			container,
+			"Actions for Measure 1 of section 1",
+		).closest("div");
+		expect(selectButtonByText(measureOneMenu, "Rename")).toBeTruthy();
+		unmount();
+	});
+
+	it("does not render a Rename item in a note row's menu", () => {
+		const { container, unmount } = renderTree();
+		const noteMenu = buttonByLabel(
+			container,
+			"Actions for Note 1 of Right hand of measure 1 of section 1",
+		).closest("div");
+		expect(selectButtonByText(noteMenu, "Rename")).toBeFalsy();
+		unmount();
+	});
+
+	it("activating Rename on a section row selects that section", () => {
+		const { container, unmount, calls } = renderTree();
+		const sectionTwoMenu = buttonByLabel(
+			container,
+			"Actions for Section 2",
+		).closest("div");
+		click(selectButtonByText(sectionTwoMenu, "Rename"));
+		// The Rename item selects the row (so its inspector panel opens with the
+		// Section name field); focusing the name field itself is an e2e nicety.
+		expect(calls.select).toEqual([{ kind: "section", sectionIndex: 1 }]);
+		unmount();
+	});
+});
+
 describe("StructureTree — aria-current", () => {
 	it("marks the selected row aria-current and leaves unselected rows without it", () => {
 		const { container, unmount } = renderTree({
