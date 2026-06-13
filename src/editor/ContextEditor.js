@@ -43,7 +43,17 @@ import { useState } from "@wordpress/element";
 import { __ } from "@wordpress/i18n";
 import { HandConfigEditor } from "./HandConfigEditor.js";
 import { omitEmpty } from "./inspector/emit.js";
-import { BEAT_TYPES, BEATS_MIN, DURATIONS, toBoundedInt } from "./songModel.js";
+import {
+	BEAT_TYPES,
+	BEATS_MIN,
+	DURATIONS,
+	HANDS,
+	NONE_OPTION,
+	toBoundedInt,
+} from "./songModel.js";
+
+/** Key → label lookup derived from HANDS, so labels stay in sync with the canonical list. */
+const HAND_LABEL = Object.fromEntries(HANDS.map((h) => [h.key, h.label]));
 
 /**
  * Emit a context object rebuilt from a single member edit, omitting any member
@@ -147,7 +157,7 @@ export function ContextEditor({
 		<SelectControl
 			label={__("Beat unit", "piano-block")}
 			value={tempoDraft.beatUnit ?? ""}
-			options={[{ label: __("—", "piano-block"), value: "" }, ...DURATIONS]}
+			options={[NONE_OPTION, ...DURATIONS]}
 			onChange={(value) =>
 				editTempo({ beatUnit: value === "" ? undefined : value })
 			}
@@ -170,7 +180,7 @@ export function ContextEditor({
 		<SelectControl
 			label={__("Beat type", "piano-block")}
 			value={timeDraft.beatType ?? ""}
-			options={[{ label: __("—", "piano-block"), value: "" }, ...BEAT_TYPES]}
+			options={[NONE_OPTION, ...BEAT_TYPES]}
 			onChange={(value) =>
 				editTimeSignature({ beatType: value === "" ? null : value })
 			}
@@ -179,14 +189,14 @@ export function ContextEditor({
 	);
 	const rightHandControl = (
 		<HandConfigEditor
-			label={__("Right hand", "piano-block")}
+			label={HAND_LABEL.rightHand}
 			handConfig={context.rightHand ?? {}}
 			onChange={(value) => emitMember(context, "rightHand", value, onChange)}
 		/>
 	);
 	const leftHandControl = (
 		<HandConfigEditor
-			label={__("Left hand", "piano-block")}
+			label={HAND_LABEL.leftHand}
 			handConfig={context.leftHand ?? {}}
 			onChange={(value) => emitMember(context, "leftHand", value, onChange)}
 		/>
@@ -227,7 +237,7 @@ export function ContextEditor({
 					</ToolsPanelItem>
 
 					<ToolsPanelItem
-						label={__("Right hand", "piano-block")}
+						label={HAND_LABEL.rightHand}
 						hasValue={() =>
 							Boolean(context.rightHand) &&
 							Object.keys(context.rightHand).length > 0
@@ -238,7 +248,7 @@ export function ContextEditor({
 					</ToolsPanelItem>
 
 					<ToolsPanelItem
-						label={__("Left hand", "piano-block")}
+						label={HAND_LABEL.leftHand}
 						hasValue={() =>
 							Boolean(context.leftHand) &&
 							Object.keys(context.leftHand).length > 0

@@ -24,20 +24,22 @@ import {
 } from "@wordpress/components";
 import { __ } from "@wordpress/i18n";
 import { AddButton } from "./ListControls.js";
+import { noteNameOptions } from "./noteNames.js";
 import {
 	ALTER_MAX,
 	ALTER_MIN,
 	CLEFS,
 	clampInt,
+	insertAt,
+	NONE_OPTION,
 	OCTAVE_SHIFT_MAX,
 	OCTAVE_SHIFT_MIN,
+	removeAt,
+	replaceAt,
 } from "./songModel.js";
 
 /** The seven English note letters offered as `alters` keys. */
-const ALTER_KEY_OPTIONS = ["C", "D", "E", "F", "G", "A", "B"].map((letter) => ({
-	label: letter,
-	value: letter,
-}));
+const ALTER_KEY_OPTIONS = noteNameOptions("english");
 
 /** The first English letter not yet used by an alters row, falling back to C. */
 function nextUnusedNote(rows) {
@@ -116,7 +118,7 @@ export function HandConfigEditor({ handConfig = {}, onChange, label }) {
 			<SelectControl
 				label={fieldLabel(__("clef", "piano-block"))}
 				value={handConfig.clef ?? ""}
-				options={[{ label: __("—", "piano-block"), value: "" }, ...CLEFS]}
+				options={[NONE_OPTION, ...CLEFS]}
 				onChange={(value) =>
 					emitField("clef", value === "" ? undefined : value)
 				}
@@ -147,7 +149,7 @@ export function HandConfigEditor({ handConfig = {}, onChange, label }) {
 						value={row.note}
 						options={ALTER_KEY_OPTIONS}
 						onChange={(note) =>
-							emitRows(replaceRow(rows, index, { ...row, note }))
+							emitRows(replaceAt(rows, index, { ...row, note }))
 						}
 						__nextHasNoMarginBottom
 					/>
@@ -159,7 +161,7 @@ export function HandConfigEditor({ handConfig = {}, onChange, label }) {
 						step={1}
 						onChange={(value) =>
 							emitRows(
-								replaceRow(rows, index, {
+								replaceAt(rows, index, {
 									...row,
 									value: clampInt(value, ALTER_MIN, ALTER_MAX),
 								}),
@@ -170,23 +172,21 @@ export function HandConfigEditor({ handConfig = {}, onChange, label }) {
 					<Button
 						icon="trash"
 						label={fieldLabel(__("remove alteration", "piano-block"))}
-						onClick={() => emitRows(rows.filter((_, i) => i !== index))}
+						onClick={() => emitRows(removeAt(rows, index))}
 					/>
 				</div>
 			))}
 			<AddButton
 				label={fieldLabel(__("add alteration", "piano-block"))}
 				onClick={() =>
-					emitRows([...rows, { note: nextUnusedNote(rows), value: 0 }])
+					emitRows(
+						insertAt(rows, rows.length, {
+							note: nextUnusedNote(rows),
+							value: 0,
+						}),
+					)
 				}
 			/>
 		</>
 	);
-}
-
-/** Return a new rows array with the row at `index` replaced. */
-function replaceRow(rows, index, row) {
-	const next = rows.slice();
-	next[index] = row;
-	return next;
 }

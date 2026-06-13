@@ -30,11 +30,8 @@ import {
 } from "@wordpress/components";
 import { __ } from "@wordpress/i18n";
 import { AnnotationList } from "../AnnotationList.js";
-import { BARLINES, setMeasureAt } from "../songModel.js";
+import { BARLINES, NONE_OPTION, setMeasureAt } from "../songModel.js";
 import { omitFalsy } from "./emit.js";
-
-/** The empty option a barline select offers to leave the barline unset. */
-const NONE_OPTION = { label: __("None", "piano-block"), value: "" };
 
 /** The two optional barline fields and their human-facing labels, disclosed. */
 const BARLINE_FIELDS = [

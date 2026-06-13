@@ -45,6 +45,7 @@ import {
 	DURATIONS,
 	DYNAMICS,
 	EVENT_TYPES,
+	NONE_OPTION,
 	newPitch,
 	SPAN_STATES,
 	setEventAt,
@@ -58,9 +59,6 @@ const SPAN_FIELDS = [
 	{ key: "crescendo", label: __("Crescendo", "piano-block") },
 	{ key: "decrescendo", label: __("Decrescendo", "piano-block") },
 ];
-
-/** The empty option an optional select offers to unset its field. */
-const NONE_OPTION = { label: __("None", "piano-block"), value: "" };
 
 /**
  * The inspector panel for the selected event.
