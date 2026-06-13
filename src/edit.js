@@ -11,7 +11,6 @@ import {
 } from "@wordpress/components";
 import { useMemo, useState } from "@wordpress/element";
 import { __ } from "@wordpress/i18n";
-import { accessibleNameFor } from "./editor/accessibleName.js";
 import { InvalidState } from "./editor/InvalidState.js";
 import { MeasurePanel } from "./editor/inspector/MeasurePanel.js";
 import { NotePanel } from "./editor/inspector/NotePanel.js";
@@ -37,6 +36,7 @@ import {
 	setSectionAt,
 	updateHandEvents,
 } from "./editor/songModel.js";
+import { accessibleNameFor } from "./song/accessibleName.js";
 import validateSong from "./song/validate.js";
 
 /**

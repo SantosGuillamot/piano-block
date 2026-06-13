@@ -28,53 +28,10 @@
  */
 
 import { useEffect, useRef, useState } from "@wordpress/element";
-import { SP_PX } from "../notation/constants.js";
-import { MUSIC_FONT_FAMILY } from "../notation/glyphs.js";
+import { availableWidthInSp, drawWhenFontReady } from "../notation/dom.js";
 import { buildLayoutModel } from "../notation/layout.js";
 import { renderInto } from "../notation/svg.js";
 import { globalMeasureNumber, selectionQuery } from "./selection.js";
-
-/** Below this container width (px) the staff space steps down a notch. */
-const NARROW_CONTAINER_PX = 480;
-/** The stepped-down sp→px scale used below `NARROW_CONTAINER_PX`. */
-const NARROW_SP_PX = 7;
-
-/**
- * The available width for the layout, in staff spaces, from a container's live
- * content width. Converts px → sp via `SP_PX`, stepping the scale down one notch
- * below `NARROW_CONTAINER_PX` so a narrow editor packs more onto each system.
- * Mirrors `view.js`'s rule (not imported). Tolerates a 0 width (jsdom reports
- * `clientWidth` as 0): it returns 0, which the layout floors without throwing.
- *
- * @param {?Element} container The canvas container.
- * @return {number} The available width in staff spaces (≥ 0).
- */
-function availableWidthInSp(container) {
-	const widthPx = Math.max(container?.clientWidth ?? 0, 0);
-	const spPx =
-		widthPx > 0 && widthPx < NARROW_CONTAINER_PX ? NARROW_SP_PX : SP_PX;
-	return widthPx / spPx;
-}
-
-/**
- * Run `draw` once the music font is loaded, so the first paint has the ornate
- * glyphs (clefs, rests, accidentals, flags, brace). Falls back to an immediate
- * draw when the Font Loading API is unavailable (jsdom, or a browser without it).
- * Mirrors `view.js`'s `drawWhenFontReady` (not imported).
- *
- * @param {() => void} draw The first-draw callback.
- */
-function drawWhenFontReady(draw) {
-	const fonts = typeof document !== "undefined" ? document.fonts : null;
-	if (!fonts?.load) {
-		draw();
-		return;
-	}
-	fonts
-		.load(`1em "${MUSIC_FONT_FAMILY}"`)
-		.catch(() => {})
-		.then(() => draw());
-}
 
 /**
  * Decorate the current selection after a draw. Only an `"event"` selection

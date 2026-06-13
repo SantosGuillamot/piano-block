@@ -1,12 +1,8 @@
 /**
- * The accessible name for a song, computed from its `metadata` — the editor-local
- * mirror of the front end's `accessibleNameFor` (`view.js`). The mode container
- * passes the result to `SongPreview`, which forwards it to the SVG `<title>`, so
- * the in-editor preview announces the same name the front end does.
- *
- * It is duplicated here rather than imported because the editor-only boundary
- * forbids importing `view.js` (the front-end entry); the rules are reproduced
- * exactly so the two cannot announce different names for the same song.
+ * The accessible name for a song, computed from its `metadata`. Shared by the
+ * front-end entry (`view.js`) and the editor (`edit.js` via `SongCanvas`), so
+ * both surfaces announce the same name for the same song without duplicating the
+ * derivation logic.
  */
 import { __, _x, sprintf } from "@wordpress/i18n";
 

@@ -19,11 +19,10 @@
  */
 
 import domReady from "@wordpress/dom-ready";
-import { __, _x, sprintf } from "@wordpress/i18n";
-import { SP_PX } from "./notation/constants.js";
-import { MUSIC_FONT_FAMILY } from "./notation/glyphs.js";
+import { availableWidthInSp, drawWhenFontReady } from "./notation/dom.js";
 import { buildLayoutModel } from "./notation/layout.js";
 import { renderInto } from "./notation/svg.js";
+import { accessibleNameFor } from "./song/accessibleName.js";
 import validateSong from "./song/validate.js";
 
 /**
@@ -38,66 +37,6 @@ const BLOCK_CLASS = "wp-block-piano-block-piano";
  * Scoped to the wrapper so a stray match elsewhere is impossible.
  */
 const SONG_SCRIPT_CLASS = "wp-block-piano-block-piano__song";
-
-/** Below this container width (px) the staff space steps down a notch. */
-const NARROW_CONTAINER_PX = 480;
-/** The stepped-down sp→px scale used below `NARROW_CONTAINER_PX`. */
-const NARROW_SP_PX = 7;
-
-/**
- * The accessible name for a song, computed from its `metadata`. A
- * metadata string counts only when non-empty after trim. The non-author strings are
- * i18n-wrapped (`@wordpress/i18n`); the title-only case is the author's own text, so
- * it is passed through verbatim with no wrapper.
- *
- * @param {{ title?: string, composer?: string }} [metadata] The song metadata.
- * @return {string} The single accessible name (set on the SVG `<title>`).
- */
-export function accessibleNameFor(metadata) {
-	const title = trimmedString(metadata?.title);
-	const composer = trimmedString(metadata?.composer);
-
-	if (title && composer) {
-		// translators: 1: song title, 2: composer name.
-		return sprintf(
-			_x("%1$s by %2$s", "sheet music label", "piano-block"),
-			title,
-			composer,
-		);
-	}
-	if (title) {
-		// The author's own title — no wrapper.
-		return title;
-	}
-	if (composer) {
-		// translators: %s: composer name.
-		return sprintf(
-			_x("Piano sheet music by %s", "sheet music label", "piano-block"),
-			composer,
-		);
-	}
-	return __("Piano sheet music", "piano-block");
-}
-
-/** A string trimmed to its content, or `""` when the value is absent/non-string. */
-function trimmedString(value) {
-	return typeof value === "string" ? value.trim() : "";
-}
-
-/**
- * The available width for the layout, in staff spaces, from a container's live
- * content width. Converts px → sp via `SP_PX`, stepping the scale down
- * one notch below `NARROW_CONTAINER_PX` so a phone packs more onto each system.
- *
- * @param {Element} container The block wrapper.
- * @return {number} The available width in staff spaces (≥ 0).
- */
-function availableWidthInSp(container) {
-	const widthPx = Math.max(container.clientWidth ?? 0, 0);
-	const spPx =
-		widthPx > 0 && widthPx < NARROW_CONTAINER_PX ? NARROW_SP_PX : SP_PX;
-	return widthPx / spPx;
-}
 
 /**
  * Wire one block container: gate on `validateSong`, and for a conformant song draw
@@ -140,27 +79,6 @@ function setupContainer(container) {
 	drawWhenFontReady(draw);
 
 	observeResize(container, draw);
-}
-
-/**
- * Run `draw` once the music font is loaded, so the first paint has the ornate glyphs.
- * Falls back to an immediate draw when the Font Loading API is unavailable (the
- * hand-drawn skeleton still renders without the font).
- *
- * @param {() => void} draw The first-draw callback.
- */
-function drawWhenFontReady(draw) {
-	const fonts = typeof document !== "undefined" ? document.fonts : null;
-	if (!fonts?.load) {
-		draw();
-		return;
-	}
-	// Load the renamed family specifically, then fall back to the broader ready promise;
-	// either way the draw runs (never blocked) and never rejects to the console.
-	fonts
-		.load(`1em "${MUSIC_FONT_FAMILY}"`)
-		.catch(() => {})
-		.then(() => draw());
 }
 
 /**
