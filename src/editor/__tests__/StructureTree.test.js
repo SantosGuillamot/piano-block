@@ -385,14 +385,14 @@ describe("StructureTree — select-and-reveal label vs chevron toggle", () => {
 		unmount();
 	});
 
-	it("selects but does NOT collapse when an already-expanded section label is clicked", () => {
+	it("selects and collapses when an already-expanded section label is clicked", () => {
 		const { container, unmount, calls } = renderTree({
 			expanded: new Set(["s0"]),
 		});
 		click(selectButtonByText(container, "Section 1"));
-		// The label only expands; collapse stays on the chevron / ArrowLeft key.
+		// The label toggles symmetrically: clicking an expanded row selects AND collapses it.
 		expect(calls.select).toEqual([{ kind: "section", sectionIndex: 0 }]);
-		expect(calls.toggle).toEqual([]);
+		expect(calls.toggle).toEqual(["s0"]);
 		unmount();
 	});
 

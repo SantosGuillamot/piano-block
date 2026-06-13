@@ -111,12 +111,12 @@ function TreeExpander({ isExpanded, onToggle }) {
 
 /**
  * The shared label cell for section and measure rows — a non-focusable
- * `TreeExpander` beside a select-and-reveal label `Button`. The `Button` carries
- * `aria-current` when its row is selected, and signals `onSelect` on every click;
- * when the row is currently collapsed it also calls `onToggleExpanded` to reveal
- * the children (select-and-reveal). Collapsing stays on the chevron and keyboard
- * callbacks only. The `TreeGridCell` stays at the call site so the
- * roving-tabindex `cellProps` reach exactly this Button.
+ * `TreeExpander` beside a label `Button` that always toggles expansion
+ * symmetrically. The `Button` carries `aria-current` when its row is selected,
+ * and signals `onSelect` on every click; it also calls `onToggleExpanded` on
+ * every click regardless of the current expansion state — collapsing an expanded
+ * row and expanding a collapsed one (symmetric toggle). The `TreeGridCell` stays
+ * at the call site so the roving-tabindex `cellProps` reach exactly this Button.
  *
  * @param {Object}   props
  * @param {string}   props.expansionKey    The coordinate key for the row.
@@ -150,7 +150,7 @@ function RowLabelCell({
 				aria-current={selected ? "true" : undefined}
 				onClick={() => {
 					onSelect?.();
-					if (!isExpanded) onToggleExpanded?.(rowKey);
+					onToggleExpanded?.(rowKey);
 				}}
 			>
 				{label}
