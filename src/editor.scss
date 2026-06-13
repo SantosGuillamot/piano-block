@@ -1,0 +1,123 @@
+/**
+ * Piano block — editor-only styles.
+ * These rules style the editor surface and are never loaded on the front end.
+ * The front-end stylesheet (style.scss) carries only the @font-face declaration
+ * and the shared wrapper rules (border, padding, color).
+ */
+
+.wp-block-piano-block-piano {
+	/**
+	 * Canvas-first editor styles. These rules style the editor surface only; the
+	 * front end renders the SVG directly and never sees these classes. The
+	 * interactive sheet-music canvas is the surface the author both reads and
+	 * selects notes on, with on-canvas add affordances beside it; the song-level
+	 * and selected-event settings live in the block's `InspectorControls` sidebar,
+	 * which WordPress styles.
+	 */
+
+	/* The editor workspace: the left structure tree beside the canvas, laid out as a
+	 * flex row (tree left, canvas right). The toolbar toggle is the escape hatch at
+	 * tight widths; a stack-to-vertical media query is left out as optional polish. */
+	&__workspace {
+		display: flex;
+		flex-direction: row;
+		gap: 1.5em;
+		align-items: flex-start;
+	}
+
+	/* The structure-tree column. The TreeGrid renders a bare, content-sized table,
+	 * so this column is shrink-to-fit (`flex: 0 1 auto`) rather than a fixed rail.
+	 * The `max-width` is load-bearing, not cosmetic: a flex item defaults to
+	 * `min-width: auto` and a shrink-to-fit table reports a large min-content width
+	 * when a row label is long, so without this ceiling a long note label could push
+	 * the column wider and starve the canvas. The ceiling plus the label truncation
+	 * below cap the table's growth — the same construction List View uses. */
+	&__tree {
+		flex: 0 1 auto;
+		max-width: 24em;
+		/* A hairline rule plus inside padding set the tree apart from the canvas
+		 * (logical properties keep it RTL-safe). `#ddd` is core's `$gray-300`, the
+		 * standard editor border gray; the inside padding keeps the rule clear of the
+		 * right-edge labels, and `&__workspace`'s `gap` adds the space outside it. */
+		border-inline-end: 1px solid #ddd; /* core's $gray-300, the standard editor border gray */
+		padding-inline-end: 1em;
+
+		/* The label cell (always the first gridcell — the actions cell is the second)
+		 * is a flex line so the disclosure chevron centers vertically against the row
+		 * label, mirroring core's List View expander treatment. The per-level indent
+		 * lives on this line's leading edge so the chevron and label indent together
+		 * as a unit (Recipe A). The actions cell is never flexed or indented. */
+		[role="gridcell"]:first-child {
+			display: flex;
+			align-items: center;
+		}
+
+		/* Depth indentation for the tree's label column, keyed off each row's
+		 * rendered `aria-level` (emitted by `TreeGridRow`'s `level`, 1 for a section
+		 * … 4 for a note). The depth *number* lives in the DOM; the indent *unit*
+		 * lives here. This is core's own idiom (List View indents via `@for` × a grid
+		 * unit) and needs zero JS injection. The indent sits on the flex line's
+		 * leading edge so chevron and label move together. Level 1 sits flush-left;
+		 * each deeper level adds 1.5em. */
+		@for $i from 1 through 4 {
+			[aria-level="#{$i}"] [role="gridcell"]:first-child {
+				padding-inline-start: ($i - 1) * 1.5em;
+			}
+		}
+
+		/* The disclosure chevron: a fixed icon-size square that centers its `<Icon>`,
+		 * so the glyph aligns to the label baseline regardless of its intrinsic size
+		 * and the indent steps stay even across levels. */
+		&-expander {
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			width: 24px;
+			height: 24px;
+			flex: none;
+		}
+
+		/* The label truncates rather than widening the column: a long note name shows
+		 * an ellipsis instead of pushing the column past the ceiling above. */
+		&-label {
+			white-space: nowrap;
+			overflow: hidden;
+			text-overflow: ellipsis;
+		}
+	}
+
+	/* The interactive canvas wrapper: the SVG host plus the add affordances. The
+	 * load-bearing `min-width: 0` lets the canvas column shrink inside the flex
+	 * workspace so the SVG host's own `min-width`/`overflow-x` (below) engages and
+	 * scrolls a wide score, rather than crushing the tree rail. */
+	&__canvas {
+		flex: 1 1 auto;
+		min-width: 0;
+	}
+
+	/* The SVG host. A min-width keeps the container's `clientWidth` non-zero so the
+	 * notation can measure a real width and lay out at that scale; overflow scrolls
+	 * a wide score rather than bleeding past the block. */
+	&__canvas-svg {
+		min-width: 280px;
+		overflow-x: auto;
+
+		/* The selected note/rest group, decorated after each draw. The highlight is
+		 * drawn on the SVG `<g>` so it tracks the glyph without changing layout. A
+		 * section/measure selection adds no canvas class — those kinds are surfaced
+		 * through the structure tree and the inspector panels. */
+		.is-selected {
+			/* Cross-engine FLOOR: recolor the selected event's ink. Fill wherever
+			 * fill is the paint (filled heads, dots, text glyphs, rest bodies);
+			 * :not([fill="none"]) preserves an OPEN notehead's hole. Stroke ONLY
+			 * already-stroked geometry — stems/ledgers <line> and the open-notehead
+			 * ring — NEVER <text> (default stroke:none; a forced stroke would render a
+			 * fat ~8x-scaled outline around the glyph). Color-only => no layout shift;
+			 * editor-only (class added by SongCanvas post-render; view.js never sets
+			 * it) => front-end SVG byte-identical (AC4). */
+			*:not([fill="none"]) { fill: var(--wp-admin-theme-color, #007cba); } /* filled heads, dots, text, rest bodies */
+			line { stroke: var(--wp-admin-theme-color, #007cba); }               /* stems + ledger lines */
+			ellipse[fill="none"] { stroke: var(--wp-admin-theme-color, #007cba); } /* open-notehead ring (keeps its hole) */
+		}
+	}
+}

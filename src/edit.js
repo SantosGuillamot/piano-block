@@ -534,7 +534,6 @@ export default function Edit({ attributes, setAttributes }) {
 						value={song}
 						onChange={onChangeSong}
 						rows={12}
-						className="wp-block-piano-block-piano__song-input"
 						__next40pxDefaultSize
 						__nextHasNoMarginBottom
 					/>
