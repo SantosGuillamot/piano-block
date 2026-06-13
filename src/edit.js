@@ -145,20 +145,6 @@ export default function Edit({ attributes, setAttributes }) {
 	// The single source of truth stays the string; every edit persists it raw.
 	const onChangeSong = (next) => setAttributes({ song: next });
 
-	// The accessible name announced on the canvas's SVG `<title>`, derived from the
-	// song's metadata only when it is conformant (mirrors the front end). A
-	// non-conformant song renders no canvas, so the name is unused then.
-	const accessibleName = useMemo(() => {
-		if (errors.length > 0 || song.trim() === "") {
-			return "";
-		}
-		try {
-			return accessibleNameFor(JSON.parse(song)?.metadata);
-		} catch {
-			return "";
-		}
-	}, [song, errors]);
-
 	// The working object the visual branch edits. An empty song is seeded with
 	// `newSong()` so the canvas shows an empty grand staff (the attribute stays
 	// `""` until a first edit commits — lazy seeding, never persisted on mount); a
@@ -170,6 +156,14 @@ export default function Edit({ attributes, setAttributes }) {
 		}
 		return errors.length > 0 ? null : safeParse(song);
 	}, [song, errors]);
+
+	// The accessible name announced on the canvas's SVG `<title>`, derived from the
+	// song's metadata only when it is conformant (mirrors the front end). A
+	// non-conformant song renders no canvas, so the name is unused then.
+	const accessibleName = useMemo(
+		() => (song.trim() === "" ? "" : accessibleNameFor(working?.metadata)),
+		[song, working],
+	);
 
 	// The per-song note-name system, so the panels edit pitches in the song's own
 	// spelling. A stored `language` field is authoritative; inference from the
@@ -185,8 +179,7 @@ export default function Edit({ attributes, setAttributes }) {
 	// route to the invalid state (no canvas, no panels) so the author can fix it in
 	// raw-JSON mode. The empty-then-seeded case has a non-null `working`, so it
 	// never lands here.
-	const isInvalid =
-		song.trim() !== "" && (errors.length > 0 || working === null);
+	const isInvalid = song.trim() !== "" && errors.length > 0;
 
 	// Resolve the selection against the live working object every render: a stale
 	// selection (its event/measure/section no longer exists) resolves to `null`, so
