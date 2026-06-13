@@ -31,14 +31,12 @@ import {
 	BEAM_THICKNESS,
 	DOT_RADIUS,
 	DYNAMIC_SIZE,
-	HIT_RECT_VERTICAL_MARGIN_SP,
 	LEDGER_WIDTH,
 	NOTE_SIZE,
 	NOTEHEAD_RX,
 	OTTAVA_SIZE,
 	SECONDARY_BEAM_INSET,
 	SP_PX,
-	STAFF_HEIGHT_SP,
 	STAFF_LINE_COUNT,
 	STEM_LENGTH,
 	STEM_THICKNESS,
@@ -54,14 +52,6 @@ const INK = "#1a1a1a";
 
 /** Glyph point size, in sp, for the staff-anchored font glyphs (clefs/rests/etc.). */
 const GLYPH_FONT_SIZE_SP = 4;
-
-/**
- * Width, in sp, of the editor-only per-event hit-rect (centered on the event column
- * X). Kept conservative (≈2 sp) so the rects of two tight adjacent columns don't
- * overlap enough to let a gap-click resolve to a neighbor; visible ink always still
- * resolves to its own group regardless. Used only by the `interactive` emit below.
- */
-const HIT_RECT_WIDTH_SP = 2;
 
 /**
  * A rest `duration` → its rest glyph NAME (a presentation lookup, not geometry).
@@ -223,42 +213,6 @@ function drawSpec(spec, x, y, { filled } = {}) {
 	}
 }
 
-/**
- * The editor-only per-event hit-target: a filled-TRANSPARENT `<rect>` covering the
- * event's column (a conservative `HIT_RECT_WIDTH_SP` centered on the column X) and a
- * generous vertical band around the staff (the `STAFF_HEIGHT_SP` staff span plus
- * `HIT_RECT_VERTICAL_MARGIN_SP` above and below). Emitted ONLY when the `interactive`
- * flag is threaded down to a note/rest renderer, as that group's FIRST child, so:
- *
- * - the visible ink (noteheads/stems/ledgers/glyphs, appended after) paints OVER it,
- *   so a click on real ink has the glyph as `event.target` and the rect only wins in
- *   the otherwise-empty interior of the column;
- * - `fill:"transparent"` makes it genuinely pointer-hittable while invisible
- *   (`fill:none`/`visibility:hidden` are NOT hit targets — they would re-open the gap
- *   bug); and
- * - it carries NO `data-kind`/`data-hand`/`data-event-index` (only a `data-hit`
- *   observability marker), so it never duplicates `selectionQuery`'s match — selection
- *   still resolves by `closest('[data-kind]')` walking up to the enclosing `<g>`.
- *
- * Within `<g data-hand transform="translate(0 staffBottomY)">` the staff bottom line
- * is local Y=0 and the top is `−STAFF_HEIGHT_SP`, so the rect spans local Y
- * `[−STAFF_HEIGHT_SP − N, 0 + N]` with `N = HIT_RECT_VERTICAL_MARGIN_SP`.
- *
- * @param {number} x The event's column center X, in sp.
- * @return {SVGRectElement} The transparent, attribute-free-but-`data-hit` hit-rect.
- */
-function hitRect(x) {
-	const n = HIT_RECT_VERTICAL_MARGIN_SP;
-	return el("rect", {
-		x: x - HIT_RECT_WIDTH_SP / 2,
-		y: -STAFF_HEIGHT_SP - n,
-		width: HIT_RECT_WIDTH_SP,
-		height: STAFF_HEIGHT_SP + 2 * n,
-		fill: "transparent",
-		"data-hit": "",
-	});
-}
-
 // ── Public entry point ──────────────────────────────────────────────────────────
 
 /**
@@ -273,17 +227,12 @@ function hitRect(x) {
  *
  * @param {{ systems: object[], width: number, height: number }} model The layout
  *   model from `buildLayoutModel` (sp units).
- * @param {{ accessibleName?: string, interactive?: boolean }} [options]
+ * @param {{ accessibleName?: string }} [options]
  *   `accessibleName` the single labeled-graphic name (already computed +
- *   i18n-wrapped by the caller); `interactive` (default `false`) gates the
- *   editor-only per-event hit-rect — the front-end caller (`view.js`) omits it, so
- *   the published SVG stays byte-identical.
+ *   i18n-wrapped by the caller).
  * @return {SVGSVGElement} The rendered `<svg role="img">`.
  */
-export function renderSvg(
-	model,
-	{ accessibleName = "", interactive = false } = {},
-) {
+export function renderSvg(model, { accessibleName = "" } = {}) {
 	const widthSp = Math.max(model?.width ?? 0, 0);
 	const heightSp = Math.max(model?.height ?? 0, 0);
 
@@ -307,7 +256,7 @@ export function renderSvg(
 	svg.appendChild(title);
 
 	for (const system of model?.systems ?? []) {
-		svg.appendChild(renderSystem(system, interactive));
+		svg.appendChild(renderSystem(system));
 	}
 
 	return svg;
@@ -320,8 +269,7 @@ export function renderSvg(
  *
  * @param {Element} container The host element to render into.
  * @param {object} model The layout model.
- * @param {{ accessibleName?: string, interactive?: boolean }} [options] Forwarded to
- *   `renderSvg` (including the editor-only `interactive` hit-rect flag).
+ * @param {{ accessibleName?: string }} [options] Forwarded to `renderSvg`.
  * @return {SVGSVGElement} The rendered `<svg>` (also now the container's child).
  */
 export function renderInto(container, model, options = {}) {
@@ -336,10 +284,9 @@ export function renderInto(container, model, options = {}) {
  * Render one system into a `<g>` translated to the system's model Y and uniformly
  * scaled by its `downscaleFactor` (1 unless an over-wide single measure forced the
  * whole system to shrink). All inner coordinates are the system-local sp values the
- * model already computed. `interactive` is threaded down to the per-event renderers
- * (the only consumer of the editor-only hit-rect).
+ * model already computed.
  */
-function renderSystem(system, interactive) {
+function renderSystem(system) {
 	const band = system.band;
 	const factor = system.downscaleFactor ?? 1;
 	const g = el("g", {
@@ -358,7 +305,7 @@ function renderSystem(system, interactive) {
 	g.appendChild(renderReserve(system.reserve, band));
 
 	for (const measure of system.measures ?? []) {
-		g.appendChild(renderMeasure(measure, band, interactive));
+		g.appendChild(renderMeasure(measure, band));
 	}
 
 	for (const span of system.spans ?? []) {
@@ -565,9 +512,8 @@ function noteBandResolver(bands, handKey, staffBottomY) {
  * staff bottom line), the barlines spanning the grand staff, and any inline
  * mid-system section-change cautionary glyphs. The measure's own X is the group's
  * translate so every inner X stays measure-relative as the model produced it.
- * `interactive` is threaded into both hands (the only consumer of the hit-rect).
  */
-function renderMeasure(measure, band, interactive) {
+function renderMeasure(measure, band) {
 	const g = el("g", {
 		transform: `translate(${measure.x} 0)`,
 		"data-measure": measure.number,
@@ -585,7 +531,6 @@ function renderMeasure(measure, band, interactive) {
 			"rightHand",
 			band.rightStaffBottomY,
 			noteBandResolver(band.bands, "rightHand", band.rightStaffBottomY),
-			interactive,
 		),
 	);
 	g.appendChild(
@@ -594,7 +539,6 @@ function renderMeasure(measure, band, interactive) {
 			"leftHand",
 			band.leftStaffBottomY,
 			noteBandResolver(band.bands, "leftHand", band.leftStaffBottomY),
-			interactive,
 		),
 	);
 
@@ -713,11 +657,9 @@ function renderStandaloneAnnotation(note, bands, k) {
  * @param {(placement: string, k: number) => number} resolveNoteY The band resolver
  *   from `noteBandResolver`: a per-event note's `placement` + stack index `k` to its
  *   local-frame baseline Y.
- * @param {boolean} [interactive] When true, each note/rest group gets the editor-only
- *   first-child hit-rect (the front-end emit leaves it false → no rect).
  * @return {SVGGElement} The hand's `<g data-hand>` group.
  */
-function renderHand(hand, handKey, staffBottomY, resolveNoteY, interactive) {
+function renderHand(hand, handKey, staffBottomY, resolveNoteY) {
 	const g = el("g", {
 		transform: `translate(0 ${staffBottomY})`,
 		"data-hand": handKey,
@@ -730,10 +672,10 @@ function renderHand(hand, handKey, staffBottomY, resolveNoteY, interactive) {
 		g.appendChild(renderBeam(beam));
 	}
 	for (const note of hand.notes ?? []) {
-		g.appendChild(renderNote(note, handKey, interactive));
+		g.appendChild(renderNote(note, handKey));
 	}
 	for (const rest of hand.rests ?? []) {
-		g.appendChild(renderRest(rest, handKey, interactive));
+		g.appendChild(renderRest(rest, handKey));
 	}
 	// Per-event notes stack within their `(event, placement)` group; the group is
 	// keyed by the note's column X + placement (events have distinct columns), and the
@@ -757,22 +699,15 @@ function renderHand(hand, handKey, staffBottomY, resolveNoteY, interactive) {
  * Render one note event: its noteheads (each on the correct side of the stem), the
  * stem, a flag (when not beamed), accidentals, ledger lines, and augmentation dots.
  * The whole group is stamped with the event index + hand so a later store can target
- * it (the interactivity hook). All Ys are notehead Ys in the staff frame. When
- * `interactive` is set, a transparent hit-rect is the group's FIRST child (before any
- * ink), so an off-ink click in the column still resolves to this group.
+ * it. All Ys are notehead Ys in the staff frame.
  */
-function renderNote(note, handKey, interactive) {
+function renderNote(note, handKey) {
 	const g = el("g", {
 		"data-kind": "note",
 		"data-hand": handKey,
 		"data-event-index": note.eventIndex,
 		id: `${handKey}-note-${note.eventIndex}`,
 	});
-
-	// Editor-only hit-target FIRST, so the ink below paints over it (front end omits it).
-	if (interactive) {
-		g.appendChild(hitRect(note.x));
-	}
 
 	// Ledger lines first (under the noteheads), centered on the note X.
 	for (const ledger of note.ledgers ?? []) {
@@ -904,22 +839,15 @@ function renderBeam(beam) {
 /**
  * Render one rest: its glyph (a font rest, or a hand-drawn rectangle for whole/half
  * — the skeleton), centered on the rest's column X at the staff middle, plus
- * augmentation dots. Stamped with the event index for the interactivity hook. When
- * `interactive` is set, a transparent hit-rect is the group's FIRST child (before the
- * glyph), so an off-ink click in the column still resolves to this group.
+ * augmentation dots. Stamped with the event index for the interactivity hook.
  */
-function renderRest(rest, handKey, interactive) {
+function renderRest(rest, handKey) {
 	const g = el("g", {
 		"data-kind": "rest",
 		"data-hand": handKey,
 		"data-event-index": rest.eventIndex,
 		id: `${handKey}-rest-${rest.eventIndex}`,
 	});
-
-	// Editor-only hit-target FIRST, so the glyph below paints over it (front end omits it).
-	if (interactive) {
-		g.appendChild(hitRect(rest.x));
-	}
 
 	const glyphName = REST_GLYPH[rest.duration] ?? "restQuarter";
 	// Rests center on the staff middle line. Whole/half hand-drawn rects reference a
