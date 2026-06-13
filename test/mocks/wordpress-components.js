@@ -543,6 +543,56 @@ const TreeGridCell = ({ children, ...rest }) =>
 		typeof children === "function" ? children({}) : children,
 	);
 
+/**
+ * Minimal `__experimentalConfirmDialog` (ConfirmDialog) stand-in. The real
+ * component runs in **controlled** mode: the parent owns `isOpen` and must call
+ * `setIsOpen(false)` inside BOTH `onConfirm` and `onCancel`. This mock mirrors
+ * that contract exactly:
+ *
+ * - Renders **nothing** when `isOpen` is falsy — so tests that do not expect a
+ *   dialog open see no stray buttons in the DOM (mirrors controlled-closed state).
+ * - When `isOpen` is truthy, renders `children` (the confirmation message) plus
+ *   two `<button>` elements wired to the callbacks:
+ *   - A confirm button with accessible name **"OK"** (the real component's default
+ *     `confirmButtonText`) wired to `onConfirm`.
+ *   - A cancel button with accessible name **"Cancel"** (the real component's
+ *     default `cancelButtonText`) wired to `onCancel`.
+ *
+ * The T10/T11 call sites do not pass `confirmButtonText`/`cancelButtonText`, so
+ * the stable "OK"/"Cancel" defaults are the simplest choice — unit tests click
+ * these buttons by those exact names. Custom button-text props are accepted and
+ * ignored (the real component honours them; this stand-in uses the defaults
+ * unconditionally, which is sufficient for all current call sites).
+ *
+ * @param {Object}   props           ConfirmDialog props (controlled mode).
+ * @param {boolean}  props.isOpen    Whether the dialog is open.
+ * @param {Function} props.onConfirm Called when the user confirms; caller must also set isOpen to false.
+ * @param {Function} props.onCancel  Called when the user cancels; caller must also set isOpen to false.
+ * @param {*}        props.children  The confirmation message rendered inside the dialog.
+ * @return {Object|null} A React fragment with the message and action buttons, or `null` when closed.
+ */
+const ConfirmDialog = ({
+	isOpen,
+	onConfirm,
+	onCancel,
+	children,
+	// Swallow custom button-text props — this mock always uses the real defaults.
+	confirmButtonText: _confirmButtonText,
+	cancelButtonText: _cancelButtonText,
+	...rest
+}) => {
+	if (!isOpen) {
+		return null;
+	}
+	return createElement(
+		"div",
+		{ role: "dialog", ...rest },
+		children,
+		createElement("button", { type: "button", onClick: onConfirm }, "OK"),
+		createElement("button", { type: "button", onClick: onCancel }, "Cancel"),
+	);
+};
+
 module.exports = {
 	Button,
 	Flex,
@@ -565,4 +615,6 @@ module.exports = {
 	__experimentalTreeGrid: TreeGrid,
 	__experimentalTreeGridRow: TreeGridRow,
 	__experimentalTreeGridCell: TreeGridCell,
+	ConfirmDialog,
+	__experimentalConfirmDialog: ConfirmDialog,
 };
