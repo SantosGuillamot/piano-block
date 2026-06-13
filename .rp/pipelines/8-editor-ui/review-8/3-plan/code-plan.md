@@ -14,8 +14,11 @@ edits a comment that carries such a tag, it strips it.
 Phase order (from the design's change ordering): **A** pure helpers → **B** consumers →
 **C** atomic mock+production pairs → **D** independent islands. `StructureTree.js` is
 touched by T6 (R1), T13 (R7), T14 (O2), T15 (R18 docblock last) — sequenced so they do
-not collide. `edit.js` is touched by T7 (R6/R10/R20/R4-edit) and T11 (R9 import) /
-T12 (R11 memo); T7 lands first, T11/T12 after.
+not collide. `edit.js` is touched by T7 (R6/R10/R20/R4-edit), T11 (R9 import),
+T12 (R11 memo), T17 (textarea className), and T15 (R18 provenance comment); T7 lands first,
+then T11/T12/T17, and T15 (comment-only) last. `style.scss`/`editor.scss` are touched by
+T17 (CSS split) and then T15 (the `(AC4)` provenance tag in the re-parented `.is-selected`
+comment). `layout.js` and the four inspector docblocks are touched only by T15.
 
 ---
 
@@ -365,8 +368,8 @@ T12 (R11 memo); T7 lands first, T11/T12 after.
   - `src/editor/__tests__/StructureTree.realIcons.test.js` (delete)
   - `src/editor/__tests__/pitches.test.js`
   - `src/editor/__tests__/annotations.test.js`
-  - `src/editor/__tests__/contextControls.test.js` (if it locates the HandConfigEditor
-    add-alteration button by aria-label — see below)
+  - `src/editor/__tests__/contextControls.test.js` (its add-alteration locator at ~line 364 is
+    an `AddButton` and **will** break — see migration below; definite, not conditional)
   - a new project-wide guard test, e.g. `src/editor/__tests__/icons.test.js`
 - **Changes.**
   - **`test/mocks/wordpress-icons.js`.** Build the runner's `createElement` from
@@ -374,8 +377,14 @@ T12 (R11 memo); T7 lands first, T11/T12 after.
     distinguishable marker, e.g.
     `const plus = createElement("svg", { "data-wp-icon": "plus" });` — for every export
     currently a string (`moreVertical`, `chevronRightSmall`, `chevronDownSmall`,
-    `chevronLeftSmall`, `plus`) and **add** `trash` (newly imported by the leaf editors).
-    Keep `module.exports` listing every name.
+    `chevronLeftSmall`, `plus`) **and add a new `trash` sentinel**
+    (`const trash = createElement("svg", { "data-wp-icon": "trash" });`). `trash` is **not
+    exported today** — the mock currently lists only `moreVertical`, `chevronRightSmall`,
+    `chevronDownSmall`, `chevronLeftSmall`, `plus` — and the leaf editors' production
+    `icon={trash}` swap plus the project-wide guard mounting those components hard-fail if it is
+    missing (the import resolves to `undefined`, `isValidElement(undefined)` is false, the Button
+    renders no marked node, and the guard goes RED even with the production fix in). Add `trash`
+    to the `module.exports` block alongside `plus`; keep `module.exports` listing every name.
   - **`test/mocks/wordpress-components.js`.** Change the default `Icon` mock from the
     icon-blind `<span data-icon>` to the element-rendering form:
     `isValidElement(icon) ? cloneElement(icon) : null` (import `isValidElement`,
@@ -405,23 +414,28 @@ T12 (R11 memo); T7 lands first, T11/T12 after.
       `isDestructive`**, **keep the `label`** (it is the queried `aria-label`). Each file adds
       `import { trash } from "@wordpress/icons"`.
     - `StructureTree.js`'s existing element icons stay (no change).
-  - **AddButton locator migration (NOT test-neutral).** The jsdom Button mock derives
-    `aria-label` only from the `label`/`aria-label` prop, not text children. After dropping
-    AddButton's inner `label`, `buttonByName(container, "Add pitch")` /
-    `"Add annotation"` returns nothing. Migrate the ~5 affected add-button locators to **text**:
-    add a `buttonByText` helper (matching `button.textContent === name`) in `pitches.test.js`
-    (~line 287: `Add pitch`) and `annotations.test.js` (~lines 271, 278, 288, 289:
-    `Add annotation`), and use it for the add-button clicks. **Leave the Remove-button
-    locators on aria-label** (the trash buttons keep their `label`). If
-    `contextControls.test.js` locates the HandConfigEditor add-alteration button by
-    aria-label, that button is rendered via `AddButton` — but note O3 (T16) handles its
-    composed label; in this task, only change AddButton's locators that break from the
-    inner-label drop. Verify the `'Right hand add alteration'`/`'Right hand remove alteration'`
-    buttons in `contextControls.test.js` (~lines 340, 358, 364, 378): the **remove** alteration
-    button is a trash `Button` keeping `label` (stays aria-label-locatable); the **add**
-    alteration button is an `AddButton` whose inner label drops — migrate that one to text if
-    the test queries it by name (it currently uses `buttonByName(container, "Right hand add
-    alteration")`), i.e. add/extend a `buttonByText` there too.
+  - **AddButton locator migration (NOT test-neutral; definite, not conditional).** The jsdom
+    Button mock derives `aria-label` only from the `label`/`aria-label` prop, not text children.
+    After dropping AddButton's inner `label`, `buttonByName(container, "Add pitch")` /
+    `"Add annotation"` / `"Right hand add alteration"` return nothing. Migrate **all** affected
+    add-button locators to **text**:
+    - `pitches.test.js` (~line 287: `Add pitch`) and `annotations.test.js` (~lines 271, 278, 288,
+      289: `Add annotation`): add a `buttonByText` helper (matching `button.textContent === name`)
+      and use it for the add-button clicks.
+    - `contextControls.test.js`: the add-alteration button is rendered via `AddButton`
+      (`HandConfigEditor.js:177` → `<AddButton label={fieldLabel("add alteration")} … />`), so its
+      inner `<Button label>` is dropped by T9 and `buttonByName(container, "Right hand add
+      alteration")` at **~lines 340, 364, and 378** **will** break — this is not an "if." Add a
+      `buttonByText` helper to `contextControls.test.js` and migrate **all three** add-alteration
+      clicks (the ~340, ~364, and ~378 `buttonByName(container, "Right hand add alteration")`
+      calls) to it. The button's visible text child stays
+      `"Right hand add alteration"` (the `AddButton` `label` parameter renders as the text child),
+      so `buttonByText(container, "Right hand add alteration")` resolves.
+    - **Leave the Remove-button locators on aria-label.** The trash buttons keep their `label`:
+      `PitchList`/`AnnotationList` remove buttons, and the HandConfigEditor **remove**-alteration
+      button (`HandConfigEditor.js:170-174`, a trash `<Button label={fieldLabel("remove
+      alteration")}>`). So `buttonByName(container, "Right hand remove alteration")`
+      (`contextControls.test.js:358`) stays aria-label-locatable and is **not** migrated.
   - **Project-wide guard test (new file, e.g. `icons.test.js`).** One parametrized test that
     mounts **each** icon-bearing component — `ListControls`/`AddButton` (plus), `PitchList`,
     `AnnotationList`, `HandConfigEditor` (trash), and `StructureTree` (moreVertical, plus,
@@ -436,12 +450,16 @@ T12 (R11 memo); T7 lands first, T11/T12 after.
   the composed labels). Practically: T9 depends on T2 (icons unaffected) and the production
   files being in their T6/T8 state; sequence T9 after T8.
 - **Traces to.** R16, O1; A16, AO1; Guardrail B (DropdownMenu guard preserved).
-- **Acceptance.** `npm run test:unit` green across the **single** flat project: the new
-  project-wide guard passes (all icon-bearing components render the marked node); flipping any
-  one production `icon` back to a string makes the guard go RED (writer verifies once locally);
-  `pitches.test.js`/`annotations.test.js`/`contextControls.test.js` pass with the migrated
-  text locators; the realIcons test is gone and `jest.config.js` is single-project.
-  `npm run check` clean. `npm run build` succeeds.
+- **Acceptance.** `npm run test:unit` green across the **single** flat project: the icons mock
+  **exports a `trash` sentinel** (alongside `plus` and the chevrons) and the trash-bearing
+  components (`PitchList`, `AnnotationList`, `HandConfigEditor`) each render the marked node; the
+  new project-wide guard passes (all icon-bearing components — plus- and trash-bearing — render
+  the marked node); flipping any one production `icon` back to a string makes the guard go RED
+  (writer verifies once locally); `pitches.test.js`/`annotations.test.js` pass with the migrated
+  add-button text locators; `contextControls.test.js` passes with the add-alteration clicks
+  migrated to `buttonByText` and the remove-alteration locator left on aria-label; the realIcons
+  test is gone and `jest.config.js` is single-project. `npm run check` clean. `npm run build`
+  succeeds.
 
 ### T10 — Accessible name: TreeGrid aria-label + mock de-translation
 
@@ -615,18 +633,28 @@ T12 (R11 memo); T7 lands first, T11/T12 after.
 
 ### T15 — StructureTree docblock + project-wide comment/provenance fixes (R18)
 
-- **Goal.** Fix stale comments that name nonexistent code and strip pipeline-provenance tags,
-  including rewriting the `StructureTree` docblock's false "Left/Right works for free" keyboard
-  claims to describe the real `onExpandRow`/`onCollapseRow` path. **Docblock rewritten last**
-  (after R1/R7/O2 land in StructureTree).
+- **Goal.** Fix stale comments that name nonexistent code and strip **every** pipeline-provenance
+  tag from **all** non-test `src/`, including rewriting the `StructureTree` docblock's false
+  "Left/Right works for free" keyboard claims to describe the real `onExpandRow`/`onCollapseRow`
+  path. The hard boundary (no shipped comment may reference pipeline internals, finding numbers,
+  or task identifiers) is unconditional, so this is a true project-wide sweep — not just the
+  edited-comment-incidental stripping done by earlier tasks. **Docblock rewritten last** (after
+  R1/R7/O2 land in StructureTree).
 - **Files.**
   - `src/editor/StructureTree.js`
   - `src/editor/inspector/NotePanel.js`
   - `src/editor/inspector/MeasurePanel.js`
   - `src/editor/inspector/SectionPanel.js`
+  - `src/editor/inspector/SongPanel.js`
   - `src/editor/selection.js`
+  - `src/edit.js`
+  - `src/notation/layout.js`
+  - `src/style.scss`
   - (note: `src/editor/accessibleName.js` is already deleted in T11 — its `SongPreview`
-    comment is gone with it; nothing to do there.)
+    comment is gone with it; nothing to do there. `src/style.scss`'s `(AC4)` tag at ~line 141
+    lives in the `.is-selected` doc-comment that T17 re-parents into `src/editor.scss`; T15 lands
+    after T17, so this sweep strips the tag in its final home — confirm whether the comment is in
+    `src/style.scss` or `src/editor.scss` at T15 time and strip it wherever it landed.)
 - **Changes.**
   - **StructureTree docblock** (current ~1-41) and inline comments: rewrite the
     "treegrid keyboard model … Left/Right to collapse/expand for free" and
@@ -638,20 +666,49 @@ T12 (R11 memo); T7 lands first, T11/T12 after.
     expand/collapse routes through the callbacks. Strip any `KD 14` (and similar) tags from the
     hand-group comment.
   - **NotePanel.js** (~26-27, ~108-110): fix comments referencing `EventRow` (no longer
-    exists) to name the real current structure.
-  - **MeasurePanel.js** (~18): fix the `MeasureEditor`/`BarlineControl` comment.
-  - **SectionPanel.js** (~17): fix the `SectionEditor` comment.
+    exists) to name the real current structure. **Also** strip the `(AC3)` tag from the docblock
+    sentence (current ~line 22, "…inferred from the selection, never prompted (AC3)…") **and** the
+    `(AC3)` tag from the inline JSX comment (current ~line 245, "…auto-selects the new note (AC3)…"
+    — both occurrences must go, reworded to keep the behavioral meaning without the tag) **and**
+    the `(Req 7, 8, 11; AC7, AC9, AC10)` docblock tag (current ~line 10).
+  - **MeasurePanel.js** (~18): fix the `MeasureEditor`/`BarlineControl` comment. **Also** strip
+    the `(Req 7, 8, 11; AC7, AC9, AC10)` docblock tag that spans current ~lines 9-10.
+  - **SectionPanel.js** (~17): fix the `SectionEditor` comment. **Also** strip the
+    `(Req 7, 8, 11; AC7, AC9, AC10)` docblock tag (current ~line 10).
+  - **SongPanel.js** (~9): strip the `(Req 5, 7, 8; AC5, AC10)` docblock tag (reword to keep the
+    "reaches the whole `defaults` model" meaning without the tag).
   - **selection.js** (~115): fix the `repairPath` comment (the existence-check chain is now
     inline in `resolveSelection`; reword to describe it without naming the removed helper).
-  - Across all edited comments, strip pipeline-provenance tags (`KD …`, `T…`, `AC…`, `R-REG…`).
-    Do not touch unrelated comments.
+  - **edit.js** (~228): strip the `from T6` task-ID reference in the structural-mutators comment
+    ("…the panels and, from T6, the Structure list only signal intent."). Reword to name the real
+    "Structure list" without the task ID, e.g. "…the panels and the Structure list only signal
+    intent." `edit.js` is edited earlier by T7/T11/T12/T17; T15 lands after all of them, so this
+    is a clean comment-only edit with no collision.
+  - **layout.js** (~1905): strip the `(R1.3)` finding tag from the "LH-above ottava lane
+    reservation (R1.3)" comment (reword to keep the lane-reservation meaning without the tag).
+  - **style.scss / editor.scss** (~141): strip the `(AC4)` tag from the `.is-selected`
+    doc-comment ("…front-end SVG byte-identical (AC4)."). This comment block is re-parented into
+    `src/editor.scss` by T17; T15 runs after T17, so strip the tag wherever the comment now lives
+    (confirm at T15 time). Reword to keep the byte-identical-front-end meaning without the tag.
+  - Across all edited comments, strip every pipeline-provenance tag — finding numbers (`R<digit>`,
+    `R-REG…`), requirement/acceptance tags (`Req <digit>`, `AC<digit>`), key-decision tags
+    (`KD …`), and bare task IDs (`T<digit>`). Do not touch unrelated comments.
 - **Depends on.** T6, T13, T14 (StructureTree docblock describes the post-R1/R7/O2 code), T1
-  (selection.js compat paragraph already removed). Sequence last within StructureTree.js.
+  (selection.js compat paragraph already removed), T7 (edit.js mutators comment already in its
+  final shape), T17 (the `.is-selected` doc-comment with the `(AC4)` tag has been re-parented into
+  `src/editor.scss`, and `edit.js`'s textarea edit landed). Sequence last within StructureTree.js,
+  and after T7/T17 so the `edit.js` and CSS comments are in their final homes when stripped.
 - **Traces to.** R18; A18.
 - **Acceptance.** `npm run test:unit` green (comments only; no behavior change).
   `npm run check` clean. A grep confirms no shipped comment names `EventRow`, `MeasureEditor`,
-  `BarlineControl`, `SectionEditor`, `repairPath`, or `SongPreview`, and no provenance tag
-  (`KD `, `AC`, `R-REG`, bare `T<digit>`) remains in the edited files.
+  `BarlineControl`, `SectionEditor`, `repairPath`, or `SongPreview`. **Provenance grep over ALL
+  non-test `src/`** (not just the edited files — the sweep is project-wide): a single grep of
+  every non-test file under `src/` (excluding `__tests__/`, `*.test.*`, `*.spec.*`, and any
+  `test/` path) for `\bT[0-9]`, `\bAC[0-9]`, `\bKD `, `Req [0-9]`, `\(R[0-9]`, and `R-REG` returns
+  **zero** matches. (Run e.g. `grep -rnE '\bT[0-9]|\bAC[0-9]|\bKD |Req [0-9]|\(R[0-9]|R-REG' src
+  --include='*.js' --include='*.scss' | grep -vE '__tests__|\.test\.|\.spec\.|/test/'` and confirm
+  it is empty.) This explicitly covers `src/edit.js` and `src/notation/layout.js`, which are not in
+  the stale-comment list but carry provenance tags.
 
 ### T16 — emit.js re-home + omit-helper unification + annotations collapse + ContextEditor heading + sprintf labels (R12, R13, R19, O3)
 
@@ -928,13 +985,15 @@ T12 (R11 memo); T7 lands first, T11/T12 after.
 9. **T12** — edit.js parse-once memo (Phase D; R11)
 10. **T13** — StructureTree RowActionsMenu + RowLabelCell extraction (Phase D; R7)
 11. **T14** — StructureTree consume HANDS (Phase D; O2 consumer)
-12. **T15** — StructureTree docblock + project-wide comment/provenance fixes (Phase D; R18)
-13. **T16** — emit.js re-home + omit unify + annotations collapse + ContextEditor heading + sprintf labels (Phase D; R12/R13/R19/O3)
-14. **T17** — CSS split + selection color/trim + block.json/index.js wiring (Phase D; R3/R17)
+12. **T16** — emit.js re-home + omit unify + annotations collapse + ContextEditor heading + sprintf labels (Phase D; R12/R13/R19/O3)
+13. **T17** — CSS split + selection color/trim + block.json/index.js wiring (Phase D; R3/R17)
+14. **T15** — project-wide comment/provenance sweep (StructureTree docblock + edit.js + CSS + inspector docblocks + layout.js) (Phase D; R18). Runs **after** T16/T17 so the `edit.js` mutators comment, the re-parented `.is-selected` CSS comment, and the inspector docblocks are all in their final homes before the comment-only sweep strips their provenance tags. Within `StructureTree.js` it still lands last (after T6/T13/T14).
 15. **T18** — control-props pass + Flex/HStack spacing (Phase D; R4/O5)
 16. **T19** — README dependency wording + dead interactive hit-rect removal (Phase D; R5/R8)
 17. **T20** — e2e specs: keyboard expand/collapse + accessible-name (Phase D; R1/R2 e2e)
 
 Within `StructureTree.js`: **T6 (R1) → T13 (R7) → T14 (O2) → T15 (R18 docblock)** — same-file
 tasks sequenced so they do not collide. The two atomic pairs (T9 = R16+O1, T10 = R2) are each a
-single commit. `edit.js`: **T7 → T11 (import) → T12 (memo) → T17 (textarea className)**.
+single commit. `edit.js`: **T7 → T11 (import) → T12 (memo) → T17 (textarea className) → T15 (R18
+`from T6` comment strip)** — T15 lands last on `edit.js` too, after the textarea className edit.
+`style.scss`/`editor.scss`: **T17 (split) → T15 (`(AC4)` tag strip in the re-parented comment)**.
