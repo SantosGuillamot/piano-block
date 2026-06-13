@@ -66,6 +66,7 @@ export function PitchEditor({ pitch, system, onChange }) {
 				__nextHasNoMarginBottom
 				__next40pxDefaultSize
 			/>
+			{/* __nextHasNoMarginBottom omitted: NumberControl renders InputControl whose BaseControl hardcodes the prop true, so it is margin-free by construction (Gutenberg #73848 excludes NumberControl/InputControl from the bottom-margin deprecation). */}
 			<NumberControl
 				label={__("Octave", "piano-block")}
 				value={pitch.octave}
