@@ -25,9 +25,9 @@
 import { Button, PanelBody, SelectControl } from "@wordpress/components";
 import { __ } from "@wordpress/i18n";
 import { ContextEditor } from "../ContextEditor.js";
+import { omitEmpty } from "../emit.js";
 import { MetadataEditor } from "../MetadataEditor.js";
 import { mapSong } from "../noteNames.js";
-import { emitBlock } from "./emit.js";
 
 /**
  * The note-language `SelectControl` options. Each `value` is a recognised
@@ -57,7 +57,7 @@ export function SongPanel({ song, system, onChange, onAddSection }) {
 		<PanelBody title={__("Song", "piano-block")} initialOpen>
 			<MetadataEditor
 				metadata={song.metadata}
-				onChange={(metadata) => emitBlock(song, "metadata", metadata, onChange)}
+				onChange={(metadata) => onChange(omitEmpty(song, "metadata", metadata))}
 			/>
 
 			<SelectControl
@@ -71,7 +71,7 @@ export function SongPanel({ song, system, onChange, onAddSection }) {
 			<ContextEditor
 				context={context}
 				layout="tiered"
-				onChange={(next) => emitBlock(song, "defaults", next, onChange)}
+				onChange={(next) => onChange(omitEmpty(song, "defaults", next))}
 			/>
 
 			<Button variant="secondary" onClick={() => onAddSection?.()}>

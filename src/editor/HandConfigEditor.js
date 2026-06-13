@@ -22,7 +22,7 @@ import {
 	__experimentalNumberControl as NumberControl,
 	SelectControl,
 } from "@wordpress/components";
-import { __ } from "@wordpress/i18n";
+import { __, sprintf } from "@wordpress/i18n";
 import { trash } from "@wordpress/icons";
 import { AddButton } from "./ListControls.js";
 import { noteNameOptions } from "./noteNames.js";
@@ -95,8 +95,17 @@ export function HandConfigEditor({ handConfig = {}, onChange, label }) {
 
 	// Prefix each control's accessible name with the hand's label so the two
 	// hands' identically-purposed controls stay distinguishable (e.g. "Right
-	// hand clef"). The label is already an i18n string, so compose, don't wrap.
-	const fieldLabel = (field) => (label ? `${label} ${field}` : field);
+	// hand clef"). The label is already an i18n string, so compose via sprintf
+	// so translators can reorder the parts.
+	const fieldLabel = (field) =>
+		label
+			? sprintf(
+					/* translators: 1: hand label, 2: field name. */
+					__("%1$s %2$s", "piano-block"),
+					label,
+					field,
+				)
+			: field;
 
 	/** Emit a hand config rebuilt from a leaf-field change plus the current rows. */
 	const emitField = (key, value) => {

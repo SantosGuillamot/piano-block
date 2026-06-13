@@ -41,8 +41,8 @@ import {
 } from "@wordpress/components";
 import { useState } from "@wordpress/element";
 import { __ } from "@wordpress/i18n";
+import { omitEmpty } from "./emit.js";
 import { HandConfigEditor } from "./HandConfigEditor.js";
-import { omitEmpty } from "./inspector/emit.js";
 import {
 	BEAT_TYPES,
 	BEATS_MIN,
@@ -54,20 +54,6 @@ import {
 
 /** Key → label lookup derived from HANDS, so labels stay in sync with the canonical list. */
 const HAND_LABEL = Object.fromEntries(HANDS.map((h) => [h.key, h.label]));
-
-/**
- * Emit a context object rebuilt from a single member edit, omitting any member
- * that has no set fields so the emitted context carries only what the author has
- * actually set.
- *
- * @param {Object}   context  The current context object.
- * @param {string}   key      The member being set (`tempo`, `timeSignature`, …).
- * @param {?Object}  value    The member's next value, or `undefined`/empty to drop it.
- * @param {Function} onChange Receives the rebuilt context object.
- */
-function emitMember(context, key, value, onChange) {
-	onChange(omitEmpty(context, key, value));
-}
 
 /** The conformant `tempo` projection of a draft, or `undefined` when no bpm. */
 function projectTempo(draft) {
@@ -100,19 +86,13 @@ function projectTimeSignature(draft) {
  * @param {Object}            props
  * @param {Object}            [props.context={}]    The current context object.
  * @param {Function}          props.onChange        Receives the next context object.
- * @param {string}            [props.heading]       An optional heading for the group.
  * @param {"flat"|"tiered"}   [props.layout="flat"] How the members are arranged:
  *                                                  all in order (`flat`), or common
  *                                                  fields visible with the rest under
  *                                                  an `Advanced` disclosure (`tiered`).
  * @return {Object} The rendered context editor.
  */
-export function ContextEditor({
-	context = {},
-	onChange,
-	heading,
-	layout = "flat",
-}) {
+export function ContextEditor({ context = {}, onChange, layout = "flat" }) {
 	// Local drafts for the two sub-objects that have required fields, so a
 	// half-filled value survives between field edits without being emitted. Each
 	// draft seeds from whatever the incoming context already carries.
@@ -131,14 +111,14 @@ export function ContextEditor({
 	const editTempo = (patch) => {
 		const draft = { ...tempoDraft, ...patch };
 		setTempoDraft(draft);
-		emitMember(context, "tempo", projectTempo(draft), onChange);
+		onChange(omitEmpty(context, "tempo", projectTempo(draft)));
 	};
 
 	/** Apply a time-signature edit to the draft and emit only its conformant form. */
 	const editTimeSignature = (patch) => {
 		const draft = { ...timeDraft, ...patch };
 		setTimeDraft(draft);
-		emitMember(context, "timeSignature", projectTimeSignature(draft), onChange);
+		onChange(omitEmpty(context, "timeSignature", projectTimeSignature(draft)));
 	};
 
 	// The individual member controls, defined once and arranged differently per
@@ -191,22 +171,20 @@ export function ContextEditor({
 		<HandConfigEditor
 			label={HAND_LABEL.rightHand}
 			handConfig={context.rightHand ?? {}}
-			onChange={(value) => emitMember(context, "rightHand", value, onChange)}
+			onChange={(value) => onChange(omitEmpty(context, "rightHand", value))}
 		/>
 	);
 	const leftHandControl = (
 		<HandConfigEditor
 			label={HAND_LABEL.leftHand}
 			handConfig={context.leftHand ?? {}}
-			onChange={(value) => emitMember(context, "leftHand", value, onChange)}
+			onChange={(value) => onChange(omitEmpty(context, "leftHand", value))}
 		/>
 	);
 
 	if (layout === "tiered") {
 		return (
 			<>
-				{heading ? <h3>{heading}</h3> : null}
-
 				{bpmControl}
 				{beatsControl}
 				{beatTypeControl}
@@ -242,7 +220,7 @@ export function ContextEditor({
 							Boolean(context.rightHand) &&
 							Object.keys(context.rightHand).length > 0
 						}
-						onDeselect={() => emitMember(context, "rightHand", {}, onChange)}
+						onDeselect={() => onChange(omitEmpty(context, "rightHand", {}))}
 					>
 						{rightHandControl}
 					</ToolsPanelItem>
@@ -253,7 +231,7 @@ export function ContextEditor({
 							Boolean(context.leftHand) &&
 							Object.keys(context.leftHand).length > 0
 						}
-						onDeselect={() => emitMember(context, "leftHand", {}, onChange)}
+						onDeselect={() => onChange(omitEmpty(context, "leftHand", {}))}
 					>
 						{leftHandControl}
 					</ToolsPanelItem>
@@ -264,8 +242,6 @@ export function ContextEditor({
 
 	return (
 		<>
-			{heading ? <h3>{heading}</h3> : null}
-
 			{bpmControl}
 			{beatUnitControl}
 

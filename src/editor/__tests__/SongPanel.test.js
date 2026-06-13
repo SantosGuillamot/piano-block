@@ -153,6 +153,18 @@ describe("SongPanel — metadata", () => {
 		expectConformant(calls.at(-1));
 	});
 
+	it("drops the title key when the title is whitespace-only", () => {
+		const { container, calls } = renderPanel({
+			metadata: { title: "Sonata" },
+			sections: [{ measures: [{}] }],
+		});
+		change(fieldByName(container, "Title"), "   ");
+		// A whitespace-only title is treated as blank: the key is dropped and the
+		// metadata object is gone (no other field set).
+		expect(calls.at(-1).metadata).toBeUndefined();
+		expectConformant(calls.at(-1));
+	});
+
 	it("sets metadata.composer and keeps the title alongside it", () => {
 		const { container, calls } = renderPanel({
 			metadata: { title: "Sonata" },

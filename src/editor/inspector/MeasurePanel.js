@@ -30,8 +30,8 @@ import {
 } from "@wordpress/components";
 import { __ } from "@wordpress/i18n";
 import { AnnotationList } from "../AnnotationList.js";
+import { omitFalsy } from "../emit.js";
 import { BARLINES, NONE_OPTION, setMeasureAt } from "../songModel.js";
-import { omitFalsy } from "./emit.js";
 
 /** The two optional barline fields and their human-facing labels, disclosed. */
 const BARLINE_FIELDS = [
@@ -124,22 +124,18 @@ export function MeasurePanel({ song, selection, onChange, onRemoveMeasure }) {
 				<ToolsPanelItem
 					label={__("Annotations", "piano-block")}
 					hasValue={() => Array.isArray(measure.annotations)}
-					onDeselect={() => {
-						const { annotations: _dropped, ...rest } = measure;
-						emitMeasure(rest);
-					}}
+					onDeselect={() =>
+						emitMeasure(omitFalsy(measure, "annotations", undefined))
+					}
 				>
 					<AnnotationList
 						annotations={measure.annotations}
 						kind="standalone"
-						onChange={(annotations) => {
-							if (annotations === undefined) {
-								const { annotations: _dropped, ...rest } = measure;
-								emitMeasure(rest);
-								return;
-							}
-							emitMeasure({ ...measure, annotations });
-						}}
+						onChange={(annotations) =>
+							emitMeasure(
+								omitFalsy(measure, "annotations", annotations ?? undefined),
+							)
+						}
 					/>
 				</ToolsPanelItem>
 			</ToolsPanel>

@@ -10,9 +10,8 @@
  *   - `omitFalsy` — an optional *scalar* (a name, a barline, a dots count) must
  *     clear its key when the author leaves it blank, where `0` and `""` both
  *     count as "blank" (`0` dots drops the key).
- * `emitBlock` is the song-level convenience that applies `omitEmpty` and calls
- * `onChange`. These are the same rules the old per-panel copies applied; they are
- * lifted here so the panels share one implementation.
+ * These are the same rules the old per-panel copies applied; they are lifted here
+ * so the panels share one implementation.
  */
 
 /**
@@ -55,17 +54,4 @@ export function omitFalsy(obj, key, value) {
 		delete next[key];
 	}
 	return next;
-}
-
-/**
- * Emit the song with `key` set to `value`, dropping the key when `value` has no
- * set fields so an emptied optional block clears its key.
- *
- * @param {Object}   song     The current song object.
- * @param {string}   key      The optional block being set (`metadata`/`defaults`).
- * @param {Object}   value    The block's next value.
- * @param {Function} onChange Receives the next song object.
- */
-export function emitBlock(song, key, value, onChange) {
-	onChange(omitEmpty(song, key, value));
 }

@@ -36,8 +36,8 @@ import {
 } from "@wordpress/components";
 import { __ } from "@wordpress/i18n";
 import { ContextEditor } from "../ContextEditor.js";
+import { omitFalsy } from "../emit.js";
 import { setSectionAt } from "../songModel.js";
-import { omitFalsy } from "./emit.js";
 
 /** The context override keys a section may carry alongside its `measures`. */
 const OVERRIDE_KEYS = ["tempo", "timeSignature", "rightHand", "leftHand"];
@@ -135,11 +135,7 @@ export function SectionPanel({
 					hasValue={() => Object.keys(overrides).length > 0}
 					onDeselect={() => emitOverrides({})}
 				>
-					<ContextEditor
-						context={overrides}
-						heading={__("Section overrides", "piano-block")}
-						onChange={emitOverrides}
-					/>
+					<ContextEditor context={overrides} onChange={emitOverrides} />
 				</ToolsPanelItem>
 			</ToolsPanel>
 

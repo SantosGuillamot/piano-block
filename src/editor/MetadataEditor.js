@@ -10,25 +10,7 @@
  */
 import { TextControl } from "@wordpress/components";
 import { __ } from "@wordpress/i18n";
-
-/**
- * Build the next metadata object from the current one plus a single field edit,
- * dropping any key whose value is empty so an emptied field clears its key.
- *
- * @param {Object} metadata The current metadata object.
- * @param {string} key      The field being edited (`title` or `composer`).
- * @param {string} value    The field's new value.
- * @return {Object} The next metadata object with only non-empty fields set.
- */
-function withField(metadata, key, value) {
-	const next = { ...metadata };
-	if (value) {
-		next[key] = value;
-	} else {
-		delete next[key];
-	}
-	return next;
-}
+import { omitFalsy } from "./emit.js";
 
 /**
  * Edit a song's `metadata` (title and composer).
@@ -44,13 +26,13 @@ export function MetadataEditor({ metadata = {}, onChange }) {
 			<TextControl
 				label={__("Title", "piano-block")}
 				value={metadata.title ?? ""}
-				onChange={(value) => onChange(withField(metadata, "title", value))}
+				onChange={(value) => onChange(omitFalsy(metadata, "title", value))}
 				__nextHasNoMarginBottom
 			/>
 			<TextControl
 				label={__("Composer", "piano-block")}
 				value={metadata.composer ?? ""}
-				onChange={(value) => onChange(withField(metadata, "composer", value))}
+				onChange={(value) => onChange(omitFalsy(metadata, "composer", value))}
 				__nextHasNoMarginBottom
 			/>
 		</>

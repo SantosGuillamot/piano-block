@@ -36,6 +36,7 @@ import {
 } from "@wordpress/components";
 import { __ } from "@wordpress/i18n";
 import { AnnotationList } from "../AnnotationList.js";
+import { omitFalsy } from "../emit.js";
 import { noteNameOptions } from "../noteNames.js";
 import { PitchList } from "../PitchList.js";
 import {
@@ -50,7 +51,6 @@ import {
 	SPAN_STATES,
 	setEventAt,
 } from "../songModel.js";
-import { omitFalsy } from "./emit.js";
 
 /** The four span fields and their human-facing labels, disclosed as a group. */
 const SPAN_FIELDS = [
@@ -226,14 +226,11 @@ export function NotePanel({
 					<AnnotationList
 						annotations={event.annotations}
 						kind="event"
-						onChange={(annotations) => {
-							if (annotations === undefined) {
-								const { annotations: _dropped, ...rest } = event;
-								emitEvent(rest);
-								return;
-							}
-							emitEvent({ ...event, annotations });
-						}}
+						onChange={(annotations) =>
+							emitEvent(
+								omitFalsy(event, "annotations", annotations ?? undefined),
+							)
+						}
 					/>
 				</ToolsPanelItem>
 			</ToolsPanel>
