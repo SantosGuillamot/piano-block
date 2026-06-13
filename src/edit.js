@@ -45,8 +45,9 @@ import { parseAndValidate } from "./song/validate.js";
  * The block persists exactly one thing: the raw `song` string. This container
  * branches on an editor-only `mode` toggle and never holds the song any other
  * way:
- *   - **visual mode** (the default surface): the canvas-first editor — an
- *     interactive sheet-music `SongCanvas` the author both reads and edits on,
+ *   - **visual mode** (the default surface): the canvas-first editor — a
+ *     `SongCanvas` that displays the score and highlights the current selection
+ *     (display + highlight only; it is not a click-to-select surface),
  *     plus the block's `InspectorControls` settings panels. The always-present
  *     `SongPanel` edits song-level settings; selecting an event on the canvas also
  *     reveals the `NotePanel`/`MeasurePanel`/`SectionPanel` bound to that event's
@@ -551,7 +552,7 @@ export default function Edit({ attributes, setAttributes }) {
 					{/* The editor workspace: the left structure tree (the selection
 					    surface, toggled by the Structure toolbar button) beside the canvas
 					    (display + highlight). The tree column is left, the canvas right;
-					    `style.scss` lays them out as a flex row. */}
+					    `editor.scss` lays them out as a flex row. */}
 					<div className="wp-block-piano-block-piano__workspace">
 						{showTree && (
 							<StructureTree

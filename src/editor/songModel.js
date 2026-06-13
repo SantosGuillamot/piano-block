@@ -325,14 +325,8 @@ export function duplicateAt(list, index) {
  * Return a new song with `nextSection` spliced in at `sectionIndex`, every level
  * above the splice rebuilt immutably.
  *
- * CRITICAL: this face destructures ONLY its own coordinate (`sectionIndex`). A
- * stray deeper coordinate (e.g. an `eventIndex` riding along on the same
- * selection object) is structurally ignored — the splice depth is fixed by the
- * face the caller chose, never inferred from which coordinates happen to be
- * present. `edit.js` hands the SAME full resolved selection to the Note, Measure
- * and Section panels at once, so a single depth-inferring "deepest-coord-wins"
- * splice would mis-place `nextSection` at the event coord and corrupt the song.
- * Keep these three faces distinct; each takes only its own coords.
+ * CRITICAL: reads ONLY `sectionIndex`; the splice depth is fixed by the face
+ * chosen, never inferred from whichever coords happen to be present.
  *
  * @param {Object} song              The current song object.
  * @param {Object} coords            The selection coords (only `sectionIndex` is read).
