@@ -344,7 +344,9 @@ describe("HandConfigEditor", () => {
 	it("adds an alters entry emitting { alters: { <note>: <int> } } and drops alters when the last entry goes", () => {
 		const { container, calls } = renderHand();
 
-		click(buttonByText(container, "Right hand add alteration"));
+		// The add button's visible text is the bare label; its accessible name is
+		// the hand-scoped aria-label (OPT-1 split: visible vs accessible).
+		click(buttonByText(container, "Add alteration"));
 		// A freshly added row seeds a recognised note and an in-range value, so the
 		// emitted fragment is already conformant.
 		const added = calls.at(-1);
@@ -364,11 +366,17 @@ describe("HandConfigEditor", () => {
 		// Removing the last entry drops the alters key entirely.
 		click(buttonByName(container, "Right hand remove alteration"));
 		expect(calls.at(-1).alters).toBeUndefined();
+
+		// OPT-1 split: the add button's accessible name is hand-scoped while its
+		// visible text is the bare, title-cased label.
+		const { container: c2 } = renderHand({ alters: { C: 1 } });
+		expect(buttonByName(c2, "Right hand add alteration")).not.toBeNull();
+		expect(buttonByText(c2, "Add alteration")).not.toBeNull();
 	});
 
 	it("keeps alters keys to recognised note names so the fragment validates", () => {
 		const { container, calls } = renderHand();
-		click(buttonByText(container, "Right hand add alteration"));
+		click(buttonByText(container, "Add alteration"));
 		// The note-name select offers only recognised note names.
 		const noteSelect = fieldByName(container, "Right hand alteration note");
 		const values = [...noteSelect.querySelectorAll("option")].map(
@@ -382,7 +390,7 @@ describe("HandConfigEditor", () => {
 
 	it("replaces on a duplicate key rather than producing two entries", () => {
 		const { container, calls } = renderHand({ alters: { C: 1 } });
-		click(buttonByText(container, "Right hand add alteration"));
+		click(buttonByText(container, "Add alteration"));
 		// The new row seeds another note; switch it to the existing key C and
 		// confirm the map collapses to a single C entry rather than two.
 		const noteSelects = [...container.querySelectorAll("select")].filter(

@@ -94,10 +94,12 @@ export function HandConfigEditor({ handConfig = {}, onChange, label }) {
 		value,
 	}));
 
-	// Prefix each control's accessible name with the hand's label so the two
-	// hands' identically-purposed controls stay distinguishable (e.g. "Right
-	// hand clef"). The label is already an i18n string, so compose via sprintf
-	// so translators can reorder the parts.
+	// Compose the hand-scoped accessible name (aria-label) for each control so
+	// the two hands' identically-purposed controls stay distinguishable to
+	// assistive technology (e.g. "Right hand clef"). The visible label is the
+	// bare, title-cased field name; fieldLabel composes the aria-label only.
+	// The hand label is already an i18n string, so compose via sprintf so
+	// translators can reorder the parts.
 	const fieldLabel = (field) =>
 		label
 			? sprintf(
@@ -127,7 +129,8 @@ export function HandConfigEditor({ handConfig = {}, onChange, label }) {
 	return (
 		<>
 			<SelectControl
-				label={fieldLabel(__("clef", "piano-block"))}
+				label={__("Clef", "piano-block")}
+				aria-label={fieldLabel(__("clef", "piano-block"))}
 				value={handConfig.clef ?? ""}
 				options={[NONE_OPTION, ...CLEFS]}
 				onChange={(value) =>
@@ -137,7 +140,8 @@ export function HandConfigEditor({ handConfig = {}, onChange, label }) {
 				__next40pxDefaultSize
 			/>
 			<NumberControl
-				label={fieldLabel(__("octave shift", "piano-block"))}
+				label={__("Octave shift", "piano-block")}
+				aria-label={fieldLabel(__("octave shift", "piano-block"))}
 				value={
 					Number.isInteger(handConfig.octaveShift) ? handConfig.octaveShift : ""
 				}
@@ -157,7 +161,8 @@ export function HandConfigEditor({ handConfig = {}, onChange, label }) {
 			{rows.map((row, index) => (
 				<HStack key={row.note}>
 					<SelectControl
-						label={fieldLabel(__("alteration note", "piano-block"))}
+						label={__("Alteration note", "piano-block")}
+						aria-label={fieldLabel(__("alteration note", "piano-block"))}
 						value={row.note}
 						options={ALTER_KEY_OPTIONS}
 						onChange={(note) =>
@@ -167,7 +172,8 @@ export function HandConfigEditor({ handConfig = {}, onChange, label }) {
 						__next40pxDefaultSize
 					/>
 					<NumberControl
-						label={fieldLabel(__("alteration", "piano-block"))}
+						label={__("Alteration", "piano-block")}
+						aria-label={fieldLabel(__("alteration", "piano-block"))}
 						value={row.value}
 						min={ALTER_MIN}
 						max={ALTER_MAX}
@@ -185,14 +191,15 @@ export function HandConfigEditor({ handConfig = {}, onChange, label }) {
 					<Button
 						icon={trash}
 						isDestructive
-						label={fieldLabel(__("remove alteration", "piano-block"))}
+						aria-label={fieldLabel(__("remove alteration", "piano-block"))}
 						onClick={() => emitRows(removeAt(rows, index))}
 						__next40pxDefaultSize
 					/>
 				</HStack>
 			))}
 			<AddButton
-				label={fieldLabel(__("add alteration", "piano-block"))}
+				label={__("Add alteration", "piano-block")}
+				aria-label={fieldLabel(__("add alteration", "piano-block"))}
 				onClick={() =>
 					emitRows(
 						insertAt(rows, rows.length, {

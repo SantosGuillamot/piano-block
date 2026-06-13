@@ -918,6 +918,53 @@ test.describe("Piano block — editor authoring, persistence and validation", ()
 		expect(parsed.metadata.title).toBe("Moonlight");
 	});
 
+	// S1 real-component proof: the HandConfig controls carry a bare visible label
+	// while their accessible name is hand-scoped via aria-label.  This drives the
+	// real SelectControl/Button (not just the mock) and confirms the aria-label
+	// override lands on the real <select>/<input>/Button in the sidebar DOM.
+	//
+	// Flow: open the Song panel → expand its "Advanced" tiered panel (which holds
+	// the hand configs) → locate the Right-hand Clef control by its accessible
+	// name and confirm its visible label is the bare form.
+	test("HandConfig controls carry bare visible labels and hand-scoped accessible names (S1 real-component proof)", async ({
+		editor,
+		page,
+	}) => {
+		await editor.insertBlock({ name: "piano-block/piano" });
+		await seedSongViaJson(editor, CONFORMANT_SONG);
+		await switchToVisualMode(editor);
+		const sidebar = await openSettingsSidebar(editor, page);
+
+		// Expand the Song panel's "Advanced" tiered ToolsPanel disclosure so the
+		// hand-config controls become reachable in the sidebar DOM.
+		const advanced = sidebar.getByRole("region", { name: "Advanced" });
+		if (!(await advanced.isVisible())) {
+			await sidebar
+				.getByRole("button", { name: "Advanced", exact: true })
+				.click();
+		}
+
+		// The real SelectControl renders a <label> element whose text is the visible
+		// label and a <select> whose aria-label carries the accessible name.
+		// getByLabel("Right hand clef") resolves via the accessible name (aria-label
+		// on the real <select>), proving the aria-label override is present on the
+		// real component.
+		const clefSelect = sidebar.getByLabel("Right hand clef", { exact: true });
+		await expect(clefSelect).toBeVisible();
+
+		// The visible label text is the bare "Clef" — not "Right hand clef".  The
+		// <label> element is the sibling of the <select>; locate it by its text.
+		const clefLabel = sidebar.locator("label").filter({ hasText: /^Clef$/ });
+		await expect(clefLabel).toBeVisible();
+
+		// A label matching the old hand-prefixed text must NOT appear as a visible
+		// label element (it lives only on the aria-label attribute, not as text).
+		const handPrefixedLabel = sidebar
+			.locator("label")
+			.filter({ hasText: "Right hand clef" });
+		await expect(handPrefixedLabel).toHaveCount(0);
+	});
+
 	test("a conformant song shows no error and is stored", async ({ editor }) => {
 		await editor.insertBlock({ name: "piano-block/piano" });
 
