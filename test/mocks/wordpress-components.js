@@ -451,29 +451,38 @@ const MenuItem = ({
  * caller's row children, so jsdom tests can assert the row inventory, the row
  * ARIA wiring, and the action-button payloads without the full keyboard model.
  *
- * The expansion callbacks (`onExpandRow`/`onCollapseRow`/`onFocusRow`) are
- * accepted and ignored: this DOM-honest mock leaves true keyboard/roving-tabindex
- * and expand/collapse-key behavior to the e2e suite. The component under test
- * drives expansion through the explicit disclosure `Button`s it renders, so the
- * unit tests assert expansion via which rows are present rather than via these
- * keyboard callbacks. The accessible name flows through `...rest` — the
- * production component passes `aria-label` directly, which the spread carries
- * through as a real attribute on the rendered `<table>`.
+ * `onFocusRow` is accepted and ignored — the mock does not simulate roving
+ * tabindex. `onExpandRow` and `onCollapseRow` are captured: they are attached to
+ * the rendered `<table>` DOM node as `__onExpandRow` and `__onCollapseRow` so
+ * tests can invoke them with a synthetic row element and verify the callback
+ * wiring end-to-end (the real keyboard model is left to the e2e suite). The
+ * accessible name flows through `...rest` — the production component passes
+ * `aria-label` directly, which the spread carries through as a real attribute on
+ * the rendered `<table>`.
  *
  * @param {Object} props TreeGrid props.
  * @return {Object} A React `<table role="treegrid">` element.
  */
 const TreeGrid = ({
 	children,
-	// Swallow the keyboard-model callbacks the mock does not simulate.
-	onExpandRow: _onExpandRow,
-	onCollapseRow: _onCollapseRow,
+	onExpandRow,
+	onCollapseRow,
+	// Swallow the focus callback the mock does not simulate.
 	onFocusRow: _onFocusRow,
 	...rest
 }) =>
 	createElement(
 		"table",
-		{ role: "treegrid", ...rest },
+		{
+			role: "treegrid",
+			ref: (el) => {
+				if (el) {
+					el.__onExpandRow = onExpandRow;
+					el.__onCollapseRow = onCollapseRow;
+				}
+			},
+			...rest,
+		},
 		createElement("tbody", null, children),
 	);
 

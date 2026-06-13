@@ -625,22 +625,31 @@ describe("StructureTree — keyboard expand/collapse wiring", () => {
 		unmount();
 	});
 
-	it("passes non-no-op onExpandRow and onCollapseRow to the treegrid", () => {
-		// Structural assertion: the callbacks are wired — a no-op handler would not
-		// route through onToggleExpanded. We verify by confirming that a <tr> with a
-		// data-expansion-key has the expected attribute value (the pure mapping is
-		// covered in selection.test.js; this pins the attribute's presence and value
-		// so the real TreeGrid's callbacks can read and route correctly).
-		const { container, unmount } = renderTree();
-		const expandableRows = Array.from(container.querySelectorAll("tr")).filter(
-			(tr) => tr.getAttribute("data-expansion-key") !== null,
-		);
-		// All three expandable levels (section, measure, hand) must carry the key.
-		expect(expandableRows.length).toBeGreaterThanOrEqual(3);
-		// Each row's key attribute is a non-empty string.
-		expandableRows.forEach((tr) => {
-			expect(tr.getAttribute("data-expansion-key")).toBeTruthy();
-		});
+	it("invokes onToggleExpanded with the row's expansion key when onExpandRow or onCollapseRow fires", () => {
+		// End-to-end callback guard: the TreeGrid mock captures the onExpandRow and
+		// onCollapseRow props onto the <table> DOM node as __onExpandRow /
+		// __onCollapseRow. Invoking them with a synthetic <tr data-expansion-key>
+		// exercises the full wiring path — StructureTree's onExpandCollapseRow
+		// reads data-expansion-key and calls onToggleExpanded — so removing or
+		// no-op-ing the props in StructureTree.js makes this test go RED.
+		const { container, unmount, calls } = renderTree();
+		const treegrid = container.querySelector('[role="treegrid"]');
+
+		// Build a synthetic row carrying a known expansion key.
+		const syntheticRow = document.createElement("tr");
+		syntheticRow.setAttribute("data-expansion-key", "s0");
+
+		// onExpandRow should route through onToggleExpanded("s0").
+		act(() => treegrid.__onExpandRow(syntheticRow));
+		expect(calls.toggle).toEqual(["s0"]);
+
+		// onCollapseRow is wired to the same handler — verify it with a different key.
+		const syntheticMeasureRow = document.createElement("tr");
+		syntheticMeasureRow.setAttribute("data-expansion-key", "s0m0");
+
+		act(() => treegrid.__onCollapseRow(syntheticMeasureRow));
+		expect(calls.toggle).toEqual(["s0", "s0m0"]);
+
 		unmount();
 	});
 });
