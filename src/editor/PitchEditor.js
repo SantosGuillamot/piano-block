@@ -59,7 +59,7 @@ export function PitchEditor({ pitch, system, onChange }) {
 	return (
 		<>
 			<SelectControl
-				label={__("Note name", "piano-block")}
+				label={__("Note", "piano-block")}
 				value={displayedStep}
 				options={noteNameOptions(system)}
 				onChange={(step) => emit({ ...pitch, step })}

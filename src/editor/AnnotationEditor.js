@@ -29,14 +29,14 @@ export function AnnotationEditor({ annotation, kind, onChange }) {
 	return (
 		<>
 			<TextareaControl
-				label={__("Annotation text", "piano-block")}
+				label={__("Text", "piano-block")}
 				value={annotation.text ?? ""}
 				onChange={(text) => onChange({ ...annotation, text })}
 				__nextHasNoMarginBottom
 				__next40pxDefaultSize
 			/>
 			<SelectControl
-				label={__("Annotation placement", "piano-block")}
+				label={__("Placement", "piano-block")}
 				value={annotation.placement}
 				options={PLACEMENTS}
 				onChange={(placement) => onChange({ ...annotation, placement })}
@@ -45,7 +45,7 @@ export function AnnotationEditor({ annotation, kind, onChange }) {
 			/>
 			{kind === "standalone" ? (
 				<SelectControl
-					label={__("Annotation staff", "piano-block")}
+					label={__("Staff", "piano-block")}
 					value={annotation.staff}
 					options={STAVES}
 					onChange={(staff) => onChange({ ...annotation, staff })}

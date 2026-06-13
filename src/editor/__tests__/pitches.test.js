@@ -167,7 +167,7 @@ describe("PitchEditor", () => {
 
 	it("offers the Spanish spellings in a Spanish-system editor", () => {
 		const { container } = renderEditor({ step: "do", octave: 4 }, "spanish");
-		const step = fieldByName(container, "Note name");
+		const step = fieldByName(container, "Note");
 		const values = [...step.querySelectorAll("option")].map(
 			(option) => option.value,
 		);
@@ -181,7 +181,7 @@ describe("PitchEditor", () => {
 		);
 		// The select's options are Spanish, so choosing the fifth degree writes
 		// "sol" — the canonical G in the per-song system.
-		change(fieldByName(container, "Note name"), "sol");
+		change(fieldByName(container, "Note"), "sol");
 		expect(calls.at(-1)).toEqual({ step: "sol", octave: 4 });
 		expectPitchConformant(calls.at(-1));
 	});
@@ -194,7 +194,7 @@ describe("PitchEditor", () => {
 			{ step: "do", octave: 4 },
 			"english",
 		);
-		const step = fieldByName(container, "Note name");
+		const step = fieldByName(container, "Note");
 		// "do" canonicalizes to C, so the C option is the selected one.
 		expect(step.value).toBe("C");
 		// No edit fired, so nothing was emitted: the stored "do" stands.

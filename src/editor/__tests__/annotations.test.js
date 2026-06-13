@@ -175,11 +175,11 @@ describe("AnnotationEditor", () => {
 			placement: "above",
 		});
 
-		change(fieldByName(container, "Annotation text"), "cresc.");
+		change(fieldByName(container, "Text"), "cresc.");
 		expect(calls.at(-1)).toEqual({ text: "cresc.", placement: "above" });
 		expectEventAnnotationConformant(calls.at(-1));
 
-		change(fieldByName(container, "Annotation placement"), "below");
+		change(fieldByName(container, "Placement"), "below");
 		expect(calls.at(-1)).toEqual({ text: "cresc.", placement: "below" });
 		expectEventAnnotationConformant(calls.at(-1));
 	});
@@ -189,7 +189,7 @@ describe("AnnotationEditor", () => {
 			text: "cresc.",
 			placement: "above",
 		});
-		change(fieldByName(container, "Annotation text"), "");
+		change(fieldByName(container, "Text"), "");
 		expect(calls.at(-1)).toEqual({ text: "", placement: "above" });
 		expectEventAnnotationConformant(calls.at(-1));
 	});
@@ -199,12 +199,12 @@ describe("AnnotationEditor", () => {
 			text: "",
 			placement: "above",
 		});
-		const placement = fieldByName(container, "Annotation placement");
+		const placement = fieldByName(container, "Placement");
 		const values = [...placement.querySelectorAll("option")].map(
 			(option) => option.value,
 		);
 		expect(values).toEqual(["above", "below"]);
-		expect(fieldByName(container, "Annotation staff")).toBeNull();
+		expect(fieldByName(container, "Staff")).toBeNull();
 	});
 
 	it("keeps a standalone annotation carrying text, placement and staff", () => {
@@ -214,7 +214,7 @@ describe("AnnotationEditor", () => {
 			staff: "rightHand",
 		});
 
-		change(fieldByName(container, "Annotation text"), "rit.");
+		change(fieldByName(container, "Text"), "rit.");
 		expect(calls.at(-1)).toEqual({
 			text: "rit.",
 			placement: "above",
@@ -222,7 +222,7 @@ describe("AnnotationEditor", () => {
 		});
 		expectStandaloneAnnotationConformant(calls.at(-1));
 
-		change(fieldByName(container, "Annotation staff"), "leftHand");
+		change(fieldByName(container, "Staff"), "leftHand");
 		expect(calls.at(-1)).toEqual({
 			text: "rit.",
 			placement: "above",
@@ -237,7 +237,7 @@ describe("AnnotationEditor", () => {
 			placement: "above",
 			staff: "rightHand",
 		});
-		const staff = fieldByName(container, "Annotation staff");
+		const staff = fieldByName(container, "Staff");
 		const values = [...staff.querySelectorAll("option")].map(
 			(option) => option.value,
 		);

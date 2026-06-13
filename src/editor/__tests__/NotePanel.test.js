@@ -181,7 +181,7 @@ describe("NotePanel — required fields", () => {
 		expect(fieldByName(container, "Event type")).not.toBeNull();
 		expect(fieldByName(container, "Duration")).not.toBeNull();
 		// PitchList renders a per-pitch note-name select; a note shows one.
-		expect(container.querySelector('[aria-label="Note name"]')).not.toBeNull();
+		expect(container.querySelector('select[aria-label="Note"]')).not.toBeNull();
 	});
 
 	it("changes the duration and the song validates", () => {
@@ -313,7 +313,7 @@ describe("NotePanel — rest selection", () => {
 		// per-pitch note-name select is absent.
 		expect(fieldByName(container, "Event type")).not.toBeNull();
 		expect(fieldByName(container, "Duration")).not.toBeNull();
-		expect(container.querySelector('[aria-label="Note name"]')).toBeNull();
+		expect(container.querySelector('select[aria-label="Note"]')).toBeNull();
 	});
 });
 
