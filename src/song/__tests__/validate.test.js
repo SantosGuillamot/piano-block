@@ -9,7 +9,7 @@
  * (case-insensitive), and structural-only validation (no musical-timing
  * validation). They run in pure Node with no WordPress runtime.
  */
-import validateSong from "../validate.js";
+import validateSong, { parseAndValidate } from "../validate.js";
 
 /**
  * The annotated comprehensive example song, transcribed verbatim (the
@@ -1023,5 +1023,28 @@ describe("validateSong — structural only, no musical-timing validation", () =>
 				],
 			}),
 		).toEqual([]);
+	});
+});
+
+describe("parseAndValidate", () => {
+	it("returns the parsed object and an empty errors array for a conformant song", () => {
+		const raw = '{"sections":[{"measures":[]}]}';
+		const result = parseAndValidate(raw);
+		expect(result.data).toEqual(JSON.parse(raw));
+		expect(result.errors).toEqual([]);
+	});
+
+	it("returns data: null and a single Invalid JSON error for unparseable input", () => {
+		const result = parseAndValidate("{ not json");
+		expect(result.data).toBeNull();
+		expect(result.errors).toHaveLength(1);
+		expect(result.errors[0]).toMatch(/^Invalid JSON:/);
+	});
+
+	it("returns the parsed object and the same errors as validateSong for well-formed but non-conformant JSON", () => {
+		const raw = "{}";
+		const result = parseAndValidate(raw);
+		expect(result.data).toEqual({});
+		expect(result.errors).toEqual(validateSong(raw));
 	});
 });
