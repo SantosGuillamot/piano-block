@@ -18,13 +18,20 @@
  * derives from the rendered `aria-level` (emitted by `TreeGridRow`'s `level`),
  * styled in `editor.scss` — no inline depth variable.
  *
- * It is a pure controlled component holding no song state: selecting a
- * section/measure/note row signals a kind-tagged `selection` through `onSelect`
- * (the same tuples the canvas/inspector resolve against, so `resolveSelection` +
- * the canvas `decorateSelection` highlight + the kind-gated inspector panels all
- * light up unchanged), and the per-row `DropdownMenu` items signal add / remove /
- * duplicate intent through the lifted `edit.js` handlers (the single owner of
- * `working` + `commit`). **Hand-group rows are organizational, not selectable** —
+ * It holds one piece of UI state — `pendingRemoveSection` — which captures the
+ * `sectionIndex` of a section whose removal is awaiting confirmation. This state
+ * survives the `DropdownMenu` unmount because it lives here in `StructureTree`,
+ * not inside the menu. All other state (song, selection, expansion) is controlled
+ * from the outside. Selecting a section/measure/note row signals a kind-tagged
+ * `selection` through `onSelect` (the same tuples the canvas/inspector resolve
+ * against, so `resolveSelection` + the canvas `decorateSelection` highlight + the
+ * kind-gated inspector panels all light up unchanged), and the per-row
+ * `DropdownMenu` items signal add / remove / duplicate intent through the lifted
+ * `edit.js` handlers (the single owner of `working` + `commit`). For **section**
+ * rows the "Remove" item captures the index into `pendingRemoveSection` instead of
+ * calling `onRemoveSection` immediately; a single `ConfirmDialog` at the tree root
+ * gates the actual removal. Measure and note removes remain immediate.
+ * **Hand-group rows are organizational, not selectable** —
  * the selection model has no "hand" kind — so they are disclosure-only labels
  * that toggle expansion and host a single direct per-hand "Add note" `Button`.
  *
@@ -40,6 +47,7 @@
  */
 import {
 	Button,
+	__experimentalConfirmDialog as ConfirmDialog,
 	DropdownMenu,
 	Icon,
 	MenuGroup,
@@ -48,6 +56,7 @@ import {
 	__experimentalTreeGridCell as TreeGridCell,
 	__experimentalTreeGridRow as TreeGridRow,
 } from "@wordpress/components";
+import { useState } from "@wordpress/element";
 import { __, isRTL, sprintf } from "@wordpress/i18n";
 import {
 	chevronDownSmall,
@@ -268,6 +277,11 @@ export function StructureTree({
 	onAddNoteBefore,
 	onAddNoteAfter,
 }) {
+	// Captures the sectionIndex of a section awaiting removal confirmation. Lives
+	// here (not inside RowActionsMenu) so the pending state survives the
+	// DropdownMenu unmount. null means no confirmation dialog is open.
+	const [pendingRemoveSection, setPendingRemoveSection] = useState(null);
+
 	// Shared handler for both onExpandRow and onCollapseRow: reads the focused row's
 	// data-expansion-key and routes to the single onToggleExpanded callback.
 	const onExpandCollapseRow = (row) => {
@@ -333,7 +347,7 @@ export function StructureTree({
 							onDuplicate={() => onDuplicateSection?.(sectionIndex)}
 							onAddBefore={() => onAddSectionBefore?.(sectionIndex)}
 							onAddAfter={() => onAddSectionAfter?.(sectionIndex)}
-							onRemove={() => onRemoveSection?.(sectionIndex)}
+							onRemove={() => setPendingRemoveSection(sectionIndex)}
 						/>
 					)}
 				</TreeGridCell>
@@ -589,6 +603,19 @@ export function StructureTree({
 			>
 				{rows}
 			</TreeGrid>
+			<ConfirmDialog
+				isOpen={pendingRemoveSection !== null}
+				onConfirm={() => {
+					onRemoveSection?.(pendingRemoveSection);
+					setPendingRemoveSection(null);
+				}}
+				onCancel={() => setPendingRemoveSection(null)}
+			>
+				{__(
+					"Remove this section and all its measures and notes?",
+					"piano-block",
+				)}
+			</ConfirmDialog>
 		</div>
 	);
 }

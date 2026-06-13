@@ -660,10 +660,14 @@ test.describe("Piano block — editor authoring, persistence and validation", ()
 			})
 			.toBe(2);
 
-		// Remove the third (empty) section from its actions menu → back to two.
+		// Remove the third (empty) section from its actions menu → the section-row
+		// remove is gated behind a ConfirmDialog (S7 entry B); click "OK" to confirm.
 		await (
 			await openRowAction(editor, "Actions for Section 3", "Remove")
 		).click();
+		await editor.canvas
+			.getByRole("button", { name: "OK", exact: true })
+			.click();
 		await expect
 			.poll(async () => (await storedSongObject(editor)).sections.length)
 			.toBe(2);

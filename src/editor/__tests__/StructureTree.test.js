@@ -467,10 +467,28 @@ describe("StructureTree — row actions", () => {
 			container,
 			"Actions for Section 1",
 		).closest("div");
+		// S7: clicking "Remove" on a section row opens the ConfirmDialog; the actual
+		// removal only fires after the user clicks "OK" in the dialog.
 		click(selectButtonByText(sectionTwoMenu, "Remove"));
+		// The dialog is now open — click "OK" to confirm the removal.
+		click(selectButtonByText(container, "OK"));
 		click(selectButtonByText(sectionOneMenu, "Duplicate"));
 		expect(calls.removeSection).toEqual([1]);
 		expect(calls.duplicateSection).toEqual([0]);
+		unmount();
+	});
+
+	it("does not remove a section when the confirm dialog is cancelled", () => {
+		const { container, unmount, calls } = renderTree();
+		const sectionTwoMenu = buttonByLabel(
+			container,
+			"Actions for Section 2",
+		).closest("div");
+		// Clicking "Remove" opens the ConfirmDialog; clicking "Cancel" clears the
+		// pending state without calling onRemoveSection.
+		click(selectButtonByText(sectionTwoMenu, "Remove"));
+		click(selectButtonByText(container, "Cancel"));
+		expect(calls.removeSection).toEqual([]);
 		unmount();
 	});
 
