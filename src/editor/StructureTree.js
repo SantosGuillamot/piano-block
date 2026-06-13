@@ -31,6 +31,16 @@
  * the selection model has no "hand" kind — so they are disclosure-only labels
  * that toggle expansion and host a single direct per-hand "Add note" `Button`.
  *
+ * The one piece of local state the component owns is post-mutation **focus
+ * management**: the parent (`edit.js`) passes a monotonic `focusRequest`
+ * (`{ id, kind }`) bumped on every structural mutation, and a `useEffect` keyed
+ * on it moves DOM focus through a ref on the tree container (`treeRef`) — after
+ * an add/duplicate it focuses the newly-selected row's label (the `aria-current`
+ * `.…__tree-label`), and after a remove it focuses the container itself (a
+ * `tabIndex=-1` anchor) so a keyboard user lands back in the tree region instead
+ * of falling to `<body>`. A plain selection click carries no `focusRequest`, so
+ * it never steals focus.
+ *
  * Expansion is a single membership lookup against one `expanded` Set of
  * coordinate-derived keys: `isExpanded(key) = expanded.has(key)` — no ancestor
  * test, no veto Set, no auto-reveal. The chevron's pointer `onClick` (and the
@@ -51,6 +61,7 @@ import {
 	__experimentalTreeGridCell as TreeGridCell,
 	__experimentalTreeGridRow as TreeGridRow,
 } from "@wordpress/components";
+import { useEffect, useRef } from "@wordpress/element";
 import { __, isRTL, sprintf } from "@wordpress/i18n";
 import {
 	chevronDownSmall,
@@ -253,6 +264,8 @@ function RowActionsMenu({
  * @param {Set}      props.expanded           The single Set of expanded coordinate keys.
  * @param {Function} props.onToggleExpanded   Toggle a key's membership in `expanded`.
  * @param {Function} props.onSelect           Receives a kind-tagged selection.
+ * @param {?Object}  props.focusRequest       Monotonic `{ id, kind }` bumped on every
+ *                                            structural mutation; `null` on mount.
  * @param {Function} props.onRemoveSection     Lifted: remove the section at the index.
  * @param {Function} props.onDuplicateSection  Lifted: duplicate the section after itself.
  * @param {Function} props.onAddSectionBefore  Lifted: insert a section before this one.
@@ -275,6 +288,7 @@ export function StructureTree({
 	expanded,
 	onToggleExpanded,
 	onSelect,
+	focusRequest,
 	onRemoveSection,
 	onDuplicateSection,
 	onAddSectionBefore,
@@ -289,6 +303,27 @@ export function StructureTree({
 	onAddNoteBefore,
 	onAddNoteAfter,
 }) {
+	// Anchor ref for the tree container, used by the post-mutation focus effect.
+	const treeRef = useRef(null);
+
+	// Move DOM focus after each structural mutation. `focusRequest` is a monotonic
+	// `{ id, kind }` bumped by edit.js on every add/duplicate/remove; the `null`
+	// initial value makes mount a no-op. `"row"` focuses the newly-selected row's
+	// label (the `aria-current` `.…__tree-label`); `"anchor"` focuses the tree
+	// container itself so a remove never strands focus at `<body>`.
+	useEffect(() => {
+		if (!focusRequest) return; // null = mount, no fire
+		if (focusRequest.kind === "row") {
+			treeRef.current
+				?.querySelector(
+					'[aria-current="true"].wp-block-piano-block-piano__tree-label',
+				)
+				?.focus();
+		} else if (focusRequest.kind === "anchor") {
+			treeRef.current?.focus();
+		}
+	}, [focusRequest]);
+
 	// Shared handler for both onExpandRow and onCollapseRow: reads the focused row's
 	// data-expansion-key and routes to the single onToggleExpanded callback.
 	const onExpandCollapseRow = (row) => {
@@ -606,7 +641,11 @@ export function StructureTree({
 	});
 
 	return (
-		<div className="wp-block-piano-block-piano__tree">
+		<div
+			className="wp-block-piano-block-piano__tree"
+			ref={treeRef}
+			tabIndex={-1}
+		>
 			<TreeGrid
 				aria-label={__("Song structure", "piano-block")}
 				onExpandRow={onExpandCollapseRow}

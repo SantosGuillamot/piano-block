@@ -1390,3 +1390,172 @@ test.describe("Piano block — structure tree keyboard expand/collapse and acces
 		await expect(treeRow(editor, "C")).toHaveCount(0);
 	});
 });
+
+// A conformant two-section song used by the R-FOCUS focus-management tests.
+// Two sections let us duplicate or remove one and still leave a conformant song.
+const FOCUS_SONG = JSON.stringify({
+	sections: [
+		{
+			measures: [
+				{
+					rightHand: [
+						{
+							type: "note",
+							duration: "quarter",
+							pitches: [{ step: "C", octave: 4 }],
+						},
+					],
+				},
+			],
+		},
+		{
+			measures: [{ rightHand: [{ type: "rest", duration: "whole" }] }],
+		},
+	],
+});
+
+test.describe("Piano block — R-FOCUS: post-mutation focus management", () => {
+	test.beforeAll(async ({ requestUtils }) => {
+		await requestUtils.activatePlugin("piano-block");
+	});
+
+	test.beforeEach(async ({ admin, requestUtils }) => {
+		await requestUtils.deleteAllPosts();
+		await admin.createNewPost();
+	});
+
+	test.afterAll(async ({ requestUtils }) => {
+		await requestUtils.deleteAllPosts();
+	});
+
+	test("after duplicating a section, focus lands on the new section's label button", async ({
+		editor,
+		page,
+	}) => {
+		await editor.insertBlock({ name: "piano-block/piano" });
+		await seedSongViaJson(editor, FOCUS_SONG);
+		await switchToVisualMode(editor);
+		// Open the settings sidebar to ensure the block is selected and the tree is
+		// fully interactive; its presence also keeps the block selected across clicks.
+		await openSettingsSidebar(editor, page);
+		await assertStructureTreeOpen(editor);
+
+		// Duplicate Section 1 via its actions DropdownMenu — the new Section 2
+		// becomes aria-current and its label button should receive focus.
+		const duplicate = await openRowAction(
+			editor,
+			"Actions for Section 1",
+			"Duplicate",
+		);
+		await duplicate.click();
+
+		// The new section's label button has aria-current and must be focused.
+		// After a duplicate the tree has 3 sections; the newly inserted one is
+		// Section 2 (the original Section 2 becomes Section 3).
+		await expect(treeRow(editor, "Section 2")).toBeFocused();
+	});
+
+	test("after adding a section before another, focus lands on the new section's label button", async ({
+		editor,
+		page,
+	}) => {
+		await editor.insertBlock({ name: "piano-block/piano" });
+		await seedSongViaJson(editor, FOCUS_SONG);
+		await switchToVisualMode(editor);
+		await openSettingsSidebar(editor, page);
+		await assertStructureTreeOpen(editor);
+
+		// Add a section before Section 1 — the new section becomes Section 1 and
+		// receives aria-current (and thus focus).
+		const addBefore = await openRowAction(
+			editor,
+			"Actions for Section 1",
+			"Add before",
+		);
+		await addBefore.click();
+
+		await expect(treeRow(editor, "Section 1")).toBeFocused();
+	});
+
+	test("after removing a section, focus lands in the tree container, not body", async ({
+		editor,
+		page,
+	}) => {
+		await editor.insertBlock({ name: "piano-block/piano" });
+		await seedSongViaJson(editor, FOCUS_SONG);
+		await switchToVisualMode(editor);
+		await openSettingsSidebar(editor, page);
+		await assertStructureTreeOpen(editor);
+
+		// Remove Section 2 — the DropdownMenu unmounts, which would normally strand
+		// focus at <body>. The anchor focus should land on the tree container instead.
+		const remove = await openRowAction(
+			editor,
+			"Actions for Section 2",
+			"Remove",
+		);
+		await remove.click();
+
+		// After the remove, focus must be inside the tree container (tabIndex=-1
+		// anchor), never at <body>.
+		await expect(structureTree(editor)).toBeFocused();
+	});
+
+	test("after adding a note from the hand group, focus lands on the new note's label button", async ({
+		editor,
+		page,
+	}) => {
+		await editor.insertBlock({ name: "piano-block/piano" });
+		await seedSongViaJson(editor, FOCUS_SONG);
+		await switchToVisualMode(editor);
+		await openSettingsSidebar(editor, page);
+		await assertStructureTreeOpen(editor);
+
+		// Drill into Section 1 → Measure 1 to reach the hand group's "Add note".
+		await expandRow(editor, "Section 1");
+		await expandRow(editor, "Measure 1");
+
+		// Click the Right hand's "Add note" direct button — the new note is selected
+		// and its label button should receive focus.
+		await treeAction(
+			editor,
+			"Add note to Right hand of measure 1 of section 1",
+		).click();
+
+		// The new note row is now visible and its label button is focused.
+		// The first note row in the Right hand is the newly added note (right hand
+		// already had one note so this is note 2, but the label is pitch-based —
+		// use the aria-current flag via the tree-label selector instead of exact name).
+		const focusedLabel = structureTree(editor).locator(
+			'[aria-current="true"].wp-block-piano-block-piano__tree-label',
+		);
+		await expect(focusedLabel).toBeFocused();
+	});
+
+	test("after removing a note, focus lands in the tree container, not body", async ({
+		editor,
+		page,
+	}) => {
+		await editor.insertBlock({ name: "piano-block/piano" });
+		await seedSongViaJson(editor, FOCUS_SONG);
+		await switchToVisualMode(editor);
+		await openSettingsSidebar(editor, page);
+		await assertStructureTreeOpen(editor);
+
+		// Drill into Section 1 → Measure 1 → Right hand to expose the note row.
+		await expandRow(editor, "Section 1");
+		await expandRow(editor, "Measure 1");
+		await expandRow(editor, "Right hand");
+
+		// Remove the note via its actions DropdownMenu.
+		const remove = await openRowAction(
+			editor,
+			"Actions for Note 1 of Right hand of measure 1 of section 1",
+			"Remove",
+		);
+		await remove.click();
+
+		// After the remove the tree container must hold focus (anchor behavior).
+		await expect(structureTree(editor)).toBeFocused();
+	});
+});

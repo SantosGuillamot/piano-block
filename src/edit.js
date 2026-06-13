@@ -98,6 +98,11 @@ export default function Edit({ attributes, setAttributes }) {
 	const [showTree, setShowTree] = useState(true);
 	const [expanded, setExpanded] = useState(() => new Set());
 
+	// Post-mutation focus request: bumped on every structural add/duplicate/remove
+	// so the StructureTree's useEffect can move DOM focus to the right target.
+	// `null` on mount so the effect does not fire on first render.
+	const [focusRequest, setFocusRequest] = useState(null);
+
 	// Toggle a tree row's expansion by its coordinate-derived key. A new Set is built
 	// each call so React sees a fresh reference and re-renders the tree.
 	const onToggleExpanded = (key) => {
@@ -199,6 +204,7 @@ export default function Edit({ attributes, setAttributes }) {
 			hand,
 			eventIndex: insertIndex,
 		});
+		setFocusRequest((r) => ({ id: (r?.id ?? 0) + 1, kind: "row" }));
 		// Open the new note's branch (section → measure → hand) so it is visible.
 		revealAncestors(...ancestorKeys({ sectionIndex, measureIndex, hand }));
 	};
@@ -232,6 +238,7 @@ export default function Edit({ attributes, setAttributes }) {
 		if (selection?.sectionIndex === sectionIndex) {
 			setSelection(null);
 		}
+		setFocusRequest((r) => ({ id: (r?.id ?? 0) + 1, kind: "anchor" }));
 	};
 
 	// Append an empty measure to a section. The Structure list passes an explicit
@@ -281,6 +288,7 @@ export default function Edit({ attributes, setAttributes }) {
 		) {
 			setSelection(null);
 		}
+		setFocusRequest((r) => ({ id: (r?.id ?? 0) + 1, kind: "anchor" }));
 	};
 
 	// Remove an event from a measure's hand (the lifted note-level remove the Note
@@ -311,6 +319,7 @@ export default function Edit({ attributes, setAttributes }) {
 		) {
 			setSelection(null);
 		}
+		setFocusRequest((r) => ({ id: (r?.id ?? 0) + 1, kind: "anchor" }));
 	};
 
 	// The three duplicate mutators: each inserts a deep copy right after the
@@ -328,6 +337,7 @@ export default function Edit({ attributes, setAttributes }) {
 			sections: duplicateAt(working.sections, sectionIndex),
 		});
 		setSelection({ kind: "section", sectionIndex: sectionIndex + 1 });
+		setFocusRequest((r) => ({ id: (r?.id ?? 0) + 1, kind: "row" }));
 	};
 
 	// Duplicate a measure after itself, within its section.
@@ -351,6 +361,7 @@ export default function Edit({ attributes, setAttributes }) {
 			sectionIndex,
 			measureIndex: measureIndex + 1,
 		});
+		setFocusRequest((r) => ({ id: (r?.id ?? 0) + 1, kind: "row" }));
 		// Open the section so the new measure row is visible.
 		revealAncestors(expansionKey({ sectionIndex }));
 	};
@@ -379,6 +390,7 @@ export default function Edit({ attributes, setAttributes }) {
 			hand,
 			eventIndex: eventIndex + 1,
 		});
+		setFocusRequest((r) => ({ id: (r?.id ?? 0) + 1, kind: "row" }));
 		// Open the copy's branch (section → measure → hand) so it is visible.
 		revealAncestors(...ancestorKeys({ sectionIndex, measureIndex, hand }));
 	};
@@ -405,6 +417,7 @@ export default function Edit({ attributes, setAttributes }) {
 			sections: insertAt(working.sections, target, newSection()),
 		});
 		setSelection({ kind: "section", sectionIndex: target });
+		setFocusRequest((r) => ({ id: (r?.id ?? 0) + 1, kind: "row" }));
 	};
 	const onAddSectionBefore = (sectionIndex) =>
 		insertSectionAt(sectionIndex, "before");
@@ -429,6 +442,7 @@ export default function Edit({ attributes, setAttributes }) {
 			),
 		);
 		setSelection({ kind: "measure", sectionIndex, measureIndex: target });
+		setFocusRequest((r) => ({ id: (r?.id ?? 0) + 1, kind: "row" }));
 		// Open the section so the new measure row is visible.
 		revealAncestors(expansionKey({ sectionIndex }));
 	};
@@ -470,6 +484,7 @@ export default function Edit({ attributes, setAttributes }) {
 			hand,
 			eventIndex: target,
 		});
+		setFocusRequest((r) => ({ id: (r?.id ?? 0) + 1, kind: "row" }));
 		// Open the new note's branch (section → measure → hand) so it is visible.
 		revealAncestors(...ancestorKeys({ sectionIndex, measureIndex, hand }));
 	};
@@ -540,6 +555,7 @@ export default function Edit({ attributes, setAttributes }) {
 								expanded={expanded}
 								onToggleExpanded={onToggleExpanded}
 								onSelect={setSelection}
+								focusRequest={focusRequest}
 								onRemoveSection={onRemoveSection}
 								onDuplicateSection={onDuplicateSection}
 								onAddSectionBefore={onAddSectionBefore}
