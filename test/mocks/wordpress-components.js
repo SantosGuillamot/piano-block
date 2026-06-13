@@ -160,6 +160,7 @@ const TextareaControl = ({
 	value,
 	onChange,
 	__nextHasNoMarginBottom: _margin,
+	__next40pxDefaultSize: _size,
 	...rest
 }) =>
 	createElement("textarea", {

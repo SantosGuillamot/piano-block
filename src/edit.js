@@ -20,7 +20,11 @@ import { SongPanel } from "./editor/inspector/SongPanel.js";
 import { inferNoteNameSystem } from "./editor/noteNames.js";
 import SongCanvas from "./editor/SongCanvas.js";
 import { StructureTree } from "./editor/StructureTree.js";
-import { expansionKey, resolveSelection } from "./editor/selection.js";
+import {
+	ancestorKeys,
+	expansionKey,
+	resolveSelection,
+} from "./editor/selection.js";
 import { commitSong } from "./editor/serializeSong.js";
 import {
 	duplicateAt,
@@ -30,6 +34,8 @@ import {
 	newSection,
 	newSong,
 	removeAt,
+	setSectionAt,
+	updateHandEvents,
 } from "./editor/songModel.js";
 import validateSong from "./song/validate.js";
 
@@ -207,14 +213,11 @@ export default function Edit({ attributes, setAttributes }) {
 			resolvedSelection.hand === hand
 				? resolvedSelection.eventIndex + 1
 				: events.length;
-		const nextEvents = insertAt(events, insertIndex, newNote());
-		const nextMeasures = section.measures.map((current, index) =>
-			index === measureIndex ? { ...measure, [hand]: nextEvents } : current,
+		commit(
+			updateHandEvents(working, { sectionIndex, measureIndex, hand }, (evts) =>
+				insertAt(evts, insertIndex, newNote()),
+			),
 		);
-		const nextSections = working.sections.map((current, index) =>
-			index === sectionIndex ? { ...section, measures: nextMeasures } : current,
-		);
-		commit({ ...working, sections: nextSections });
 		setSelection({
 			kind: "event",
 			sectionIndex,
@@ -223,11 +226,7 @@ export default function Edit({ attributes, setAttributes }) {
 			eventIndex: insertIndex,
 		});
 		// Open the new note's branch (section → measure → hand) so it is visible.
-		revealAncestors(
-			expansionKey({ sectionIndex }),
-			expansionKey({ sectionIndex, measureIndex }),
-			expansionKey({ sectionIndex, measureIndex, hand }),
-		);
+		revealAncestors(...ancestorKeys({ sectionIndex, measureIndex, hand }));
 	};
 
 	// The four structural mutators, lifted here as the single owner of `working` +
@@ -269,15 +268,20 @@ export default function Edit({ attributes, setAttributes }) {
 		if (!section) {
 			return;
 		}
-		const nextMeasures = insertAt(
-			section.measures,
-			section.measures.length,
-			newMeasure(),
+		commit(
+			setSectionAt(
+				working,
+				{ sectionIndex },
+				{
+					...section,
+					measures: insertAt(
+						section.measures,
+						section.measures.length,
+						newMeasure(),
+					),
+				},
+			),
 		);
-		const nextSections = working.sections.map((current, index) =>
-			index === sectionIndex ? { ...section, measures: nextMeasures } : current,
-		);
-		commit({ ...working, sections: nextSections });
 	};
 
 	// Remove a measure from a section. If the selection pointed at (or under) the
@@ -287,11 +291,16 @@ export default function Edit({ attributes, setAttributes }) {
 		if (!section) {
 			return;
 		}
-		const nextMeasures = removeAt(section.measures, measureIndex);
-		const nextSections = working.sections.map((current, index) =>
-			index === sectionIndex ? { ...section, measures: nextMeasures } : current,
+		commit(
+			setSectionAt(
+				working,
+				{ sectionIndex },
+				{
+					...section,
+					measures: removeAt(section.measures, measureIndex),
+				},
+			),
 		);
-		commit({ ...working, sections: nextSections });
 		if (
 			selection?.sectionIndex === sectionIndex &&
 			selection?.measureIndex === measureIndex
@@ -314,21 +323,13 @@ export default function Edit({ attributes, setAttributes }) {
 		if (!measure?.[hand]) {
 			return;
 		}
-		const nextEvents = removeAt(measure[hand], eventIndex);
-		let nextMeasure;
-		if (nextEvents.length > 0) {
-			nextMeasure = { ...measure, [hand]: nextEvents };
-		} else {
-			const { [hand]: _dropped, ...restMeasure } = measure;
-			nextMeasure = restMeasure;
-		}
-		const nextMeasures = section.measures.map((current, index) =>
-			index === measureIndex ? nextMeasure : current,
+		commit(
+			updateHandEvents(
+				working,
+				{ sectionIndex, measureIndex, hand },
+				(events) => removeAt(events, eventIndex),
+			),
 		);
-		const nextSections = working.sections.map((current, index) =>
-			index === sectionIndex ? { ...section, measures: nextMeasures } : current,
-		);
-		commit({ ...working, sections: nextSections });
 		if (
 			selection?.sectionIndex === sectionIndex &&
 			selection?.measureIndex === measureIndex &&
@@ -362,11 +363,16 @@ export default function Edit({ attributes, setAttributes }) {
 		if (!section?.measures[measureIndex]) {
 			return;
 		}
-		const nextMeasures = duplicateAt(section.measures, measureIndex);
-		const nextSections = working.sections.map((current, index) =>
-			index === sectionIndex ? { ...section, measures: nextMeasures } : current,
+		commit(
+			setSectionAt(
+				working,
+				{ sectionIndex },
+				{
+					...section,
+					measures: duplicateAt(section.measures, measureIndex),
+				},
+			),
 		);
-		commit({ ...working, sections: nextSections });
 		setSelection({
 			kind: "measure",
 			sectionIndex,
@@ -386,14 +392,13 @@ export default function Edit({ attributes, setAttributes }) {
 		if (!measure?.[hand]?.[eventIndex]) {
 			return;
 		}
-		const nextEvents = duplicateAt(measure[hand], eventIndex);
-		const nextMeasures = section.measures.map((current, index) =>
-			index === measureIndex ? { ...measure, [hand]: nextEvents } : current,
+		commit(
+			updateHandEvents(
+				working,
+				{ sectionIndex, measureIndex, hand },
+				(events) => duplicateAt(events, eventIndex),
+			),
 		);
-		const nextSections = working.sections.map((current, index) =>
-			index === sectionIndex ? { ...section, measures: nextMeasures } : current,
-		);
-		commit({ ...working, sections: nextSections });
 		setSelection({
 			kind: "event",
 			sectionIndex,
@@ -402,11 +407,7 @@ export default function Edit({ attributes, setAttributes }) {
 			eventIndex: eventIndex + 1,
 		});
 		// Open the copy's branch (section → measure → hand) so it is visible.
-		revealAncestors(
-			expansionKey({ sectionIndex }),
-			expansionKey({ sectionIndex, measureIndex }),
-			expansionKey({ sectionIndex, measureIndex, hand }),
-		);
+		revealAncestors(...ancestorKeys({ sectionIndex, measureIndex, hand }));
 	};
 
 	// The six positional-insert mutators (Add before / Add after at each level):
@@ -444,11 +445,16 @@ export default function Edit({ attributes, setAttributes }) {
 			return;
 		}
 		const target = where === "before" ? measureIndex : measureIndex + 1;
-		const nextMeasures = insertAt(section.measures, target, newMeasure());
-		const nextSections = working.sections.map((current, index) =>
-			index === sectionIndex ? { ...section, measures: nextMeasures } : current,
+		commit(
+			setSectionAt(
+				working,
+				{ sectionIndex },
+				{
+					...section,
+					measures: insertAt(section.measures, target, newMeasure()),
+				},
+			),
 		);
-		commit({ ...working, sections: nextSections });
 		setSelection({ kind: "measure", sectionIndex, measureIndex: target });
 		// Open the section so the new measure row is visible.
 		revealAncestors(expansionKey({ sectionIndex }));
@@ -477,14 +483,13 @@ export default function Edit({ attributes, setAttributes }) {
 			return;
 		}
 		const target = where === "before" ? eventIndex : eventIndex + 1;
-		const nextEvents = insertAt(measure[hand], target, newNote());
-		const nextMeasures = section.measures.map((current, index) =>
-			index === measureIndex ? { ...measure, [hand]: nextEvents } : current,
+		commit(
+			updateHandEvents(
+				working,
+				{ sectionIndex, measureIndex, hand },
+				(events) => insertAt(events, target, newNote()),
+			),
 		);
-		const nextSections = working.sections.map((current, index) =>
-			index === sectionIndex ? { ...section, measures: nextMeasures } : current,
-		);
-		commit({ ...working, sections: nextSections });
 		setSelection({
 			kind: "event",
 			sectionIndex,
@@ -493,11 +498,7 @@ export default function Edit({ attributes, setAttributes }) {
 			eventIndex: target,
 		});
 		// Open the new note's branch (section → measure → hand) so it is visible.
-		revealAncestors(
-			expansionKey({ sectionIndex }),
-			expansionKey({ sectionIndex, measureIndex }),
-			expansionKey({ sectionIndex, measureIndex, hand }),
-		);
+		revealAncestors(...ancestorKeys({ sectionIndex, measureIndex, hand }));
 	};
 	const onAddNoteBefore = (sectionIndex, measureIndex, hand, eventIndex) =>
 		insertNoteAt(sectionIndex, measureIndex, hand, eventIndex, "before");
@@ -541,6 +542,8 @@ export default function Edit({ attributes, setAttributes }) {
 						onChange={onChangeSong}
 						rows={12}
 						className="wp-block-piano-block-piano__song-input"
+						__next40pxDefaultSize
+						__nextHasNoMarginBottom
 					/>
 					{errors.length > 0 && (
 						<Notice status="error" isDismissible={false}>
