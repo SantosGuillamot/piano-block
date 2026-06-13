@@ -223,7 +223,7 @@ export default function Edit({ attributes, setAttributes }) {
 	};
 
 	// The four structural mutators, lifted here as the single owner of `working` +
-	// `commit` (the panels and, from T6, the Structure list only signal intent).
+	// `commit` (the panels and the Structure list only signal intent).
 	// Each is the same immutable splice the panels used to do locally, written once;
 	// removing the selected section/measure (or one above it) clears the now-stale
 	// selection so the sidebar falls back to Song-only.

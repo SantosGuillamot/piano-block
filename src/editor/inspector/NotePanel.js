@@ -7,7 +7,7 @@
  * alongside a note's chord `pitches`; the optional members — `dots`, `dynamic`,
  * the four spans (`tie`/`slur`/`crescendo`/`decrescendo`) and the event's
  * `annotations` — hide behind a `ToolsPanel` so the panel stays shallow but
- * reaches the whole event model (Req 7, 8, 11; AC7, AC9, AC10).
+ * reaches the whole event model.
  *
  * The panel is a pure controlled component: it holds no song state and emits the
  * next whole working `song` through `onChange` (the parent commits it). It edits
@@ -19,12 +19,12 @@
  * splice (dropping the hand key when it empties) and clears the now-stale selection,
  * so the note-level remove lives in one place. Adding a note signals up through
  * `onAddNote` with the selection's own coords — the hand is inferred from the
- * selection, never prompted (AC3); the parent inserts the new note right after the
+ * selection, never prompted; the parent inserts the new note right after the
  * selected one and auto-selects it.
  *
  * The one cross-field rule — switching `note`↔`rest` drops/seeds `pitches` — is
- * reproduced from `EventRow.changeType` verbatim rather than imported, since
- * `EventRow` carries the now-removed reorder controls.
+ * reproduced inline here rather than imported, as the panel owns its own local
+ * event emission.
  */
 import {
 	Button,
@@ -103,10 +103,9 @@ export function NotePanel({
 	};
 
 	/**
-	 * Emit a `type` change, applying the cross-field rule from `EventRow`: a rest
-	 * has no pitches, and a note needs the one pitch its invariant requires (in
-	 * the per-song system). Event annotations are valid on either, so they pass
-	 * through.
+	 * Emit a `type` change, applying the cross-field rule: a rest has no pitches,
+	 * and a note needs the one pitch its invariant requires (in the per-song
+	 * system). Event annotations are valid on either, so they pass through.
 	 */
 	const changeType = (type) => {
 		if (type === "rest") {
@@ -237,8 +236,8 @@ export function NotePanel({
 
 			{/* Add a note in the selection's own hand (inferred, never prompted), then
 			    Remove the selected note. The parent's `onAddNote` inserts right after
-			    the selection and auto-selects the new note (AC3); the parent's
-			    `onRemoveNote` owns the splice and clears the now-stale selection. */}
+			    the selection and auto-selects the new note; the parent's `onRemoveNote`
+			    owns the splice and clears the now-stale selection. */}
 			<Button
 				variant="secondary"
 				onClick={() => onAddNote?.(sectionIndex, measureIndex, hand)}

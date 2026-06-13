@@ -114,7 +114,7 @@
 			 * ring — NEVER <text> (default stroke:none; a forced stroke would render a
 			 * fat ~8x-scaled outline around the glyph). Color-only => no layout shift;
 			 * editor-only (class added by SongCanvas post-render; view.js never sets
-			 * it) => front-end SVG byte-identical (AC4). */
+			 * it) => front-end SVG byte-identical. */
 			*:not([fill="none"]) { fill: var(--wp-admin-theme-color, #007cba); } /* filled heads, dots, text, rest bodies */
 			line { stroke: var(--wp-admin-theme-color, #007cba); }               /* stems + ledger lines */
 			ellipse[fill="none"] { stroke: var(--wp-admin-theme-color, #007cba); } /* open-notehead ring (keeps its hole) */

@@ -6,17 +6,15 @@
  * required common field — `{}` validates — and its members (the two optional
  * barlines and its staff-anchored standalone `annotations`) are all uncommon, so
  * the whole panel sits behind a `ToolsPanel` progressive disclosure, keeping the
- * surface shallow while still reaching the measure model (Req 7, 8, 11; AC7, AC9,
- * AC10).
+ * surface shallow while still reaching the measure model.
  *
  * The panel is a pure controlled component: it holds no song state and emits the
  * next whole working `song` through `onChange` (the parent commits it). It edits
  * the resolved measure in place — splicing the next measure back through its
  * section → measures path — reusing the existing constrained `AnnotationList`
  * leaf editor and the `songModel` array helpers, so every emission stays
- * conformant by construction. The barline + annotation omit-when-unset rules are
- * reproduced from `MeasureEditor` (`BarlineControl` and the standalone
- * `AnnotationList` branch). **Remove measure** only signals intent through the
+ * conformant by construction. The barline + annotation omit-when-unset rules keep
+ * the emitted measure clean. **Remove measure** only signals intent through the
  * lifted `onRemoveMeasure(sectionIndex, measureIndex)` prop — the splice and the
  * selection-fallout are owned once in `edit.js`, shared with the Structure list.
  */

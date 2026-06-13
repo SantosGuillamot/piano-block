@@ -7,18 +7,16 @@
  * inspector.
  *
  * It is built on `@wordpress/components`' `__experimentalTreeGrid` — the same
- * accessible primitive the List View is built on — so it gets the treegrid
- * keyboard model (roving tabindex, Up/Down between rows, Left/Right to
- * collapse/expand) for free, with the honest `role="treegrid"` rather than a
- * hand-rolled `role="tree"`. Each row mirrors core's List View row: two
- * `TreeGridCell`s, each forwarding the cell's `{ ref, tabIndex, onFocus }` to
- * exactly one roving-tabindex focusable — a select-only label `Button` (with a
- * non-focusable stock chevron beside it) and a single `DropdownMenu` of the
- * row's kind-gated actions. `working.sections` is flattened into an ordered list
- * of *visible* rows (respecting expansion), each carrying its
- * `level`/`positionInSet`/`setSize` ARIA wiring. Indentation derives from the
- * rendered `aria-level` (emitted by `TreeGridRow`'s `level`), styled in
- * `style.scss` — no inline depth variable.
+ * accessible primitive the List View is built on — with the honest
+ * `role="treegrid"` rather than a hand-rolled `role="tree"`. Each row mirrors
+ * core's List View row: two `TreeGridCell`s, each forwarding the cell's
+ * `{ ref, tabIndex, onFocus }` to exactly one roving-tabindex focusable — a
+ * select-only label `Button` (with a non-focusable stock chevron beside it) and
+ * a single `DropdownMenu` of the row's kind-gated actions. `working.sections` is
+ * flattened into an ordered list of *visible* rows (respecting expansion), each
+ * carrying its `level`/`positionInSet`/`setSize` ARIA wiring. Indentation
+ * derives from the rendered `aria-level` (emitted by `TreeGridRow`'s `level`),
+ * styled in `editor.scss` — no inline depth variable.
  *
  * It is a pure controlled component holding no song state: selecting a
  * section/measure/note row signals a kind-tagged `selection` through `onSelect`
@@ -28,14 +26,15 @@
  * duplicate intent through the lifted `edit.js` handlers (the single owner of
  * `working` + `commit`). **Hand-group rows are organizational, not selectable** —
  * the selection model has no "hand" kind — so they are disclosure-only labels
- * that toggle expansion and host a single direct per-hand "Add note" `Button`
- * (KD 14).
+ * that toggle expansion and host a single direct per-hand "Add note" `Button`.
  *
  * Expansion is a single membership lookup against one `expanded` Set of
  * coordinate-derived keys: `isExpanded(key) = expanded.has(key)` — no ancestor
  * test, no veto Set, no auto-reveal. The chevron's pointer `onClick` (and the
  * hand-group label's click) route to `onToggleExpanded(key)`; keyboard
- * expand/collapse stays TreeGrid's Left/Right arrows over the chevron-less rows.
+ * expand/collapse routes through the `onExpandRow`/`onCollapseRow` callbacks
+ * passed to `<TreeGrid>` — a shared handler reads each expandable row's
+ * `data-expansion-key` and calls `onToggleExpanded(key)`.
  * Node labels are `name`-or-positional for sections/measures and
  * `noteLabel(event, system)` for notes. Only `@wordpress/*` is used.
  */
@@ -67,8 +66,9 @@ import { HANDS } from "./songModel.js";
  * wrapping a stock `<Icon>` (right/left when collapsed per text direction, down
  * when expanded). It carries a **pointer** `onClick` that toggles expansion but
  * has **no `tabIndex` and no role** — it is a visual cue for sighted/pointer
- * users, not a tab stop. Keyboard expand/collapse stays TreeGrid's Left/Right
- * arrows reading each row's `aria-expanded`. A stable class gives jest and the
+ * users, not a tab stop. Keyboard expand/collapse routes through the
+ * `onExpandRow`/`onCollapseRow` callbacks on the parent `<TreeGrid>`. A stable
+ * class gives jest and the
  * e2e drill-down a deterministic, non-positional locator.
  *
  * @param {Object}   props
@@ -428,9 +428,9 @@ export function StructureTree({
 					sectionNumber,
 				);
 
-				// Hand-group rows are organizational/non-selecting (KD 14): the label
-				// toggles expansion (the non-selecting expander) and the actions cell
-				// holds a single direct "Add note" Button, never onSelect.
+				// Hand-group rows are organizational/non-selecting: the label toggles
+				// expansion (the non-selecting expander) and the actions cell holds a
+				// single direct "Add note" Button, never onSelect.
 				rows.push(
 					<TreeGridRow
 						key={handKey}

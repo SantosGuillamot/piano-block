@@ -1902,7 +1902,7 @@ export function buildLayoutModel(song, availableWidthInSp) {
 		// when neither is present.
 		const bothInterStaff = occ.belowRH > 0 && occ.aboveLH > 0;
 
-		// LH-above ottava lane reservation (R1.3): when a LH positive shift is present,
+		// LH-above ottava lane reservation: when a LH positive shift is present,
 		// the gap must also fit a lane above the LH content and clear of the RH
 		// below-staff region. Inert (0) when no LH-above shift is on this system.
 		const hasLHOttavaAbove = systemHasLeftOttavaAbove(members);

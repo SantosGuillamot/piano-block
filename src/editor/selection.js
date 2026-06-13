@@ -157,12 +157,11 @@ export function globalMeasureNumber(song, sectionIndex, measureIndex) {
  *   - `"measure"` → `+ { measure, measureIndex }`.
  *   - `"event"`   → `+ { event, hand, eventIndex }` (the full resolution).
  *
- * Levels are dependent: a missing higher level invalidates everything below it. The
- * existence checks mirror the structural editor's old `repairPath` chain
- * (`song.sections?.[si]` → `.measures?.[mi]` → `measure[hand]?.[eventIndex]`), so
- * a selection left stale by a structural edit, an undo/redo, or a raw-JSON change
- * resolves to `null` and the sidebar falls back to Song-only — no edit ever
- * targets a missing object.
+ * Levels are dependent: a missing higher level invalidates everything below it.
+ * The existence check chain (`song.sections?.[si]` → `.measures?.[mi]` →
+ * `measure[hand]?.[eventIndex]`) ensures a selection left stale by a structural
+ * edit, an undo/redo, or a raw-JSON change resolves to `null` and the sidebar
+ * falls back to Song-only — no edit ever targets a missing object.
  *
  * @param {?Object} song      The working song object.
  * @param {?Object} selection The selection `{ kind: string, sectionIndex: number, measureIndex?, hand?, eventIndex? }`.

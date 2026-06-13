@@ -6,7 +6,7 @@
  * its `defaults` context. The common context fields — the tempo bpm and the time
  * signature — are visible directly; the uncommon ones — the tempo's `beatUnit`
  * and each hand's `handConfig` — hide behind a `ToolsPanel` so the panel stays
- * shallow but reaches the whole `defaults` model (Req 5, 7, 8; AC5, AC10).
+ * shallow but reaches the whole `defaults` model.
  *
  * The panel is a pure controlled component: it holds no song state and emits the
  * next whole working `song` through `onChange` (the parent commits it). For the

@@ -7,14 +7,14 @@
  * (`tempo`, `timeSignature`, `rightHand`, `leftHand`) — here acting as per-section
  * *overrides*. Those overrides are all uncommon, so the whole context sits behind
  * a `ToolsPanel` progressive disclosure, keeping the surface shallow while still
- * reaching the section's override model (Req 7, 8, 11; AC7, AC9, AC10).
+ * reaching the section's override model.
  *
  * The panel is a pure controlled component: it holds no song state and emits the
  * next whole working `song` through `onChange` (the parent commits it). It reuses
  * the existing constrained `ContextEditor` leaf editor over the section's override
  * projection — rebuilding the section from its non-override keys (always keeping
- * `measures`) plus only the override keys the context still carries, the same
- * projection `SectionEditor` used — so every emission stays conformant by
+ * `measures`) plus only the override keys the context still carries — so every
+ * emission stays conformant by
  * construction and an unset override drops its key (clean round-trip).
  *
  * The structural **Add measure** and **Remove section** buttons only signal intent
