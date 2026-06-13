@@ -287,10 +287,12 @@ function structureTree(editor) {
  * hand-row "Add note" button spells its target lowercase ("Add note to Right
  * hand of …"), so the capitalized "Right hand" exact name misses that too.
  *
- * After DD4 the label is SELECT-ONLY for section/measure/note rows: clicking it
- * drives the kind-tagged selection but no longer toggles expansion — expansion
- * is driven by the sibling chevron (see `expandRow`). The hand-group row is the
- * exception: it is non-selecting, so its label/button click toggles expansion.
+ * After S5 the label is SELECT-AND-REVEAL for section and measure rows: clicking
+ * it always drives the kind-tagged selection AND expands the row when it is
+ * currently collapsed (but never collapses — collapse stays on the chevron and
+ * ArrowLeft). Note rows remain select-only (notes are leaves with no children to
+ * reveal). The hand-group row is the exception: it is non-selecting, so its
+ * label/button click toggles expansion only.
  * Scoped to the tree container.
  *
  * @param {Object} editor The Playwright editor fixture.
@@ -321,10 +323,13 @@ function rowChevron(editor, name) {
 
 /**
  * Expand a structure-tree row by clicking its disclosure chevron, revealing its
- * children. Under DD4 the label is select-only, so a label click no longer
- * expands — drilling into the tree goes through the chevron. (Hand-group rows
- * also toggle on their label click, but `expandRow` works for them too via the
- * same chevron, giving every level one consistent expand interaction.)
+ * children. After S5 a collapsed section/measure label click also expands, so
+ * callers have two affordances: clicking the chevron (this helper) or clicking a
+ * collapsed label (see `treeRow`). `expandRow` continues to click the chevron and
+ * remains valid for all callers — the comment no longer asserts a label can't
+ * expand. (Hand-group rows also toggle on their label click, but `expandRow`
+ * works for them too via the same chevron, giving every level one consistent
+ * expand interaction.)
  *
  * @param {Object} editor The Playwright editor fixture.
  * @param {string} name   The row's exact label to expand (e.g. "Section 1").
@@ -758,19 +763,22 @@ test.describe("Piano block — editor authoring, persistence and validation", ()
 		await assertStructureTreeOpen(editor);
 
 		// Selecting the SECTION row reveals the Section panel only (every kind has a
-		// section), not the Measure/Note panels. The label is select-only — it no
-		// longer also expands — so reveal the measure row through the chevron. A
-		// section selection decorates nothing on the canvas: section/measure are
-		// surfaced through the tree and panels.
+		// section), not the Measure/Note panels. After S5 clicking a collapsed section
+		// label selects AND reveals its children — the "clicking the text doesn't reveal
+		// anything" regression is fixed. A section selection decorates nothing on the
+		// canvas: section/measure are surfaced through the tree and panels.
 		await treeRow(editor, "Section 1").click();
 		await expect(inspectorPanel(sidebar, "Section")).toBeVisible();
 		await expect(inspectorPanel(sidebar, "Measure")).toHaveCount(0);
 		await expect(inspectorPanel(sidebar, "Note")).toHaveCount(0);
-		await expandRow(editor, "Section 1");
+		// The label click above already expanded Section 1 (select-and-reveal); the
+		// measure row is now visible without a separate chevron click.
+		await expect(treeRow(editor, "Measure 1")).toBeVisible();
 
 		// Selecting the MEASURE row reveals Measure + Section (a measure has both),
-		// still not the Note panel. A measure selection likewise decorates nothing on
-		// the canvas.
+		// still not the Note panel. After S5 a collapsed measure label click also
+		// reveals its children (hand rows). A measure selection likewise decorates
+		// nothing on the canvas.
 		await treeRow(editor, "Measure 1").click();
 		await expect(inspectorPanel(sidebar, "Measure")).toBeVisible();
 		await expect(inspectorPanel(sidebar, "Section")).toBeVisible();

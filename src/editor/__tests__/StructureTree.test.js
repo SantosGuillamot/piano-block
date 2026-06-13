@@ -373,15 +373,39 @@ describe("StructureTree — select", () => {
 	});
 });
 
-describe("StructureTree — select-only label vs chevron toggle", () => {
-	it("selects (not toggles) when a section label is clicked", () => {
+describe("StructureTree — select-and-reveal label vs chevron toggle", () => {
+	it("selects AND expands when a collapsed section label is clicked", () => {
 		const { container, unmount, calls } = renderTree({
 			expanded: new Set(),
 		});
 		click(selectButtonByText(container, "Section 1"));
-		// The label is select-only after the redesign: it selects, never toggles.
+		// The label is select-and-reveal: clicking a collapsed row selects AND expands it.
+		expect(calls.select).toEqual([{ kind: "section", sectionIndex: 0 }]);
+		expect(calls.toggle).toEqual(["s0"]);
+		unmount();
+	});
+
+	it("selects but does NOT collapse when an already-expanded section label is clicked", () => {
+		const { container, unmount, calls } = renderTree({
+			expanded: new Set(["s0"]),
+		});
+		click(selectButtonByText(container, "Section 1"));
+		// The label only expands; collapse stays on the chevron / ArrowLeft key.
 		expect(calls.select).toEqual([{ kind: "section", sectionIndex: 0 }]);
 		expect(calls.toggle).toEqual([]);
+		unmount();
+	});
+
+	it("selects AND expands when a collapsed measure label is clicked", () => {
+		const { container, unmount, calls } = renderTree({
+			expanded: new Set(["s0"]),
+		});
+		click(selectButtonByText(container, "Measure 1"));
+		// Measure label mirrors section: select + expand when collapsed.
+		expect(calls.select).toEqual([
+			{ kind: "measure", sectionIndex: 0, measureIndex: 0 },
+		]);
+		expect(calls.toggle).toEqual(["s0m0"]);
 		unmount();
 	});
 
