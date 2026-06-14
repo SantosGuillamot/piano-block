@@ -1548,11 +1548,11 @@ test.describe("Piano block — R-FOCUS: post-mutation focus management", () => {
 		).click();
 
 		// The new note row is now visible and its label button is focused.
-		// The first note row in the Right hand is the newly added note (right hand
-		// already had one note so this is note 2, but the label is pitch-based —
-		// use the aria-current flag via the tree-label selector instead of exact name).
+		// Selecting a note also highlights its enclosing measure (both carry
+		// aria-current="true"), so target the focused/active row (tabindex="0") —
+		// the new note — not any aria-current label.
 		const focusedLabel = structureTree(editor).locator(
-			'[aria-current="true"].wp-block-piano-block-piano__tree-label',
+			'[aria-current="true"][tabindex="0"].wp-block-piano-block-piano__tree-label',
 		);
 		await expect(focusedLabel).toBeFocused();
 	});
