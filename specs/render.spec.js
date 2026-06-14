@@ -211,6 +211,62 @@ const MANY_MEASURE_SONG = JSON.stringify({
 	],
 });
 
+/**
+ * AC9 multi-block isolation fixtures: two conformant songs with different metadata
+ * and deliberately different note counts so their SVG notation trees differ
+ * measurably. Song A has one note (one notehead); song B has three notes (three
+ * noteheads). If the song were ever lifted to `wp_interactivity_state()` both
+ * blocks would render the same notation and the same accessible name — this pair
+ * of fixtures would catch that regression immediately.
+ */
+const ISOLATION_SONG_A = JSON.stringify({
+	metadata: { title: "Alpha", composer: "X" },
+	sections: [
+		{
+			measures: [
+				{
+					rightHand: [
+						{
+							type: "note",
+							duration: "whole",
+							pitches: [{ step: "C", octave: 5 }],
+						},
+					],
+				},
+			],
+		},
+	],
+});
+
+const ISOLATION_SONG_B = JSON.stringify({
+	metadata: { title: "Beta", composer: "Y" },
+	sections: [
+		{
+			measures: [
+				{
+					rightHand: [
+						{
+							type: "note",
+							duration: "quarter",
+							pitches: [{ step: "E", octave: 4 }],
+						},
+						{
+							type: "note",
+							duration: "quarter",
+							pitches: [{ step: "G", octave: 4 }],
+						},
+						{
+							type: "note",
+							duration: "half",
+							pitches: [{ step: "B", octave: 4 }],
+						},
+					],
+				},
+			],
+		},
+	],
+});
+
 // AC8 injection protection: a CONFORMANT song whose free-text fields carry the
 // HTML-significant breakout literals. A note's `text` and `metadata.title` are free
 // text, so the song stays conformant; it must therefore still `JSON.parse` back
@@ -622,6 +678,58 @@ test.describe("Piano block — front-end render", () => {
 		// with staff bands, not clipped away).
 		await expect(svg).toBeVisible();
 		await expect(svg.locator("[data-staff-lines]")).not.toHaveCount(0);
+	});
+
+	test("AC9 — two Piano blocks on one page render independently with no cross-talk", async ({
+		admin,
+		editor,
+		page,
+	}) => {
+		// Insert two Piano blocks on a single post, each with a different song, then
+		// publish and assert that each block renders its own SVG with its own
+		// accessible name and its own notation tree. This guards against the
+		// global-state regression: if the song were ever put in
+		// `wp_interactivity_state()` instead of per-instance `data-wp-context`,
+		// both blocks would render the same song and the same accessible name (D19,
+		// D20, R4, R8).
+		await admin.createNewPost();
+
+		// Insert block A and fill it with song A.
+		await editor.insertBlock({ name: "piano-block/piano" });
+		await editor.clickBlockToolbarButton("Edit as JSON");
+		const fieldA = editor.canvas.getByLabel("Song (JSON)");
+		await fieldA.fill(ISOLATION_SONG_A);
+
+		// Insert block B and fill it with song B. `insertBlock` always selects the
+		// newly inserted block, but both blocks' sidebar panels may be visible at
+		// once, so use `.last()` to target B's field (the second textarea).
+		await editor.insertBlock({ name: "piano-block/piano" });
+		await editor.clickBlockToolbarButton("Edit as JSON");
+		const fieldB = editor.canvas.getByLabel("Song (JSON)").last();
+		await fieldB.fill(ISOLATION_SONG_B);
+
+		const postId = await editor.publishPost();
+		await page.goto(`/?p=${postId}`);
+
+		// Both wrappers must be present.
+		await expect(page.locator(`.${BLOCK_CLASS}`)).toHaveCount(2);
+
+		// Exactly two labeled SVG graphics — one per block.
+		const svgs = page.locator(`.${BLOCK_CLASS} svg[role="img"]`);
+		await expect(svgs).toHaveCount(2);
+
+		// Each SVG carries its own accessible name — no cross-contamination.
+		await expect(svgs.nth(0)).toHaveAccessibleName("Alpha by X");
+		await expect(svgs.nth(1)).toHaveAccessibleName("Beta by Y");
+
+		// The two notation trees must differ measurably: song A has one notehead,
+		// song B has three, so the counts cannot be equal. If both blocks read the
+		// same song the counts would be identical and the test would fail.
+		const noteheadsA = await svgs.nth(0).locator("[data-notehead]").count();
+		const noteheadsB = await svgs.nth(1).locator("[data-notehead]").count();
+		expect(noteheadsA).toBeGreaterThan(0);
+		expect(noteheadsB).toBeGreaterThan(0);
+		expect(noteheadsA).not.toBe(noteheadsB);
 	});
 
 	test("AC8 (relocated) — a conformant song with hostile free text renders inert and still draws", async ({
