@@ -133,9 +133,16 @@ function clickByText(container, text) {
  * `__tree-expander` span beside the row's label, whose pointer `onClick` routes to
  * `onToggleExpanded`. The select-only label no longer expands, so an ancestor must
  * be expanded through its chevron before its child rows render.
+ *
+ * Idempotent: edit.js seeds s0 + s0m0 expanded on mount, so the first section and
+ * first measure may already be open. The chevron is a pure toggle, so clicking an
+ * open row would collapse it — only click when the row is currently collapsed.
  */
 function expandRow(container, text) {
 	const row = treeRowButton(container, text).closest("tr");
+	if (row.getAttribute("aria-expanded") === "true") {
+		return;
+	}
 	const expander = row.querySelector(
 		".wp-block-piano-block-piano__tree-expander",
 	);

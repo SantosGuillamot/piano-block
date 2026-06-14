@@ -97,7 +97,13 @@ export default function Edit({ attributes, setAttributes }) {
 	// the same commit (below), so the new branch is visible. The keys are best-effort
 	// across a structural edit (same wart as before, not new).
 	const [showTree, setShowTree] = useState(true);
-	const [expanded, setExpanded] = useState(() => new Set());
+	const [expanded, setExpanded] = useState(
+		() =>
+			new Set([
+				expansionKey({ sectionIndex: 0 }),
+				expansionKey({ sectionIndex: 0, measureIndex: 0 }),
+			]),
+	);
 
 	// Post-mutation focus request: bumped on every structural add/duplicate/remove
 	// so the StructureTree's useEffect can move DOM focus to the right target.
