@@ -65,7 +65,7 @@ This is the first interactive (viewer-operable) UI on the block's frontend; unti
 
 12. **WordPress Interactivity API (hard constraint).** The frontend toggle interactivity must be built with the WordPress Interactivity API. The toggle state must be held per block instance (not in shared/global state), so that Requirement 6 holds.
 
-13. **Editor behavior unchanged.** This feature is frontend-only. The block editor gains no toggle, and the editor's score canvas continues to show no note names. Note-name rendering must be opt-in (defaulting to off) so that, when names are not requested, the notation output is unchanged from today.
+13. **Editor behavior unchanged.** This feature is frontend-only. The block editor gains no toggle, and the editor's score canvas continues to show no note names. Note-name rendering must be opt-in (defaulting to off) so that, when names are not requested, the notation output is byte-identical to today's output. The editor canvas and the published frontend currently emit byte-identical notation output for the same song (a string-equality guarantee an existing unit test enforces); that equality must continue to hold for the names-off default. (See AC10 for the byte-identical assertion and AC11 for the standing editor-scope guarantee.)
 
 ## Out of Scope
 
@@ -90,14 +90,16 @@ Given a conformant, note-bearing Piano block with note names hidden,
 When the viewer activates the control,
 Then a note name appears for every nameable note (both staves, and every notehead in every chord);
 And when the viewer activates the control again,
-Then all note names are removed and the score's original visual is restored.
+Then all note names are removed and the score's original (names-off) visual is restored.
+(AC2 covers a single off → on → off cycle restoring the original visual; AC6 extends this to no-drift idempotency across repeated cycles, and AC10 pins what "original visual" means in byte terms.)
 
 **AC3 — Name content follows the song's system, with no accidental and no octave.**
-Given a note that is a C-sharp,
+Given a note that sounds as a C-sharp,
 When note names are shown for a song in English,
 Then that note shows "C" (no "#", no octave digit);
 And when the same note is shown for a song in Spanish,
 Then that note shows "do".
+The bare step is shown regardless of how the note is altered: whether the sharp comes from a per-note alteration (the note's own `pitch.alter`) or from an inherited key-signature-style default accidental (the hand/section `handConfig.alters` map), the name is the bare step "C" / "do" with no accidental in the text. The visible accidental glyph next to the notehead is unaffected.
 
 **AC4 — Per-instance independence.**
 Given two Piano blocks (A and B) on one page, each with note names hidden,
@@ -110,10 +112,11 @@ Given the toggle control,
 When note names are on versus off,
 Then the control exposes its corresponding on/off state to assistive technology.
 
-**AC6 — Reversible and idempotent.**
+**AC6 — Reversible and idempotent (no drift).**
 Given a names-on rendering of a conformant Piano block,
-When the viewer toggles names OFF and then ON again,
-Then the resulting names-on rendering is identical to the first names-on rendering.
+When the viewer toggles names OFF and then ON again, any number of times,
+Then the resulting names-on rendering is identical to the first names-on rendering, and each names-off rendering is identical to the original names-off visual.
+(AC6 generalizes AC2's single-cycle restoration to no-drift idempotency across repeated toggles.)
 
 **AC7 — Names survive a width change.**
 Given a Piano block with note names shown,
@@ -130,17 +133,24 @@ Given a Piano block whose conformant song contains no nameable notes (for exampl
 When the page loads,
 Then the block renders without the toggle control.
 
-**AC10 — Names off leaves output unchanged.**
-Given that note names are not requested,
-When the frontend renders the score and when the editor renders its score canvas,
-Then the notation output is unchanged from today's output, and the editor canvas shows no note names.
+**AC10 — Names off produces byte-identical output (frontend default and editor equivalence).**
+Given a conformant song,
+When the frontend renders that song with note names not requested (the default), and the editor canvas renders the same song,
+Then the frontend's rendered score output is byte-identical to today's frontend output for that song (no added, removed, or changed markup of any kind when names are off);
+And the editor canvas's rendered output is byte-identical to the names-off frontend output for the same song (the existing editor-canvas / frontend SVG string-equality is preserved).
+(This is the literal, machine-checkable guarantee — string equality of the emitted output, not merely "looks the same." "Byte-identical to today's output" is the bar AC2's "original visual restored" refers to.)
 
-**AC11 — Invalid or empty song, no control.**
+**AC11 — Editor scope: no toggle, no names on the editor canvas, ever.**
+Given the block editor,
+When a Piano block is edited (under any condition, including when another Piano block elsewhere has note names turned on),
+Then the editor gains no note-name toggle control, and the editor's score canvas shows no note names.
+
+**AC12 — Invalid or empty song, no control.**
 Given a Piano block whose song is empty/whitespace, or invalid/non-conformant,
 When the page loads,
 Then the frontend shows no score and no toggle control.
 
-**AC12 — Names legible and non-overlapping.**
+**AC13 — Names legible and non-overlapping.**
 Given a conformant Piano block with note names shown (including dense chords and passages, and scores that also contain dynamics, annotations, tempo, or ottava text),
 When the names are displayed,
 Then each name is legible and does not render illegibly overlapping other names or other score elements.
