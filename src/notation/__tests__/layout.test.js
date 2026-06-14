@@ -11,6 +11,8 @@
 import {
 	ACCIDENTAL_GAP,
 	ADV_K,
+	ARPEGGIO_FIXED_GAP,
+	ARPEGGIO_GAP,
 	BARLINE_POST_PAD,
 	DYNAMIC_ADVANCE_EM,
 	DYNAMIC_SIZE,
@@ -21,6 +23,7 @@ import {
 	HAIRPIN_HINGE_GAP,
 	HAIRPIN_LANE_DY,
 	INTRA_STAFF_GAP,
+	LEDGER_WIDTH,
 	MAX_STRETCH,
 	MEASURE_START_PAD,
 	MIN_ADV,
@@ -4451,5 +4454,161 @@ describe("duration-ordered horizontal spacing (issue #21)", () => {
 		expect(notes[1].x - notes[0].x).toBeLessThan(
 			notes[notes.length - 1].x - notes[notes.length - 2].x,
 		);
+	});
+});
+
+// ── Arpeggio layout record ──────────────────────────────────────────────────────
+describe("buildLayoutModel — note.arpeggio layout record", () => {
+	/** Minimal one-section, one-measure song with a single right-hand event. */
+	const songWithRHEvent = (event) => ({
+		metadata: { title: "T" },
+		defaults: {
+			tempo: { bpm: 120, beatUnit: "quarter" },
+			timeSignature: { beats: 4, beatType: 4 },
+			rightHand: { clef: "treble" },
+			leftHand: { clef: "bass" },
+		},
+		sections: [
+			{
+				measures: [
+					{
+						rightHand: [event],
+						leftHand: [
+							{
+								type: "note",
+								duration: "whole",
+								pitches: [{ step: "C", octave: 3 }],
+							},
+						],
+					},
+				],
+			},
+		],
+	});
+
+	it("attaches note.arpeggio with dx/topY/bottomY/direction when event.arpeggio is set", () => {
+		const song = songWithRHEvent({
+			type: "note",
+			duration: "quarter",
+			arpeggio: "up",
+			pitches: [
+				{ step: "C", octave: 5 },
+				{ step: "E", octave: 5 },
+				{ step: "G", octave: 5 },
+			],
+		});
+		const model = buildLayoutModel(song, 200);
+		const note = model.systems[0].measures[0].right.notes[0];
+		expect(note.arpeggio).toBeDefined();
+		expect(note.arpeggio.direction).toBe("up");
+		expect(typeof note.arpeggio.dx).toBe("number");
+		expect(typeof note.arpeggio.topY).toBe("number");
+		expect(typeof note.arpeggio.bottomY).toBe("number");
+		// topY is the highest notehead (smallest Y); bottomY is the lowest (largest Y).
+		expect(note.arpeggio.topY).toBeLessThanOrEqual(note.arpeggio.bottomY);
+	});
+
+	it("omits note.arpeggio entirely when event.arpeggio is absent", () => {
+		const song = songWithRHEvent({
+			type: "note",
+			duration: "quarter",
+			pitches: [{ step: "C", octave: 5 }, { step: "E", octave: 5 }],
+		});
+		const model = buildLayoutModel(song, 200);
+		const note = model.systems[0].measures[0].right.notes[0];
+		expect(note.arpeggio).toBeUndefined();
+	});
+
+	it("uses ARPEGGIO_FIXED_GAP (>= LEDGER_WIDTH / 2) as dx when there are no accidentals", () => {
+		// C5/E5/G5 in treble with no key alters → no accidentals.
+		const song = songWithRHEvent({
+			type: "note",
+			duration: "quarter",
+			arpeggio: "down",
+			pitches: [
+				{ step: "C", octave: 5 },
+				{ step: "E", octave: 5 },
+				{ step: "G", octave: 5 },
+			],
+		});
+		const model = buildLayoutModel(song, 200);
+		const note = model.systems[0].measures[0].right.notes[0];
+		expect(note.arpeggio.dx).toBe(ARPEGGIO_FIXED_GAP);
+		expect(note.arpeggio.dx).toBeGreaterThanOrEqual(LEDGER_WIDTH / 2);
+	});
+
+	it("uses max(accidental.dx) + ARPEGGIO_GAP as dx when accidentals are present", () => {
+		// C#5/E#5/G5 → accidentals on C and E.
+		const song = {
+			metadata: { title: "T" },
+			defaults: {
+				tempo: { bpm: 120, beatUnit: "quarter" },
+				timeSignature: { beats: 4, beatType: 4 },
+				rightHand: { clef: "treble", alters: {} },
+				leftHand: { clef: "bass" },
+			},
+			sections: [
+				{
+					measures: [
+						{
+							rightHand: [
+								{
+									type: "note",
+									duration: "quarter",
+									arpeggio: "up",
+									pitches: [
+										{ step: "C", octave: 5, alter: 1 },
+										{ step: "E", octave: 5, alter: 1 },
+										{ step: "G", octave: 5 },
+									],
+								},
+							],
+							leftHand: [
+								{
+									type: "note",
+									duration: "whole",
+									pitches: [{ step: "C", octave: 3 }],
+								},
+							],
+						},
+					],
+				},
+			],
+		};
+		const model = buildLayoutModel(song, 200);
+		const note = model.systems[0].measures[0].right.notes[0];
+		expect(note.arpeggio).toBeDefined();
+		const maxAccDx = Math.max(...note.accidentals.map((a) => a.dx));
+		expect(note.arpeggio.dx).toBeCloseTo(maxAccDx + ARPEGGIO_GAP, 10);
+		expect(note.arpeggio.dx).toBeGreaterThan(maxAccDx);
+	});
+
+	it("gives topY === bottomY for a single-pitch arpeggiated note and does not throw", () => {
+		const song = songWithRHEvent({
+			type: "note",
+			duration: "quarter",
+			arpeggio: "up",
+			pitches: [{ step: "E", octave: 5 }],
+		});
+		expect(() => buildLayoutModel(song, 200)).not.toThrow();
+		const model = buildLayoutModel(song, 200);
+		const note = model.systems[0].measures[0].right.notes[0];
+		expect(note.arpeggio).toBeDefined();
+		expect(note.arpeggio.topY).toBe(note.arpeggio.bottomY);
+	});
+
+	it("a rest with arpeggio set lands in rests (not notes) and has no arpeggio record", () => {
+		const song = songWithRHEvent({
+			type: "rest",
+			duration: "quarter",
+			arpeggio: "up",
+		});
+		const model = buildLayoutModel(song, 200);
+		const measure = model.systems[0].measures[0];
+		// The rest is in rests, not in notes.
+		expect(measure.right.rests).toHaveLength(1);
+		expect(measure.right.notes).toHaveLength(0);
+		// The rest record has no arpeggio key.
+		expect(measure.right.rests[0].arpeggio).toBeUndefined();
 	});
 });

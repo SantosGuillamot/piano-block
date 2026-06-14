@@ -32,6 +32,14 @@ describe("songSchema", () => {
 		expect(properties.decrescendo).toEqual({ enum: ["start", "stop"] });
 	});
 
+	it("declares the optional `arpeggio` closed enum on the event", () => {
+		const { properties } = songSchema.$defs.event;
+		// Three direction values — up, down, nondirectional — in exactly this order.
+		expect(properties.arpeggio).toEqual({
+			enum: ["up", "down", "nondirectional"],
+		});
+	});
+
 	it("declares the optional `language` enum (the note-name system keys), not required", () => {
 		// Editor-internal, permissive: the enum keys are exactly the note-name
 		// system keys (`spanish` / `english`), and the field is never required.

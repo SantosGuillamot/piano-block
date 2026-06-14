@@ -51,6 +51,7 @@ const COMPREHENSIVE_SONG = {
 							duration: "half",
 							dots: 1,
 							dynamic: "mf",
+							arpeggio: "up",
 							annotations: [{ text: "C", placement: "above" }],
 							slur: "start",
 							tie: "start",
@@ -235,6 +236,76 @@ describe("validateSong — conformant songs", () => {
 			}),
 		).toEqual([]);
 	});
+
+	it('accepts `arpeggio: "up"` on a chord event', () => {
+		// Each of the three closed-enum values must pass individually.
+		expect(
+			check({
+				sections: [
+					{
+						measures: [
+							{
+								rightHand: [
+									{
+										type: "note",
+										duration: "quarter",
+										arpeggio: "up",
+										pitches: [{ step: "C", octave: 4 }],
+									},
+								],
+							},
+						],
+					},
+				],
+			}),
+		).toEqual([]);
+	});
+
+	it('accepts `arpeggio: "down"` on a chord event', () => {
+		expect(
+			check({
+				sections: [
+					{
+						measures: [
+							{
+								rightHand: [
+									{
+										type: "note",
+										duration: "quarter",
+										arpeggio: "down",
+										pitches: [{ step: "C", octave: 4 }],
+									},
+								],
+							},
+						],
+					},
+				],
+			}),
+		).toEqual([]);
+	});
+
+	it('accepts `arpeggio: "nondirectional"` on a chord event', () => {
+		expect(
+			check({
+				sections: [
+					{
+						measures: [
+							{
+								rightHand: [
+									{
+										type: "note",
+										duration: "quarter",
+										arpeggio: "nondirectional",
+										pitches: [{ step: "C", octave: 4 }],
+									},
+								],
+							},
+						],
+					},
+				],
+			}),
+		).toEqual([]);
+	});
 });
 
 describe("validateSong — note-name systems and case", () => {
@@ -381,6 +452,23 @@ describe("validateSong — closed-enum errors", () => {
 		expect(
 			result.some((e) => /decrescendo/.test(e) && /decrease/.test(e)),
 		).toBe(true);
+	});
+
+	it("flags an `arpeggio` value outside the allowed set with its path", () => {
+		// The validator must report the offending path and value; the song still
+		// parses (JSON is valid), so the validator returns messages rather than throwing.
+		const result = check(
+			eventSong({
+				type: "note",
+				duration: "quarter",
+				arpeggio: "sideways",
+				pitches: [{ step: "C", octave: 4 }],
+			}),
+		);
+		expect(result.some((e) => /arpeggio/.test(e) && /sideways/.test(e))).toBe(
+			true,
+		);
+		expect(Array.isArray(result)).toBe(true);
 	});
 });
 

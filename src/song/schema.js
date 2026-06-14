@@ -160,6 +160,7 @@ const songSchema = {
 				dots: { type: "integer", minimum: 0, maximum: 2 },
 				pitches: { type: "array", items: { $ref: "#/$defs/pitch" } },
 				dynamic: { enum: ["pp", "p", "mp", "mf", "f", "ff", "sf", "sfz"] },
+				arpeggio: { enum: ["up", "down", "nondirectional"] },
 				annotations: {
 					type: "array",
 					items: { $ref: "#/$defs/eventAnnotation" },

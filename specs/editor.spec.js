@@ -170,6 +170,89 @@ const NON_CONFORMANT_JSON = JSON.stringify({
 	],
 });
 
+// A conformant song whose single right-hand event is a chord carrying
+// `arpeggio: "up"`. Used to seed the arpeggio SelectControl authoring tests
+const ARPEGGIO_SONG = JSON.stringify(
+	{
+		sections: [
+			{
+				measures: [
+					{
+						rightHand: [
+							{
+								type: "note",
+								duration: "quarter",
+								arpeggio: "up",
+								pitches: [
+									{ step: "C", octave: 4 },
+									{ step: "E", octave: 4 },
+									{ step: "G", octave: 4 },
+								],
+							},
+						],
+					},
+				],
+			},
+		],
+	},
+	null,
+	2,
+);
+
+// A song with `arpeggio: "sideways"` — outside the closed enum — used for the
+// never-blocks / round-trip test. `sideways` is invalid, so the editor
+// shows an error notice, but the song is STILL stored and can be saved.
+const ARPEGGIO_INVALID_SONG = JSON.stringify(
+	{
+		sections: [
+			{
+				measures: [
+					{
+						rightHand: [
+							{
+								type: "note",
+								duration: "quarter",
+								arpeggio: "sideways",
+								pitches: [{ step: "C", octave: 4 }],
+							},
+						],
+					},
+				],
+			},
+		],
+	},
+	null,
+	2,
+);
+
+// A conformant song carrying a valid `arpeggio: "down"` field, used to prove
+// a valid arpeggio value round-trips through JSON mode unchanged.
+const ARPEGGIO_VALID_TAGGED_SONG = JSON.stringify(
+	{
+		sections: [
+			{
+				measures: [
+					{
+						rightHand: [
+							{
+								type: "note",
+								duration: "quarter",
+								arpeggio: "down",
+								pitches: [
+									{ step: "C", octave: 4 },
+									{ step: "G", octave: 4 },
+								],
+							},
+						],
+					},
+				],
+			},
+		],
+	},
+	null,
+	2,
+);
+
 /** Locate the single Piano block's raw-JSON field on the editor canvas. */
 function songField(editor) {
 	return editor.canvas.getByLabel(SONG_FIELD_LABEL);
@@ -1582,5 +1665,93 @@ test.describe("Piano block — R-FOCUS: post-mutation focus management", () => {
 
 		// After the remove the tree container must hold focus (anchor behavior).
 		await expect(structureTree(editor)).toBeFocused();
+	});
+
+	test("the Arpeggio SelectControl sets arpeggio on the stored song and the canvas SVG reflects it; clearing sets None", async ({
+		editor,
+		page,
+	}) => {
+		await editor.insertBlock({ name: "piano-block/piano" });
+
+		// Seed a conformant song with arpeggio: "up" on the chord, then return to
+		// the visual editor. The ToolsPanelItem reveals the SelectControl whenever
+		// `hasValue` is true (i.e. when the stored event already carries `arpeggio`).
+		await seedSongViaJson(editor, ARPEGGIO_SONG);
+		await switchToVisualMode(editor);
+		const sidebar = await openSettingsSidebar(editor, page);
+		await assertStructureTreeOpen(editor);
+
+		// Drill into the note row so the Note panel (and its ToolsPanel) opens.
+		// The chord's tree-row label is the space-joined pitch steps (noteLabel in
+		// src/editor/noteNames.js): three pitches → "C E G".
+		await expandRow(editor, "Section 1");
+		await expandRow(editor, "Measure 1");
+		await expandRow(editor, "Right hand");
+		await treeRow(editor, "C E G").click();
+		await expect(inspectorPanel(sidebar, "Note")).toBeVisible();
+
+		// The Arpeggio SelectControl is visible because the event already carries
+		// arpeggio: "up" (hasValue returns true, so the ToolsPanelItem is revealed).
+		// Its current value is "up".
+		const arpeggioSelect = sidebar.getByLabel("Arpeggio", { exact: true });
+		await expect(arpeggioSelect).toBeVisible();
+		await expect(arpeggioSelect).toHaveValue("up");
+
+		// The canvas SVG already shows [data-arpeggio="up"] for the seeded value.
+		await expect(canvasSvg(editor).locator('[data-arpeggio="up"]')).toHaveCount(
+			1,
+		);
+
+		// Change the SelectControl to "None" (the empty value) — this calls
+		// changeOptional("arpeggio", "") which drops the key via omitFalsy.
+		await arpeggioSelect.selectOption("");
+		await arpeggioSelect.blur();
+
+		// The stored song no longer carries an `arpeggio` key.
+		await expect
+			.poll(async () => {
+				const parsed = await storedSongObject(editor);
+				return Object.hasOwn(
+					parsed.sections[0].measures[0].rightHand[0],
+					"arpeggio",
+				);
+			})
+			.toBe(false);
+
+		// The canvas SVG no longer shows any [data-arpeggio] element.
+		await expect(canvasSvg(editor).locator("[data-arpeggio]")).toHaveCount(0);
+	});
+
+	test("the arpeggio field round-trips through JSON mode and never blocks saving", async ({
+		editor,
+	}) => {
+		await editor.insertBlock({ name: "piano-block/piano" });
+
+		// A song that carries `arpeggio: "sideways"` is NON-conformant (sideways is
+		// outside the closed enum), but the editor must STILL store and save it
+		// (persistence is unconditional — the never-blocks guarantee). The error
+		// notice is shown but does not gate the save path.
+		await switchToJsonMode(editor);
+		const field = songField(editor);
+		await field.fill(ARPEGGIO_INVALID_SONG);
+		await field.blur();
+		await expect(errorNotice(editor)).toBeVisible();
+		expect(await storedSong(editor)).toBe(ARPEGGIO_INVALID_SONG);
+
+		// A song that carries a VALID `arpeggio: "down"` is conformant: JSON mode
+		// shows no error and stores the exact bytes verbatim — the additive field
+		// validates and never blocks saving.
+		await field.fill(ARPEGGIO_VALID_TAGGED_SONG);
+		await field.blur();
+		await expect(errorNotice(editor)).toHaveCount(0);
+		expect(await storedSong(editor)).toBe(ARPEGGIO_VALID_TAGGED_SONG);
+
+		// The stored field survives a round trip to the visual editor and back: it
+		// is preserved (the visual editor reads `arpeggio` as authoritative) and the
+		// raw JSON still parses to the same shape with the field intact.
+		await switchToVisualMode(editor);
+		await switchToJsonMode(editor);
+		const parsed = await storedSongObject(editor);
+		expect(parsed.sections[0].measures[0].rightHand[0].arpeggio).toBe("down");
 	});
 });

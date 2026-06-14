@@ -357,6 +357,57 @@ describe("NotePanel — add note", () => {
 	});
 });
 
+describe("NotePanel — arpeggio control", () => {
+	it("adds an arpeggio key when set and drops it when cleared", () => {
+		const { container, calls } = renderPanel();
+
+		change(fieldByName(container, "Arpeggio"), "up");
+		expect(calls.at(-1).sections[0].measures[0].rightHand[0].arpeggio).toBe(
+			"up",
+		);
+		expectConformant(calls.at(-1));
+
+		change(fieldByName(container, "Arpeggio"), "");
+		expect(
+			calls.at(-1).sections[0].measures[0].rightHand[0].arpeggio,
+		).toBeUndefined();
+		expectConformant(calls.at(-1));
+	});
+
+	it("shows the Arpeggio control for a rest event", () => {
+		const { container } = renderPanel({
+			selection: {
+				kind: "event",
+				sectionIndex: 0,
+				measureIndex: 0,
+				hand: "rightHand",
+				eventIndex: 1,
+			},
+		});
+		// A rest still has the Arpeggio control — no type gate (by design).
+		expect(fieldByName(container, "Arpeggio")).not.toBeNull();
+	});
+
+	it("reset-all clears the arpeggio", () => {
+		const { container, calls } = renderPanel();
+
+		// Set an arpeggio first.
+		change(fieldByName(container, "Arpeggio"), "down");
+		expect(calls.at(-1).sections[0].measures[0].rightHand[0].arpeggio).toBe(
+			"down",
+		);
+
+		// Trigger the ToolsPanel "Reset all" button.
+		click(buttonByText(container, "Reset all"));
+
+		// The emitted event must not carry the arpeggio key.
+		expect(
+			calls.at(-1).sections[0].measures[0].rightHand[0].arpeggio,
+		).toBeUndefined();
+		expectConformant(calls.at(-1));
+	});
+});
+
 describe("NotePanel — remove note", () => {
 	it("signals onRemoveNote with the selection's coords (the parent owns the splice)", () => {
 		// The panel no longer splices locally: Remove note signals the lifted

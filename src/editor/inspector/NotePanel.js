@@ -42,6 +42,7 @@ import { noteNameOptions } from "../noteNames.js";
 import { PitchList } from "../PitchList.js";
 import {
 	clampInt,
+	ARPEGGIO,
 	DOTS_MAX,
 	DOTS_MIN,
 	DURATIONS,
@@ -161,6 +162,7 @@ export function NotePanel({
 					const {
 						dots: _dots,
 						dynamic: _dynamic,
+						arpeggio: _arpeggio,
 						tie: _tie,
 						slur: _slur,
 						crescendo: _crescendo,
@@ -199,6 +201,21 @@ export function NotePanel({
 						value={event.dynamic ?? ""}
 						options={[NONE_OPTION, ...DYNAMICS]}
 						onChange={(dynamic) => changeOptional("dynamic", dynamic)}
+						__nextHasNoMarginBottom
+						__next40pxDefaultSize
+					/>
+				</ToolsPanelItem>
+
+				<ToolsPanelItem
+					label={__("Arpeggio", "piano-block")}
+					hasValue={() => Boolean(event.arpeggio)}
+					onDeselect={() => changeOptional("arpeggio", "")}
+				>
+					<SelectControl
+						label={__("Arpeggio", "piano-block")}
+						value={event.arpeggio ?? ""}
+						options={[NONE_OPTION, ...ARPEGGIO]}
+						onChange={(value) => changeOptional("arpeggio", value)}
 						__nextHasNoMarginBottom
 						__next40pxDefaultSize
 					/>
