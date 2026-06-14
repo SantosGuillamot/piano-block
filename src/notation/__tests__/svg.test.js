@@ -1489,3 +1489,141 @@ describe("renderSvg — duration-ordered spacing reaches the SVG (issue #21)", (
 		expect(cx(1) - cx(0)).toBeLessThan(cx(5) - cx(4));
 	});
 });
+
+// ── Arpeggio wavy line + arrowhead ────────────────────────────────────────────────
+//
+// These assert the emitted arpeggio DOM directly: a nested `<g data-arpeggio>`
+// inside the note group, holding a `<path data-arpeggio-wiggle>` plus (for
+// directional arpeggios) a `<g data-arpeggio-arrow>` with exactly two `<line>`s.
+
+describe("renderSvg — arpeggio wavy line and arrowhead", () => {
+	// A one-note right-hand song with the given arpeggio direction.
+	const songWithArpeggio = (arpeggio) => ({
+		metadata: {},
+		sections: [
+			{
+				measures: [
+					{
+						rightHand: [
+							{
+								type: "note",
+								duration: "quarter",
+								arpeggio,
+								pitches: [
+									{ step: "C", octave: 5 },
+									{ step: "E", octave: 5 },
+								],
+							},
+						],
+					},
+				],
+			},
+		],
+	});
+	// A one-note rest song with arpeggio set (should produce no [data-arpeggio]).
+	const songWithRestArpeggio = () => ({
+		metadata: {},
+		sections: [
+			{
+				measures: [
+					{
+						rightHand: [
+							{
+								type: "rest",
+								duration: "quarter",
+								arpeggio: "up",
+							},
+						],
+					},
+				],
+			},
+		],
+	});
+
+	it("up arpeggio emits [data-arpeggio=\"up\"] inside the note group", () => {
+		const svg = renderSvg(buildLayoutModel(songWithArpeggio("up"), 120));
+		const g = svg.querySelector('[data-arpeggio="up"]');
+		expect(g).not.toBeNull();
+		expect(g.tagName.toLowerCase()).toBe("g");
+		// Nested inside the note group, which carries data-kind="note".
+		expect(g.closest('[data-kind="note"]')).not.toBeNull();
+	});
+
+	it("down arpeggio emits [data-arpeggio=\"down\"] inside the note group", () => {
+		const svg = renderSvg(buildLayoutModel(songWithArpeggio("down"), 120));
+		const g = svg.querySelector('[data-arpeggio="down"]');
+		expect(g).not.toBeNull();
+		expect(g.closest('[data-kind="note"]')).not.toBeNull();
+	});
+
+	it("nondirectional arpeggio emits [data-arpeggio=\"nondirectional\"] inside the note group", () => {
+		const svg = renderSvg(
+			buildLayoutModel(songWithArpeggio("nondirectional"), 120),
+		);
+		const g = svg.querySelector('[data-arpeggio="nondirectional"]');
+		expect(g).not.toBeNull();
+		expect(g.closest('[data-kind="note"]')).not.toBeNull();
+	});
+
+	it("the wiggle is always a <path data-arpeggio-wiggle> regardless of direction", () => {
+		for (const dir of ["up", "down", "nondirectional"]) {
+			const svg = renderSvg(buildLayoutModel(songWithArpeggio(dir), 120));
+			const wiggle = svg.querySelector(
+				`[data-arpeggio="${dir}"] [data-arpeggio-wiggle]`,
+			);
+			expect(wiggle).not.toBeNull();
+			expect(wiggle.tagName.toLowerCase()).toBe("path");
+		}
+	});
+
+	it("up arpeggio has an arrowhead group near topY (smaller Y)", () => {
+		const model = buildLayoutModel(songWithArpeggio("up"), 120);
+		const svg = renderSvg(model);
+		const g = svg.querySelector('[data-arpeggio="up"]');
+		const arrow = g.querySelector("[data-arpeggio-arrow]");
+		expect(arrow).not.toBeNull();
+		expect(arrow.tagName.toLowerCase()).toBe("g");
+		// The arrow group contains exactly two <line> strokes.
+		const lines = arrow.querySelectorAll("line");
+		expect(lines).toHaveLength(2);
+		// Both lines should share a Y near the top of the wiggle (small Y = near topY).
+		// The note's arpeggio record has topY; extract the layout model to get it.
+		const layoutNote = model.systems[0].measures[0].right.notes[0];
+		const { topY } = layoutNote.arpeggio;
+		for (const l of lines) {
+			// At least one endpoint of each line must be close to topY.
+			const ys = [l.getAttribute("y1"), l.getAttribute("y2")].map(Number);
+			expect(ys.some((y) => Math.abs(y - topY) < 1)).toBe(true);
+		}
+	});
+
+	it("down arpeggio has an arrowhead group near bottomY (larger Y)", () => {
+		const model = buildLayoutModel(songWithArpeggio("down"), 120);
+		const svg = renderSvg(model);
+		const g = svg.querySelector('[data-arpeggio="down"]');
+		const arrow = g.querySelector("[data-arpeggio-arrow]");
+		expect(arrow).not.toBeNull();
+		expect(arrow.tagName.toLowerCase()).toBe("g");
+		const lines = arrow.querySelectorAll("line");
+		expect(lines).toHaveLength(2);
+		const layoutNote = model.systems[0].measures[0].right.notes[0];
+		const { bottomY } = layoutNote.arpeggio;
+		for (const l of lines) {
+			const ys = [l.getAttribute("y1"), l.getAttribute("y2")].map(Number);
+			expect(ys.some((y) => Math.abs(y - bottomY) < 1)).toBe(true);
+		}
+	});
+
+	it("nondirectional arpeggio has no [data-arpeggio-arrow] child", () => {
+		const svg = renderSvg(
+			buildLayoutModel(songWithArpeggio("nondirectional"), 120),
+		);
+		const g = svg.querySelector('[data-arpeggio="nondirectional"]');
+		expect(g.querySelector("[data-arpeggio-arrow]")).toBeNull();
+	});
+
+	it("a rest with arpeggio set produces no [data-arpeggio] node anywhere", () => {
+		const svg = renderSvg(buildLayoutModel(songWithRestArpeggio(), 120));
+		expect(svg.querySelector("[data-arpeggio]")).toBeNull();
+	});
+});

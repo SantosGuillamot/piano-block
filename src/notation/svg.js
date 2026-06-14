@@ -26,6 +26,9 @@
  */
 
 import {
+	ARPEGGIO_AMPLITUDE,
+	ARPEGGIO_ARROW_SIZE,
+	ARPEGGIO_PERIOD,
 	BARLINE_THIN,
 	BEAM_GAP,
 	BEAM_THICKNESS,
@@ -755,6 +758,11 @@ function renderNote(note, handKey) {
 		}
 	}
 
+	// Arpeggio: wavy line + optional arrowhead to the left of the noteheads.
+	if (note.arpeggio) {
+		g.appendChild(renderArpeggio(note.arpeggio, note.x));
+	}
+
 	// Augmentation dots: small filled circles to the right of each notehead.
 	for (const dotSpec of note.dotSpecs ?? []) {
 		const node = drawGlyph("dot", note.x + dotSpec.dx, dotSpec.y);
@@ -1001,6 +1009,57 @@ export function wigglePathD(x, topY, bottomY, amplitude, period) {
 		d += ` Q ${controlX} ${controlY} ${x} ${anchorY}`;
 	}
 	return d;
+}
+
+/**
+ * Render the arpeggio wavy line (and optional arrowhead) for a single note.
+ *
+ * @param {{ dx: number, topY: number, bottomY: number, direction: string }} arp
+ *   The arpeggio layout record from the note.
+ * @param {number} noteX The note column X, in sp.
+ * @return {SVGGElement} A `<g data-arpeggio>` containing the wiggle path and,
+ *   for directional arpeggios, an arrowhead group.
+ */
+function renderArpeggio(arp, noteX) {
+	const wrapper = el("g", { "data-arpeggio": arp.direction });
+
+	// Wiggle path: always present, centered at noteX − arp.dx.
+	const x = noteX - arp.dx;
+	const d = wigglePathD(x, arp.topY, arp.bottomY, ARPEGGIO_AMPLITUDE, ARPEGGIO_PERIOD);
+	const wiggle = el("path", {
+		d,
+		fill: "none",
+		stroke: INK,
+		"stroke-width": STEM_THICKNESS,
+		"data-arpeggio-wiggle": "",
+	});
+	wrapper.appendChild(wiggle);
+
+	// Arrowhead: two <line> strokes, mirroring the hairpin two-line precedent.
+	if (arp.direction === "up") {
+		// "^" at the top end (arp.topY): two lines diverging downward from the tip.
+		const arrow = el("g", { "data-arpeggio-arrow": "" });
+		arrow.appendChild(
+			line(x, arp.topY, x - ARPEGGIO_ARROW_SIZE, arp.topY + ARPEGGIO_ARROW_SIZE, STEM_THICKNESS),
+		);
+		arrow.appendChild(
+			line(x, arp.topY, x + ARPEGGIO_ARROW_SIZE, arp.topY + ARPEGGIO_ARROW_SIZE, STEM_THICKNESS),
+		);
+		wrapper.appendChild(arrow);
+	} else if (arp.direction === "down") {
+		// "v" at the bottom end (arp.bottomY): two lines diverging upward from the tip.
+		const arrow = el("g", { "data-arpeggio-arrow": "" });
+		arrow.appendChild(
+			line(x, arp.bottomY, x - ARPEGGIO_ARROW_SIZE, arp.bottomY - ARPEGGIO_ARROW_SIZE, STEM_THICKNESS),
+		);
+		arrow.appendChild(
+			line(x, arp.bottomY, x + ARPEGGIO_ARROW_SIZE, arp.bottomY - ARPEGGIO_ARROW_SIZE, STEM_THICKNESS),
+		);
+		wrapper.appendChild(arrow);
+	}
+	// nondirectional: no arrowhead.
+
+	return wrapper;
 }
 
 /**
