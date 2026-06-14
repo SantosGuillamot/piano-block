@@ -416,6 +416,7 @@ async function publishPostWithSong({ admin, editor }, song) {
 	await editor.insertBlock({ name: "piano-block/piano" });
 
 	if (song !== null) {
+		await editor.clickBlockToolbarButton("Edit as JSON");
 		const field = editor.canvas.getByLabel("Song (JSON)");
 		await field.fill(song);
 	}
