@@ -309,16 +309,35 @@ export function StructureTree({
 	// Move DOM focus after each structural mutation. `focusRequest` is a monotonic
 	// `{ id, kind }` bumped by edit.js on every add/duplicate/remove; the `null`
 	// initial value makes mount a no-op. `"row"` focuses the newly-selected row's
-	// label (the `aria-current` `.…__tree-label`); `"anchor"` focuses the tree
-	// container itself so a remove never strands focus at `<body>`.
+	// label; `"anchor"` focuses the tree container itself so a remove never strands
+	// focus at `<body>`.
+	//
+	// When the newly selected item is a note (selection.kind === "event"), the enclosing
+	// measure row also carries aria-current (so the measure stays visually highlighted).
+	// To land focus on the newly added note's label rather than the measure label above
+	// it, the effect uses the note row's data-event-key to target the leaf row directly.
 	useEffect(() => {
 		if (!focusRequest) return; // null = mount, no fire
 		if (focusRequest.kind === "row") {
-			treeRef.current
-				?.querySelector(
-					'[aria-current="true"].wp-block-piano-block-piano__tree-label',
-				)
-				?.focus();
+			if (selection?.kind === "event") {
+				const key = eventKey({
+					sectionIndex: selection.sectionIndex,
+					measureIndex: selection.measureIndex,
+					hand: selection.hand,
+					eventIndex: selection.eventIndex,
+				});
+				treeRef.current
+					?.querySelector(
+						`[data-event-key="${key}"] .wp-block-piano-block-piano__tree-label`,
+					)
+					?.focus();
+			} else {
+				treeRef.current
+					?.querySelector(
+						'[aria-current="true"].wp-block-piano-block-piano__tree-label',
+					)
+					?.focus();
+			}
 		} else if (focusRequest.kind === "anchor") {
 			treeRef.current?.focus();
 		}
@@ -561,6 +580,7 @@ export function StructureTree({
 							level={4}
 							positionInSet={eventNumber}
 							setSize={events.length}
+							data-event-key={noteKey}
 						>
 							<TreeGridCell>
 								{(cellProps) => (
