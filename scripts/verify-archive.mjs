@@ -4,7 +4,7 @@
  * Covers Acceptance Criteria AC1–AC8 from the spec. Run this script from the
  * repo root after `npm install`:
  *
- *   node scripts/verify-archive.js
+ *   node scripts/verify-archive.mjs
  *
  * Exit 0  — all checks passed.
  * Exit 1  — one or more checks failed (details printed to stderr/stdout).
