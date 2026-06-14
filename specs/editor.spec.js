@@ -18,13 +18,13 @@
  *
  * Authoring no longer happens with on-canvas add buttons. The structure tree
  * navigates Section → Measure → {Right hand, Left hand} → Note. Each row mirrors
- * core's List View row: a select-only label cell (with a non-focusable stock
- * chevron beside it that drives expansion) and an actions cell holding a single
- * `DropdownMenu` of the row's add/remove/duplicate actions (hand groups host a
- * direct "Add note" button instead). Because the label is select-only, drilling
- * into the tree expands through the chevron, not the label; an empty measure's
- * first note is seeded from its hand group's "Add note" (the canvas add-grid is
- * gone). Once an event is selected, the Note panel's contextual "Add note"
+ * core's List View row: a label cell (with a non-focusable stock chevron beside
+ * it that drives expansion) and an actions cell holding a single `DropdownMenu`
+ * of the row's add/remove/duplicate actions (hand groups host a direct "Add note"
+ * button instead). A section or measure label click selects the row AND toggles
+ * its expansion (collapsing an open row); drilling into the tree can also use the
+ * chevron directly. An empty measure's first note is seeded from its hand group's
+ * "Add note" (the canvas add-grid is gone). Once an event is selected, the Note panel's contextual "Add note"
  * inserts a sibling in the same hand (inferred from the selection) and "Remove
  * note" deletes it; sections and measures are renamed via the "Section
  * name"/"Measure name" fields in their inspector panels. The Song panel's "Note
@@ -287,11 +287,9 @@ function structureTree(editor) {
  * hand-row "Add note" button spells its target lowercase ("Add note to Right
  * hand of …"), so the capitalized "Right hand" exact name misses that too.
  *
- * After S5 the label is SELECT-AND-REVEAL for section and measure rows: clicking
- * it always drives the kind-tagged selection AND expands the row when it is
- * currently collapsed (but never collapses — collapse stays on the chevron and
- * ArrowLeft). Note rows remain select-only (notes are leaves with no children to
- * reveal). The hand-group row is the exception: it is non-selecting, so its
+ * A section or measure label click selects the row AND toggles its expansion
+ * (collapsing an open row). Note-leaf label clicks only select (notes have no
+ * children). The hand-group row is the exception: it is non-selecting, so its
  * label/button click toggles expansion only.
  * Scoped to the tree container.
  *
@@ -482,10 +480,9 @@ test.describe("Piano block — editor authoring, persistence and validation", ()
 		// The seeded empty song has no on-canvas add affordance — the canvas
 		// add-grid is gone. The first note is bootstrapped from the structure tree,
 		// which is open by default: expand the seeded section then its measure (via
-		// the disclosure chevrons — the label is select-only and no longer expands),
-		// which reveals the hand rows, then click the right hand's "Add note" (the
-		// only first-note entry point for an empty measure; it seeds a default
-		// RIGHT-hand note).
+		// the disclosure chevrons or their label clicks), which reveals the hand
+		// rows, then click the right hand's "Add note" (the only first-note entry
+		// point for an empty measure; it seeds a default RIGHT-hand note).
 		await expect(structureTree(editor)).toBeVisible();
 		await expandRow(editor, "Section 1");
 		await expandRow(editor, "Measure 1");
@@ -547,8 +544,8 @@ test.describe("Piano block — editor authoring, persistence and validation", ()
 		await switchToVisualMode(editor);
 		const sidebar = await openSettingsSidebar(editor, page);
 		await assertStructureTreeOpen(editor);
-		// Expand down to the note via the chevrons (the labels are select-only), then
-		// SELECT the note row by clicking its (plain) label.
+		// Expand down to the note via the chevrons, then SELECT the note row by
+		// clicking its (plain) label (note-leaf labels are select-only).
 		await expandRow(editor, "Section 1");
 		await expandRow(editor, "Measure 1");
 		await expandRow(editor, "Right hand");
@@ -592,8 +589,8 @@ test.describe("Piano block — editor authoring, persistence and validation", ()
 		await editor.insertBlock({ name: "piano-block/piano" });
 
 		// Seed a single-section, single-measure song; the structure tree is open by
-		// default. Expand the section (via its chevron — the label is select-only) so
-		// its measure rows, and their actions menus, are reachable.
+		// default. Expand the section (via its chevron) so its measure rows, and
+		// their actions menus, are reachable.
 		await seedSongViaJson(editor, CONFORMANT_SONG);
 		await switchToVisualMode(editor);
 		const sidebar = await openSettingsSidebar(editor, page);
@@ -606,7 +603,12 @@ test.describe("Piano block — editor authoring, persistence and validation", ()
 		// Selecting the section row reveals that panel.) Scoped to the `sidebar` and
 		// `exact`, mirroring the "Add section" step below, so it never matches the
 		// tree's "Add note to …" actions.
+		// The label click selects Section 1 (for the panel) AND toggles its
+		// expansion (a section/measure label is a symmetric toggle), collapsing the
+		// s0 opened above. Re-open it idempotently so Measure 1 stays revealed for
+		// the row action below.
 		await treeRow(editor, "Section 1").click();
+		await expandRow(editor, "Section 1");
 		await expect(inspectorPanel(sidebar, "Section")).toBeVisible();
 		await sidebar
 			.getByRole("button", { name: "Add measure", exact: true })
@@ -772,22 +774,27 @@ test.describe("Piano block — editor authoring, persistence and validation", ()
 		await assertStructureTreeOpen(editor);
 
 		// Selecting the SECTION row reveals the Section panel only (every kind has a
-		// section), not the Measure/Note panels. After S5 clicking a collapsed section
-		// label selects AND reveals its children — the "clicking the text doesn't reveal
-		// anything" regression is fixed. A section selection decorates nothing on the
-		// canvas: section/measure are surfaced through the tree and panels.
+		// section), not the Measure/Note panels. A section/measure label click is a
+		// symmetric toggle: it selects the row AND toggles expansion, collapsing an
+		// open row or opening a closed one. edit.js seeds s0 expanded on mount;
+		// collapse it so the label click below opens-and-selects Section 1 (rather
+		// than collapsing it) and the next assert sees Measure 1 revealed.
+		// A section selection decorates nothing on the canvas.
+		await rowChevron(editor, "Section 1").click();
 		await treeRow(editor, "Section 1").click();
 		await expect(inspectorPanel(sidebar, "Section")).toBeVisible();
 		await expect(inspectorPanel(sidebar, "Measure")).toHaveCount(0);
 		await expect(inspectorPanel(sidebar, "Note")).toHaveCount(0);
-		// The label click above already expanded Section 1 (select-and-reveal); the
-		// measure row is now visible without a separate chevron click.
+		// The label click above opened Section 1 (symmetric toggle on a collapsed
+		// row); the measure row is now visible.
 		await expect(treeRow(editor, "Measure 1")).toBeVisible();
 
 		// Selecting the MEASURE row reveals Measure + Section (a measure has both),
-		// still not the Note panel. After S5 a collapsed measure label click also
-		// reveals its children (hand rows). A measure selection likewise decorates
+		// still not the Note panel. edit.js seeds s0m0 expanded on mount; collapse
+		// the measure so the label click below opens-and-selects Measure 1 and
+		// genuinely reveals its hand rows. A measure selection likewise decorates
 		// nothing on the canvas.
+		await rowChevron(editor, "Measure 1").click();
 		await treeRow(editor, "Measure 1").click();
 		await expect(inspectorPanel(sidebar, "Measure")).toBeVisible();
 		await expect(inspectorPanel(sidebar, "Section")).toBeVisible();
