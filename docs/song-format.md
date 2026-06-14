@@ -465,14 +465,14 @@ The format **has no `version` field**. It starts minimal and grows by adding **o
 Three consequences you can observe as an author:
 
 - **Unknown fields are ignored.** A misspelled *optional* field — for example `dynmic` instead of `dynamic`, or `cresendo` instead of `crescendo` — is silently dropped from meaning, not flagged as an error. The value you typed is still stored, but it carries no meaning. (Double-check your spelling of optional fields; a typo will not warn you.) This is why an older song that uses no gradual dynamics stays valid and unchanged as new optional fields like `crescendo` and `decrescendo` are added: the song simply omits them.
-- **A misspelled enumerated value *is* an error.** The closed vocabularies — durations, clefs, dynamics, barlines, `tie`/`slur`, `crescendo`/`decrescendo`, event `type`, `beatType` — are checked strictly. A value like `"quaver"` for a duration, `"treble-clef"` for a clef, `"mezzo"` for a dynamic, or anything other than `"start"` or `"stop"` for `crescendo` or `decrescendo` is a conformance error.
+- **A misspelled enumerated value *is* an error.** The closed vocabularies — durations, clefs, dynamics, `arpeggio`, barlines, `tie`/`slur`, `crescendo`/`decrescendo`, event `type`, `beatType` — are checked strictly. A value like `"quaver"` for a duration, `"treble-clef"` for a clef, `"mezzo"` for a dynamic, `"sideways"` for `arpeggio`, or anything other than `"start"` or `"stop"` for `crescendo` or `decrescendo` is a conformance error.
 - **Span pairing is not checked.** The start/stop markers that open and close a span — `tie`, `slur`, `crescendo`, and `decrescendo` — are validated only as individual `start | stop` values; their *pairing* is not. A lone `"start"` with no matching `"stop"` (or the reverse) is **not** a conformance error: the song still validates. Pairing is resolved best-effort at render time, so a dangling marker is simply drawn as far as it can be, never rejected.
 
 ## Annotated example song
 
 The following is a **complete, copy-pasteable example** — valid song JSON (no comments) you can paste straight into the block's song field and adapt.
 
-It exercises a broad spread of elements: notes and rests in both hands, a three-pitch chord, a dotted duration, a per-note accidental, mixed English and Spanish note names, per-hand clef / default accidentals / octave shift, a Section 2 mid-song tempo / time-signature / clef / accidental change, dynamics, free-text annotations (a per-event chord symbol above and a fingering below, plus a standalone `"rit."` on a measure), a tie, a crescendo span and a separate decrescendo span that meet on a shared messa-di-voce hinge note (carrying both `crescendo: "stop"` and `decrescendo: "start"`), repeat and final barlines, and title/composer metadata.
+It exercises a broad spread of elements: notes and rests in both hands, a three-pitch chord that is also arpeggiated (`"arpeggio": "up"`), a dotted duration, a per-note accidental, mixed English and Spanish note names, per-hand clef / default accidentals / octave shift, a Section 2 mid-song tempo / time-signature / clef / accidental change, dynamics, free-text annotations (a per-event chord symbol above and a fingering below, plus a standalone `"rit."` on a measure), a tie, a crescendo span and a separate decrescendo span that meet on a shared messa-di-voce hinge note (carrying both `crescendo: "stop"` and `decrescendo: "start"`), repeat and final barlines, and title/composer metadata.
 
 ```json
 {
@@ -498,6 +498,7 @@ It exercises a broad spread of elements: notes and rests in both hands, a three-
               "duration": "half",
               "dots": 1,
               "dynamic": "mf",
+              "arpeggio": "up",
               "annotations": [
                 { "text": "C", "placement": "above" },
                 { "text": "1", "placement": "below" }
