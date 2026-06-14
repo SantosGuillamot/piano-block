@@ -21,3 +21,14 @@
 	font-style: normal;
 	font-display: swap;
 }
+
+/**
+ * Toggle button — sits above the score; margin-bottom pushes the score
+ * container down so the button never overlaps the SVG.
+ */
+.wp-block-piano-block-piano {
+	.wp-block-piano-block-piano__toggle-note-names {
+		display: block;
+		margin-bottom: 0.5rem;
+	}
+}
