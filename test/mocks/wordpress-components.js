@@ -311,8 +311,9 @@ const PanelBody = ({
  * groups optional controls behind progressive disclosure; here it renders a
  * container exposing its `label` (as `aria-label`) and its `children`
  * UNCONDITIONALLY, so a panel's advanced controls are present in the DOM for
- * assertions (the reveal/hide behavior is left to the e2e suite). `resetAll` is
- * accepted and ignored.
+ * assertions (the reveal/hide behavior is left to the e2e suite). A "Reset all"
+ * button wired to `resetAll` is rendered so tests can assert that reset-all drops
+ * the expected optional keys.
  *
  * @param {Object} props ToolsPanel props.
  * @return {Object} A React element wrapping the children.
@@ -320,10 +321,21 @@ const PanelBody = ({
 const ToolsPanel = ({
 	label,
 	children,
-	// Swallow props with no behavior the tests assert.
-	resetAll: _resetAll,
+	resetAll,
 	...rest
-}) => createElement("div", { "aria-label": label, ...rest }, children);
+}) =>
+	createElement(
+		"div",
+		{ "aria-label": label, ...rest },
+		resetAll
+			? createElement(
+					"button",
+					{ type: "button", onClick: resetAll },
+					"Reset all",
+				)
+			: null,
+		children,
+	);
 
 /**
  * Minimal `__experimentalToolsPanelItem` (ToolsPanelItem) stand-in. The real
