@@ -282,7 +282,7 @@ describe("dotPositions", () => {
 describe("stackChord", () => {
 	it("places a plain triad all on the stem's normal side", () => {
 		// C-E-G (no seconds) stem-up → all to the right.
-		const heads = stackChord([0, 2, 4], "up");
+		const heads = stackChord([{ sFromBottom: 0, step: "C" }, { sFromBottom: 2, step: "E" }, { sFromBottom: 4, step: "G" }], "up");
 		expect(heads.map((h) => h.sFromBottom)).toEqual([0, 2, 4]);
 		expect(heads.every((h) => h.side === "right")).toBe(true);
 		expect(heads.every((h) => !h.displaced)).toBe(true);
@@ -290,7 +290,7 @@ describe("stackChord", () => {
 
 	it("displaces the upper note of a diatonic second to the opposite side", () => {
 		// C-D (a second) stem-up: C on the right, D displaced to the left.
-		const heads = stackChord([0, 1], "up");
+		const heads = stackChord([{ sFromBottom: 0, step: "C" }, { sFromBottom: 1, step: "D" }], "up");
 		expect(heads[0]).toMatchObject({ sFromBottom: 0, side: "right" });
 		expect(heads[1]).toMatchObject({
 			sFromBottom: 1,
@@ -300,14 +300,14 @@ describe("stackChord", () => {
 	});
 
 	it("flips only the middle note of a tight cluster (C-D-E)", () => {
-		const heads = stackChord([0, 1, 2], "up");
+		const heads = stackChord([{ sFromBottom: 0, step: "C" }, { sFromBottom: 1, step: "D" }, { sFromBottom: 2, step: "E" }], "up");
 		expect(heads[0].side).toBe("right");
 		expect(heads[1].side).toBe("left"); // middle flips
 		expect(heads[2].side).toBe("right"); // outer stays normal
 	});
 
 	it("uses the opposite normal side for a stem-down chord", () => {
-		const heads = stackChord([0, 1], "down");
+		const heads = stackChord([{ sFromBottom: 0, step: "C" }, { sFromBottom: 1, step: "D" }], "down");
 		expect(heads[0].side).toBe("left"); // normal side for stem-down
 		expect(heads[1].side).toBe("right"); // displaced
 	});
