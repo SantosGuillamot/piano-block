@@ -1,0 +1,38 @@
+# Spec Review
+
+## Verdict: rejected
+
+## Summary
+
+This is a strong, near-complete spec. It covers all ten consolidated functional requirements, both constraints, all five edge cases, and it adds two acceptance criteria (AC11 invalid/empty, AC12 legibility) beyond the research's list — genuine value. It correctly keeps the WordPress Interactivity API as a *constraint* (Requirement 12) rather than dictating directives, and it correctly keeps the spec WHAT-not-HOW: control placement and note-name collision geometry are explicitly deferred to design (Out of Scope), with legibility stated as the observable bar. Per-instance independence, default-OFF, bare-step naming (no accidental, no octave), system-follows-song, coverage across both staves / chords / ties / rests, reversibility, translatable label, and resize survival are all present and testable. I verified feasibility against the codebase: the architecture supports every requirement (shared `renderInto` path in `view.js` and `SongCanvas.js`; `noteNames.js` `stepInSystem` produces the bare step; the schema's only event types are `note`/`rest` and a note always has a nameable pitch; `render.php` emits nothing for an empty song).
+
+I am rejecting on two related, fixable issues, both centered on the one tripwire the research flagged most emphatically: the byte-identical SVG guarantee shared between the editor canvas and the frontend. The spec materially *weakened* that guarantee from how the research stated it, and folded two distinct guarantees into a single acceptance criterion in a way that is not cleanly testable. These are surgical fixes, not a rewrite.
+
+## Issues
+
+### Issue 1 — The byte-identical tripwire is weakened from "byte-identical, test-enforced" to a fuzzy "unchanged from today"
+
+**What's wrong.** The research is unambiguous and repeated about this (Q4f, plus the Constraints note): the editor canvas (`SongCanvas.js`) and the published frontend (`view.js`) call the *same* `renderInto(container, model, { accessibleName })`, and an existing `src/notation/__tests__/` unit test pins the emitted SVG **byte-identical** between those two surfaces. This is verified in the codebase — both files share the identical call, and `README.md:179`/`:231` state the byte-identical pin and its test. The research called this "a real tripwire": if note-name rendering is added into the shared emit/layout layer unconditionally, names leak onto the editor canvas *and* break that string-equality test.
+
+The spec's Constraint 13 captures the editor-unchanged intent in prose, but the only acceptance criterion that touches it, AC10, downgrades the bar to "the notation output is unchanged from today's output." "Unchanged from today" reads as a visual/behavioral claim ("looks the same"), not as the literal, machine-checked guarantee that actually exists: the frontend default-off SVG must be string-equal to the editor canvas SVG, enforced by a unit test. An implementer can satisfy "looks unchanged" while still breaking the byte-identical test (e.g. by emitting an empty `<g>` group, a hidden `<text>`, or a class attribute when names are off). The single most important guardrail for this feature is the one the spec made fuzziest.
+
+**Where in spec.** AC10 (lines 133–136); Constraint 13 (line 68); supporting Requirement 4's "match the editor" (line 36).
+
+**Suggestion.** Restate the byte-identical guarantee as the observable bar it is. It *is* observable — a test asserts it — so it belongs in an acceptance criterion in its strong form, without prescribing the implementation. For example, sharpen AC10 to assert two things: (a) when note names are not requested, the frontend score's rendered output is byte-identical to today's output for the same song; and (b) the editor canvas and the names-off frontend render byte-identical output for the same song (the existing equivalence is preserved). Keep it WHAT-level: state the equality that must hold, not how to parameterize the renderer to achieve it. Consider also adding a Given-When-Then so it is writable as a test, e.g. "Given a conformant song, When the frontend renders with names off and the editor canvas renders the same song, Then the two SVG outputs are byte-identical (and identical to today's output)."
+
+**Why it matters.** The research singled this out as the feature's biggest correctness tripwire. A weakened, ambiguous acceptance criterion invites an implementation that passes the spec's literal AC but breaks the real, existing unit test — exactly the failure mode the research warned about. The spec exists so two implementers build the same thing and so testers can write the right test; here the right test is already known and must not be diluted.
+
+### Issue 2 — AC10 conflates two distinct guarantees, leaving the editor-equivalence half effectively untestable
+
+**What's wrong.** AC10 bundles two independent guarantees into one criterion: (1) "the frontend notation output is unchanged from today when names are not requested" (the default-off guarantee) and (2) "the editor canvas shows no note names" (the permanent editor-scope guarantee). These have different scopes and different test shapes. Worse, the criterion that actually anchors the tripwire — that the editor canvas and the names-off frontend produce *the same* output — is present in neither AC10 nor anywhere else as a checkable assertion; AC10 only asserts each surface separately ("frontend unchanged" and "editor shows none"), not their equivalence. Two surfaces can each independently "show no names" while still diverging from each other (and thus breaking the equivalence test).
+
+**Where in spec.** AC10 (lines 133–136).
+
+**Suggestion.** Split into two acceptance criteria: one for the frontend default-off / editor-equivalence byte-identity (per Issue 1's suggested wording), and one for the standing editor-scope guarantee ("the editor gains no toggle and the editor canvas shows no note names under any condition, including when a frontend block elsewhere has names on"). Keeping them separate makes each writable as its own test and makes the equivalence assertion explicit rather than implied.
+
+**Why it matters.** Acceptance criteria must be specific enough to write tests from (the review bar). A single criterion that mixes two guarantees and omits the equivalence assertion cannot be turned into a faithful test of the constraint it is meant to protect — the same constraint flagged in Issue 1.
+
+## Minor notes (not blocking; fix if convenient while addressing the above)
+
+- **AC3 / Requirement 4 — two sources of "sharp."** The codebase has two independent ways a note is sharp: a per-note `pitch.alter` and a per-hand/section `handConfig.alters` map (a key-signature-like default accidental; see `docs/song-format.md:169`). The research (Q3b) verified naming ignores `pitch.alter`, but did not address the `alters`-map case. The name is correctly bare in both cases (names derive from `step` only), and Requirement 4 + "reuse the established naming logic" cover it — so this is not a gap in the outcome. But AC3 ("Given a note that is a C-sharp") leaves the *source* of the sharp unspecified. A one-clause note that "however a note is altered — per-note `alter` or an inherited default accidental — the name shows the bare step" would remove all doubt for the implementer and the test author.
+- **AC2 vs AC6 overlap.** AC2's "the score's original visual is restored" and AC6's idempotency claim are closely related; AC2's restoration is essentially the first half of AC6. This is acceptable (AC6 adds the N-toggle no-drift property), but a one-line cross-reference would make the distinction explicit and avoid a tester writing the same assertion twice.
