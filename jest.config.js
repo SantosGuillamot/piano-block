@@ -19,6 +19,11 @@
  * project-wide string-icon guard in `icons.test.js` mounts every icon-bearing
  * component and asserts the sentinel marker is present, going RED if any
  * component receives a string icon.
+ *
+ * The `@wordpress/interactivity` mock provides lightweight `store`, `getContext`,
+ * and `getElement` stubs that capture store definitions and let tests inject
+ * per-call state without a live WordPress runtime, so `view.js` store logic can
+ * be unit-tested in isolation with jsdom.
  */
 const path = require("node:path");
 const baseConfig = require("@wordpress/scripts/config/jest-unit.config.js");
@@ -35,6 +40,10 @@ const wordpressMocks = {
 		"test/mocks/wordpress-block-editor.js",
 	),
 	"^@wordpress/icons$": path.join(__dirname, "test/mocks/wordpress-icons.js"),
+	"^@wordpress/interactivity$": path.join(
+		__dirname,
+		"test/mocks/wordpress-interactivity.js",
+	),
 };
 
 const setupFiles = [
