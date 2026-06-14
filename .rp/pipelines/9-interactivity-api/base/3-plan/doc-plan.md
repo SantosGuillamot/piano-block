@@ -72,9 +72,16 @@ prose — the store is **callbacks-only** today.
   The migration does not change the song format or the front end's render-or-nothing behavior, so
   **song-format.md needs no changes** — verified in DOC6 below (a guard task), not edited.
 - **`AGENTS.md`** — pipeline-hygiene guidance only; no migration facts. **Out of scope.**
-- **`specs/render.spec.js`** narrative comments — the stale AC8 comments (~654–656 and ~672–679)
-  are corrected by the **code phase** (code-plan T6, which edits that test). The one comment the
-  code phase does **not** touch — the AC7-wrapper narrative at ~554–555 — is DOC5 below.
+- **`specs/render.spec.js`** narrative comments — only the comments **inside the AC8 test body**
+  (the `"AC8 (relocated) — …"` `test(...)`, the (b) comment near ~654–656 describing "the only
+  `<script>` … is the inert application/json data carrier" and the (d) comment near ~672–679
+  describing the carrier and the `<` escape) are corrected by the **code phase** (code-plan
+  T6, which edits that test). The new AC9 multi-block `test(...)` (code-plan T7) is authored fresh
+  by the code phase and is likewise **out of scope** here. **Every other** stale route-A /
+  `viewScript` / inert-`<script>`-carrier / ETAGO narrative comment in the file — the file header,
+  the AC1/AC2/AC12 test, the AC7 test, the AC11 test, and the route-A module-level fixture
+  comments — falls in **no** code task, so this doc plan owns them (**DOC5**, with **DOC7** as the
+  residue backstop). See DOC5 for the exact, content-anchored list.
 - **Symbol-level / docblock comments** written alongside the code (the `render.php` top doc comment,
   the `view.js` top doc comment, the `piano-block.php` function docblock) are the **code phase's**
   job (code-plan T3/T4/T5) — **out of scope** for this doc plan.
@@ -102,11 +109,20 @@ prose — the store is **callbacks-only** today.
 - **Traces to:** Shipped `block.json` (`supports.interactivity` + `viewScriptModule`) and
   `render.php`/`view.js` rewrite; design D1/D8/D11/D12; spec R1/R2; code-plan T2/T3/T5.
 - **Acceptance:**
-  - L13 no longer implies a bespoke "client reads the song" carrier mechanism. It should say the
-    block is an **interactive block**: the server (still dynamic / server-rendered) seeds each
-    instance's song into per-instance Interactivity API context, and the WordPress Interactivity
-    API hydrates each block on the page and draws the sheet music in the browser. Keep the
-    "nothing at all when there is no song" clause (still true — `render.php` early-returns).
+  - L13 currently reads: *"It is a **dynamic** (server-rendered) block: the stored `song` string
+    lives in the block's delimiter comment, and PHP emits a **lightweight container carrying that
+    song** to the front end. On a published page, **the block's own client-side code reads the
+    song** and draws it as visual piano sheet music … (and nothing at all when there is no song)."*
+    Both route-A phrasings — "PHP emits a **lightweight container carrying that song**" and "**the
+    block's own client-side code reads the song**" — must be replaced. The "container carrying the
+    song" is the dropped `<script>` carrier in user prose; "the block's own client-side code reads
+    the song" is the old standalone `viewScript` boot. The new sentence must say the block is an
+    **interactive block**: the server (still dynamic / server-rendered) seeds each instance's song
+    into its own **per-instance** Interactivity API context, and the **WordPress Interactivity API**
+    (the runtime — not "the block's own client-side code") hydrates each block on the page and draws
+    the sheet music in the browser. Keep the "nothing at all when there is no song" clause (still
+    true — `render.php` early-returns). After this edit, neither "container carrying that song" nor
+    "client-side code reads the song" remains on L13.
   - L76 stays accurate: the notation is still **drawn in the browser** by the plugin's own
     rendering code (no third-party notation library, bundled music font). Drawing-in-the-browser
     must remain — do **not** claim the SVG is server-rendered.
@@ -116,9 +132,10 @@ prose — the store is **callbacks-only** today.
     the notation. The "no visible title/composer heading; metadata only labels the notation for
     assistive technology" point stays true and unchanged.
   - **Must NOT appear** in these spots: "inert `<script>`", "application/json", "carrier",
-    "viewScript", "domReady". **Should appear:** "Interactivity API" and the per-instance /
-    hydrates idea (in user-appropriate prose — directive attribute names are optional here, they
-    belong in the contributor sections).
+    "container carrying that song" (the softer L13 carrier phrasing), "the block's own client-side
+    code reads the song" (the L13 standalone-boot phrasing), "viewScript", "domReady". **Should
+    appear:** "Interactivity API" and the per-instance / hydrates idea (in user-appropriate prose —
+    directive attribute names are optional here, they belong in the contributor sections).
   - No "WordPress 6.9+" / version statement is altered in this task (DOC7 owns versioning guards).
 
 ---
@@ -270,38 +287,100 @@ prose — the store is **callbacks-only** today.
 
 ---
 
-## DOC5 — Test-narrative comment: the AC7-wrapper note in `render.spec.js`
+## DOC5 — Test-narrative comments in `render.spec.js`: every stale route-A comment the code phase does not touch
 
 - **Task ID:** DOC5
-- **Goal:** The non-symbol narrative comment in the AC7 invalid-JSON test — which still describes
-  the wrapper as "carrying the inert JSON `<script>`" — is corrected to the route-B reality (a
-  childless `data-wp-context` wrapper), so the test prose does not contradict the shipped transport.
+- **Goal:** Every non-symbol narrative comment in `specs/render.spec.js` that still describes
+  route A — a classic `viewScript`, an inert `<script type="application/json">` carrier, a
+  hand-rolled `render.php` `<` / ETAGO escape, or the editor `interactive` flag as the reason
+  the front-end SVG is byte-identical — is corrected to the route-B reality (per-instance
+  `data-wp-context`, the core context encoder, a childless wrapper, the runtime owning boot),
+  **except** the comments the code phase already owns (the AC8 test body, T6; the new AC9 test,
+  T7). After this task, no stale route-A narrative survives anywhere in the file.
 - **Audience:** Plugin contributors / maintainers (test readers).
-- **Files:** `specs/render.spec.js` (modify — comment text only).
-- **Sections-scope:** **Only** the two-line comment at **~L554–555** inside the test
-  `"AC7 — an invalid-JSON song renders nothing visible"`:
-  `// The wrapper MAY exist (carrying the inert JSON <script>), but the` /
-  `// validate gate fails, so NO SVG and no visible notation is drawn.`
-  Do **not** change any assertion, any other comment, or any other test. The AC8 comments
-  (~L654–656, ~L672–679) are corrected by the **code phase** (code-plan T6) — do **not** touch them
-  here (if the code phase has already corrected them, leave them).
-- **Depends on:** Code-plan T3 (route-B `render.php`) and T6 (AC8 rework) having landed — so the
-  surrounding test reflects route B and this comment is the only remaining stale one. Run this task
-  **after** the code phase completes.
-- **Traces to:** Design D23/D26 (the flagged stale comment; the AC7 assertion `innerText === ""` is
-  unaffected — the childless route-B wrapper still yields empty `innerText`); spec AC7.
+- **Files:** `specs/render.spec.js` (modify — comment text only; no assertion, no fixture *data*,
+  no `test(...)` body logic changes).
+- **Sections-scope (anchored by CONTENT — the code ships before this runs, so line numbers WILL
+  shift; locate each by its quoted phrase, not by the line-number hints):** all of the following
+  stale-comment clusters, which lie **outside** the AC8 test body and the AC9 test:
+
+  1. **The file-level header doc-comment (the top `/** … */` block, ~L1–24)** — not inside any
+     `test(...)`, so code-plan T6 (AC8 test only) never reaches it. Fix every route-A phrase in it:
+     - "the client-side notation **the `viewScript` (`view.js`) draws** from the song **the
+       server-rendered container carries**" (~L6) — the `viewScript` + "container carries" framing;
+     - the present-but-non-renderable bullet "the wrapper may exist **with the inert JSON
+       `<script>` inside**, but no SVG" (~L11–12);
+     - "the **JSON `<script>` does not break out**" and "the old `esc_html(<pre>)` guarantee now
+       lives in **the `render.php` ETAGO escape** + the SVG `textContent` emit" (~L20–24).
+  2. **The AC1/AC2/AC12 test** (`test("AC1/AC2/AC12 — a conformant song renders an SVG grand
+     staff …")`) — a **different** test from the AC8 test T6 edits, so it is uncovered by the code
+     phase. Inside it, two comment phrases:
+     - "(AC12 boundary) … `view.js` renders **without the `interactive` flag**, so the front-end
+       SVG stays byte-identical" (~L527–529);
+     - "A successful render replaces **the inert JSON `<script>` carrier** with the SVG, so it is no
+       longer in the DOM" (~L532–535).
+  3. **The AC7 invalid-JSON test** (`test("AC7 — an invalid-JSON song renders nothing visible")`) —
+     the two-line comment "The wrapper MAY exist **(carrying the inert JSON `<script>`)**, but the
+     validate gate fails, so NO SVG and no visible notation is drawn." (~L554–555).
+  4. **The AC11 hostile-free-text test** (`test("hostile free text renders as literal textContent …")`
+     inside the `describe("Piano block — hostile free text in a note renders inert")`) — note that
+     code-plan T6 fixes this exact "beyond the inert JSON carrier" pattern for the **AC8** copy, but
+     the **AC11** copy is left stale by both plans. Fix:
+     - "no live (executable) `<script>` exists **beyond the inert JSON carrier**" (~L912–914);
+     - the comment justifying the locator `.${BLOCK_CLASS} script:not([type="application/json"])`
+       (~L916–918): the assertion still *passes* under route B (with no `application/json` carrier,
+       the `:not(...)` still selects all scripts → count 0), but any prose implying the negation
+       excludes a real carrier is now false — there is no carrier to exclude. Keep the assertion
+       line itself **unchanged**; correct only the comment so it no longer implies a carrier exists.
+  5. **The route-A module-level fixture comments** (top-of-file `const` comments, **not** inside any
+     `test(...)`, so T6/T7 never reach them):
+     - the `INVALID_JSON_SONG` comment "`view.js` draws nothing **(the wrapper stays empty)**"
+       (~L173–174) — "stays empty" presumes a carrier-bearing wrapper; under route B the wrapper is
+       childless by construction. Reframe to: the client-side validate gate fails, so the view
+       module draws no SVG.
+     - the `HOSTILE_SONG` fixture comment "it must therefore still `JSON.parse` back to these exact
+       bytes (**the `render.php` `<` escape round-trips**) and RENDER" (~L214–217) — the
+       hand-rolled `<` escape is gone; the **core context encoder** now provides the byte-exact
+       round-trip. Reframe to the core-encoder round-trip. (This is a fixture-`const` comment, NOT
+       inside the AC8 `test(...)` body, so it is genuinely outside T6's scope.)
+
+  **IMPORTANT BOUNDARY — do NOT touch these (code-phase territory):**
+  - Any comment **inside the AC8 test body** (`test("AC8 (relocated) — a conformant song with
+    hostile free text renders inert and still draws")`) — in particular the (b) comment "the only
+    `<script>` inside the wrapper is the inert application/json data carrier" and the (d) comment
+    describing "fetch the RAW server HTML … swaps the carrier for the SVG … `render.php` escapes
+    every `<` …". **Code-plan T6 rewrites these.** If T6 has already corrected them, leave them as
+    they are; if it left any stale, **flag it** for the code phase rather than editing the AC8 test.
+  - Any comment **inside the new AC9 multi-block test** authored by **code-plan T7** — leave it
+    entirely to the code phase.
+  - All **fixture string DATA** (e.g. the `HOSTILE_TITLE` / `HOSTILE_CHORD` literals at ~L218–219,
+    `HOSTILE_FREE_TEXT`) — these legitimately contain hostile `</script>` / `application/json`-like
+    text as **test input**; never edit them. This task changes **comment prose only**.
+- **Depends on:** Code-plan T3 (route-B `render.php`), T5 (route-B `view.js`), and T6 (AC8 rework)
+  having landed — so the surrounding tests reflect route B and the only remaining stale comments are
+  the ones enumerated above. Run this task **after** the code phase completes.
+- **Traces to:** Design D23/D26 (the flagged stale comments; the AC7 assertion `innerText === ""`,
+  the AC1/AC12 `innerText`/`<pre>` asserts, and the AC11 `script`/`foreignObject` asserts are all
+  unaffected by the comment edits — the childless route-B wrapper still yields the same observable
+  results); spec AC7/AC8/AC11/AC12.
 - **Acceptance:**
-  - The comment no longer says the wrapper carries an inert JSON `<script>`. It must describe the
-    route-B wrapper accurately: a **childless** `data-wp-interactive` / `data-wp-context` wrapper may
-    exist (or, per the early return, none at all for empty/whitespace), but the **client-side**
-    validate gate fails on invalid JSON, so **no SVG and no visible notation** is drawn — which is
-    why the test asserts `innerText === ""`. The assertion lines (L556–563) are **unchanged**.
-  - The phrase "inert JSON `<script>`" no longer appears anywhere in `render.spec.js`
-    (`grep -n "inert" specs/render.spec.js` and `grep -n "application/json" specs/render.spec.js`
-    return nothing once the code phase's T6 edits and this DOC5 edit are both in — if T6 left any,
-    flag it, but do not edit AC8 here).
-  - This is a comment-only change: `npm run test:e2e -- render.spec.js` behavior is identical
-    (no assertion touched).
+  - None of the enumerated route-A phrases survives. In particular the file no longer says
+    `viewScript`, "inert JSON `<script>`", "application/json carrier"/"data carrier", the editor
+    `interactive` flag as the byte-identical reason, "container carries", the hand-rolled
+    `render.php` `<`/ETAGO escape, or "the wrapper stays empty" as **current** behavior in any
+    **comment**, with the route-B facts asserted in their place (song rides in per-instance
+    `data-wp-context`, the **core context encoder** escapes and round-trips, the wrapper is
+    **childless**, the **runtime** owns boot, the front-end SVG is byte-identical because the
+    **publish-time render path is unchanged** — not because of an absent `interactive` flag).
+  - **Comment-residue grep (scoped to comments, after T6 + this task land):**
+    `grep -niE "viewScript|inert|application/json|carrier|ETAGO|interactive flag" specs/render.spec.js`
+    returns **nothing** — OR only matches that are (a) inside the AC8 test body / AC9 test (T6/T7
+    territory; if any of *those* are stale, flag for the code phase, do not edit here), (b) a clearly
+    historical "previously…/used to…" mention this task deliberately kept, or (c) lines that are
+    **fixture string data** (the `HOSTILE_*` literals), never comments. If a match is a stale
+    **comment outside** the AC8/AC9 bodies, this task is not done.
+  - This is a comment-only change: every assertion, fixture value, and `test(...)` body is byte-for-byte
+    unchanged, so `npm run test:e2e -- render.spec.js` behavior is identical (no assertion touched).
 
 ---
 
@@ -340,18 +419,24 @@ prose — the store is **callbacks-only** today.
 ## DOC7 — Cross-cutting drift sweep: version floor + dependency invariant + carrier residue
 
 - **Task ID:** DOC7
-- **Goal:** A final repo-wide prose sweep confirming the migration's three highest-risk drift
-  points are correct everywhere in the docs: the WordPress floor stays **6.9**, the
+- **Goal:** A final repo-wide sweep confirming the migration's three highest-risk drift
+  points are correct everywhere in the docs and test comments: the WordPress floor stays **6.9**, the
   WordPress-only / externalized-`@wordpress/interactivity` dependency invariant is not misstated,
-  and no "inert `<script>` carrier" residue survives in any prose doc.
+  and no "inert `<script>` carrier" / route-A residue survives in any prose doc **or in the
+  `specs/render.spec.js` comments** (the backstop for DOC5's broadened comment sweep), while
+  leaving the code-phase AC8/AC9 test bodies untouched.
 - **Audience:** Maintainers (final verification gate for the doc batch).
 - **Files:** `README.md` (verify; fix only residual misses DOC1–DOC4 did not cover),
-  `docs/song-format.md` (verify), `AGENTS.md` (verify).
+  `docs/song-format.md` (verify), `AGENTS.md` (verify), `specs/render.spec.js` (verify — the
+  carrier-residue backstop for DOC5; **comments only**, never the hostile fixture *data*).
 - **Sections-scope:** Cross-cutting — the "Requirements" (**README L88–L99**, the "WordPress 6.9+"
   lines L92) and "Building & installing" (**L114–L122**, the "WordPress 6.9+ / PHP 7.4+" line L122)
   blocks for the version floor; any prose mentioning runtime dependencies for the invariant; and a
-  repo-wide grep for carrier residue. This task **fixes only** drift that DOC1–DOC4 did not already
-  own (it must not re-edit their spots); its primary output is verification.
+  repo-wide grep for carrier residue across `README.md`, `docs/song-format.md`, `AGENTS.md`, **and
+  `specs/render.spec.js`** (the file with the most surviving residue, owned by DOC5). This task
+  **fixes only** drift that DOC1–DOC5 did not already own (it must not re-edit their spots, and it
+  must not touch the AC8/AC9 test bodies that are code-phase territory); its primary output is
+  verification.
 - **Depends on:** DOC1, DOC2, DOC3, DOC4, DOC5, DOC6 (this is the closing sweep).
 - **Traces to:** Spec R10/AC14 (WordPress-only invariant), the design's "floor stays 6.9" (D21),
   and the route-B transport (D12); the file-change manifest.
@@ -365,11 +450,23 @@ prose — the store is **callbacks-only** today.
     mentioned (DOC3's build model), it is described as **WordPress-provided and externalized** by the
     toolchain — not added to `package.json` and not manually registered in `render.php`. The
     `package.json` `dependencies` story in the README (only `@wordpress/icons`) is unchanged.
-  - **Carrier residue:** a repo-wide prose grep finds no surviving description of the dropped
+  - **Carrier residue:** a repo-wide prose/comment grep finds no surviving description of the dropped
     transport as current behavior:
-    `grep -rniE "inert (json|application/json)? ?<script>|wp-block-piano-block-piano__song|str_replace\\(.*u003C|viewScript\b" README.md docs/song-format.md AGENTS.md`
+    `grep -rniE "inert (json|application/json)? ?<script>|wp-block-piano-block-piano__song|str_replace\\(.*u003C|viewScript\b" README.md docs/song-format.md AGENTS.md specs/render.spec.js`
     returns nothing (the only legitimate residue is a clearly-historical "previously…" mention, if
-    DOC4 kept one). `viewScript` as a registration field must not appear (only `viewScriptModule`).
+    DOC4 or DOC5 kept one). `viewScript` as a registration field must not appear (only
+    `viewScriptModule`).
+  - **`specs/render.spec.js` carrier-residue backstop (the DOC5 guard):** because DOC5's broadened
+    comment sweep is the only place these test comments are corrected, DOC7 re-runs the DOC5
+    comment-residue grep as the closing backstop —
+    `grep -niE "viewScript|inert|application/json|carrier|ETAGO|interactive flag" specs/render.spec.js`
+    — and it must return **nothing** EXCEPT matches that are (a) inside the AC8 test body or the AC9
+    test (code-plan T6/T7 territory — if any of *those* are stale, flag them for the code phase, do
+    **not** edit them here), (b) a deliberately-kept historical "previously…" mention, or (c) lines
+    that are **hostile fixture string DATA** (the `HOSTILE_TITLE` / `HOSTILE_CHORD` / `HOSTILE_FREE_TEXT`
+    literals, which legitimately carry `</script>`-like text as test input — never edit those). If a
+    stale **comment outside** the AC8/AC9 bodies survives, DOC5 missed one; route it back to DOC5's
+    scope (fix it minimally here and note it belonged to DOC5).
   - **Terminology consistency:** the README uses "view module" / `viewScriptModule` (not
     "viewScript"), "per-instance context" / `data-wp-context` (not "carrier"), and "interactive
     block" consistently across DOC1–DOC4's edits.
@@ -384,8 +481,11 @@ prose — the store is **callbacks-only** today.
   (they may run in any order or in parallel); keeping terminology consistent across them is the only
   coupling, which DOC7 verifies. They depend on the **code having shipped** (the doc phase runs after
   the Code phase) but not on a specific code task beyond that.
-- **DOC5** edits one test-narrative comment and **depends on code-plan T3 + T6** having landed (so the
-  surrounding test is already route-B and only the AC7 comment remains stale).
+- **DOC5** corrects **every** stale route-A narrative comment in `render.spec.js` that the code phase
+  does not own (the file header, the AC1/AC2/AC12 test, the AC7 test, the AC11 test, and the route-A
+  module-level fixture comments — but **not** the AC8 test body or the AC9 test, which are T6/T7).
+  It **depends on code-plan T3 + T5 + T6** having landed (so the surrounding tests are already
+  route-B and the only remaining stale comments are the ones it owns).
 - **DOC6** is a guard for the two non-README docs and depends on DOC1–DOC4 (README anchors stable).
 - **DOC7** is the closing cross-cutting sweep and depends on **all** prior tasks.
 
@@ -397,7 +497,8 @@ parallelizable; DOC5 after the code phase's T6; DOC6 then DOC7 last).
 - Interactive block / `supports.interactivity` / `viewScriptModule` registration → DOC1 (prose),
   DOC2 (block.json row), DOC3 (build model).
 - Route-B per-instance `data-wp-context` transport + dropped `<script>` carrier → DOC1, DOC2
-  (render.php / view.js rows), DOC4 (render contract), DOC5 (test comment), DOC7 (residue sweep).
+  (render.php / view.js rows), DOC4 (render contract), DOC5 (all stale route-A test comments outside
+  the AC8/AC9 bodies), DOC7 (residue sweep, incl. the `render.spec.js` comment backstop).
 - Server-computed accessible name (PHP mirror; front end no longer calls `accessibleName.js`) →
   DOC2 (view.js + accessibleName.js rows), DOC4 (render contract).
 - Core-encoder escape-safety (superset escape, byte-exact round-trip) → DOC4.
@@ -412,7 +513,11 @@ parallelizable; DOC5 after the code phase's T6; DOC6 then DOC7 last).
 - Symbol-level / docblock comments authored with the code: the top doc comment of `render.php`
   (code-plan T3), the top doc comment of `view.js` (T5), and the `piano_block_register()` docblock
   in `piano-block.php` (T4) — the **code phase** rewrites these alongside the code.
-- The stale AC8 narrative comments in `render.spec.js` (~L654–656, ~L672–679) — corrected by the
-  **code phase** (code-plan T6, which edits that test).
+- The narrative comments **inside the AC8 test body** in `render.spec.js` (the (b) "inert
+  application/json data carrier" comment ~L654–656 and the (d) carrier/`<` comment ~L672–679) —
+  corrected by the **code phase** (code-plan T6, which edits that test). Likewise, the comments in
+  the **new AC9 multi-block test** are authored fresh by the **code phase** (code-plan T7). DOC5
+  carves both out explicitly; **every other** stale route-A comment in the file (header, AC1/AC2/AC12
+  test, AC7 test, AC11 test, route-A fixture comments) is **in DOC5's scope**, not out of scope.
 - `docs/song-format.md` field reference and `AGENTS.md` content — unchanged by the migration
   (DOC6/DOC7 verify, do not rewrite).
