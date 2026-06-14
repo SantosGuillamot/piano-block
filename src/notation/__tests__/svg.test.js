@@ -10,7 +10,7 @@
  * e2e; these are the cheap structural invariants the emit layer must hold regardless.
  */
 import { buildLayoutModel } from "../layout.js";
-import { renderInto, renderSvg } from "../svg.js";
+import { renderInto, renderSvg, wigglePathD } from "../svg.js";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
@@ -1398,8 +1398,6 @@ describe("renderSvg — measure-number absence", () => {
 
 // ── wigglePathD pure helper ────────────────────────────────────────────────────────
 
-import { wigglePathD } from "../svg.js";
-
 describe("wigglePathD", () => {
 	it("returns a string starting at (x, bottomY) with an M command", () => {
 		const d = wigglePathD(5, 0, 20, 1, 4);
@@ -1628,7 +1626,7 @@ describe("renderSvg — arpeggio wavy line and arrowhead", () => {
 	});
 });
 
-// ── Combined markings: arpeggio + tie + dots + dynamic (AC7) ──────────────────────
+// ── Combined markings: arpeggio + tie + dots + dynamic ──────────────────────────
 //
 // Proves that the arpeggio renders alongside other per-event markings — each in its
 // own region — and that the arpeggio's X sits to the left of the leftmost accidental
