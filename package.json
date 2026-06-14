@@ -9,8 +9,8 @@
 		"npm": ">=11"
 	},
 	"scripts": {
-		"build": "wp-scripts build",
-		"start": "wp-scripts start",
+		"build": "wp-scripts build --experimental-modules",
+		"start": "wp-scripts start --experimental-modules",
 		"test:unit": "wp-scripts test-unit-js",
 		"test:e2e": "wp-scripts test-playwright",
 		"env:start": "wp-env start",

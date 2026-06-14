@@ -17,20 +17,12 @@
 defined( 'ABSPATH' ) || exit;
 
 /**
- * Registers the Piano block from its compiled block.json metadata and loads the
- * frontend viewScript's translations.
+ * Registers the Piano block from its compiled block.json metadata.
  *
  * The block is built with @wordpress/scripts; run `npm run build` to generate
- * the build/ directory this points at. `wp_set_script_translations()` lets the
- * accessible-label strings in view.js localize (the auto-generated viewScript handle
- * is `piano-block-piano-view-script`); English works without translation files.
+ * the build/ directory this points at.
  */
 function piano_block_register() {
 	register_block_type( __DIR__ . '/build' );
-	wp_set_script_translations(
-		'piano-block-piano-view-script',
-		'piano-block',
-		__DIR__ . '/languages'
-	);
 }
 add_action( 'init', 'piano_block_register' );

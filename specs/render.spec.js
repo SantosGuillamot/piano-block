@@ -3,13 +3,13 @@
  * AC7, AC8 injection protection, AC12).
  *
  * These tests drive a real WordPress instance via wp-env and verify the
- * client-side notation the `viewScript` (`view.js`) draws from the song the
- * server-rendered container carries (design §2.5, §8). The frontend has three
- * display states:
+ * client-side notation the Interactivity API `view.js` runtime draws from the
+ * song each block carries in its per-instance `data-wp-context` (design §2.5,
+ * §8). The frontend has three display states:
  *
  *   - empty / whitespace song     → nothing (no container, no SVG);
- *   - present-but-non-renderable  → nothing visible (the wrapper may exist with
- *                                   the inert JSON `<script>` inside, but no SVG);
+ *   - present-but-non-renderable  → nothing visible (the wrapper may exist as a
+ *                                   childless element, but no SVG);
  *   - present-and-conformant      → an `<svg role="img">` grand staff (two staff
  *                                   bands, brace, both clefs) with an accessible
  *                                   name from `metadata`, and NO raw-JSON `<pre>`.
@@ -18,10 +18,10 @@
  * of stacked systems changes between a wide and a narrow viewport, AC5), and a
  * conformant song carrying hostile literals (`</script>`, `<!--`,
  * `<script>alert()</script>`) in its free-text fields renders inert text and
- * still parses back to the exact author bytes — the JSON `<script>` does not
- * break out and no script executes (the relocated AC8 protection: the old
- * `esc_html(<pre>)` guarantee now lives in the `render.php` ETAGO escape +
- * the SVG `textContent` emit, design §6.8).
+ * still parses back to the exact author bytes — the `data-wp-context` payload
+ * does not break out and no script executes (the relocated AC8 protection: the
+ * old `esc_html(<pre>)` guarantee now lives in the core context encoder's
+ * escape + the SVG `textContent` emit, design §6.8).
  *
  * Prerequisites (run from the worktree root):
  *   1. npm install        — installs the toolchain (Playwright via @wordpress/scripts)
@@ -169,8 +169,8 @@ const COMPREHENSIVE_NAME = "Example by A. Composer";
 // all, so the page has no Piano-block wrapper.
 const WHITESPACE_SONG = "   \n\t  ";
 
-// AC7 case (i): not parseable as JSON — `validateSong` returns a parse error, so
-// `view.js` draws nothing (the wrapper stays empty).
+// AC7 case (i): not parseable as JSON — the client-side `validateSong` gate
+// returns a parse error, so the view module draws no SVG.
 const INVALID_JSON_SONG = "{ not json";
 
 // AC7 case (ii): valid JSON but non-conformant — `quaver` is not in the closed
@@ -211,10 +211,66 @@ const MANY_MEASURE_SONG = JSON.stringify({
 	],
 });
 
+/**
+ * AC9 multi-block isolation fixtures: two conformant songs with different metadata
+ * and deliberately different note counts so their SVG notation trees differ
+ * measurably. Song A has one note (one notehead); song B has three notes (three
+ * noteheads). If the song were ever lifted to `wp_interactivity_state()` both
+ * blocks would render the same notation and the same accessible name — this pair
+ * of fixtures would catch that regression immediately.
+ */
+const ISOLATION_SONG_A = JSON.stringify({
+	metadata: { title: "Alpha", composer: "X" },
+	sections: [
+		{
+			measures: [
+				{
+					rightHand: [
+						{
+							type: "note",
+							duration: "whole",
+							pitches: [{ step: "C", octave: 5 }],
+						},
+					],
+				},
+			],
+		},
+	],
+});
+
+const ISOLATION_SONG_B = JSON.stringify({
+	metadata: { title: "Beta", composer: "Y" },
+	sections: [
+		{
+			measures: [
+				{
+					rightHand: [
+						{
+							type: "note",
+							duration: "quarter",
+							pitches: [{ step: "E", octave: 4 }],
+						},
+						{
+							type: "note",
+							duration: "quarter",
+							pitches: [{ step: "G", octave: 4 }],
+						},
+						{
+							type: "note",
+							duration: "half",
+							pitches: [{ step: "B", octave: 4 }],
+						},
+					],
+				},
+			],
+		},
+	],
+});
+
 // AC8 injection protection: a CONFORMANT song whose free-text fields carry the
 // HTML-significant breakout literals. A note's `text` and `metadata.title` are free
 // text, so the song stays conformant; it must therefore still `JSON.parse` back
-// to these exact bytes (the `render.php` `<` escape round-trips) and RENDER.
+// to these exact bytes (the core context encoder round-trips them byte-exact) and RENDER.
 const HOSTILE_TITLE = `Pwn </script><!-- <script>alert("xss")</script>`;
 const HOSTILE_CHORD = `C7 </script><!-- <script>alert('chord')</script>`;
 const HOSTILE_SONG = JSON.stringify({
@@ -525,14 +581,14 @@ test.describe("Piano block — front-end render", () => {
 		await expect(svg.locator('[data-text="annotation"]')).toContainText("C");
 
 		// (AC12 boundary) The editor-only per-event hit-rect is NOT in the published
-		// DOM: `view.js` renders without the `interactive` flag, so the front-end SVG
-		// stays byte-identical to before the editor work. No `[data-hit]` rect exists.
+		// DOM: the publish-time render path is unchanged, so the front-end SVG stays
+		// byte-identical to before the editor work. No `[data-hit]` rect exists.
 		await expect(svg.locator("[data-hit]")).toHaveCount(0);
 
 		// (AC1) The raw JSON is NOT shown to the reader: no <pre>, and the visible
-		// text of the block is not the JSON document. (A successful render replaces
-		// the inert JSON `<script>` carrier with the SVG, so it is no longer in the
-		// DOM — the song never appears as visible text or executable script.)
+		// text of the block is not the JSON document. (The song rides in the block's
+		// per-instance `data-wp-context` attribute, never as visible text or
+		// executable script, and the rendered SVG is the only on-page content.)
 		await expect(page.locator("pre")).toHaveCount(0);
 		const blockText = await page.locator(`.${BLOCK_CLASS}`).innerText();
 		expect(blockText).not.toContain('"sections"');
@@ -551,8 +607,8 @@ test.describe("Piano block — front-end render", () => {
 
 		await page.goto(`/?p=${postId}`);
 
-		// The wrapper MAY exist (carrying the inert JSON <script>), but the
-		// validate gate fails, so NO SVG and no visible notation is drawn.
+		// The wrapper MAY exist (a childless element carrying the `data-wp-context`),
+		// but the validate gate fails, so NO SVG and no visible notation is drawn.
 		await expect(blockSvg(page)).toHaveCount(0);
 		await expect(page.locator("pre")).toHaveCount(0);
 
@@ -624,6 +680,58 @@ test.describe("Piano block — front-end render", () => {
 		await expect(svg.locator("[data-staff-lines]")).not.toHaveCount(0);
 	});
 
+	test("AC9 — two Piano blocks on one page render independently with no cross-talk", async ({
+		admin,
+		editor,
+		page,
+	}) => {
+		// Insert two Piano blocks on a single post, each with a different song, then
+		// publish and assert that each block renders its own SVG with its own
+		// accessible name and its own notation tree. This guards against the
+		// global-state regression: if the song were ever put in
+		// `wp_interactivity_state()` instead of per-instance `data-wp-context`,
+		// both blocks would render the same song and the same accessible name (D19,
+		// D20, R4, R8).
+		await admin.createNewPost();
+
+		// Insert block A and fill it with song A.
+		await editor.insertBlock({ name: "piano-block/piano" });
+		await editor.clickBlockToolbarButton("Edit as JSON");
+		const fieldA = editor.canvas.getByLabel("Song (JSON)");
+		await fieldA.fill(ISOLATION_SONG_A);
+
+		// Insert block B and fill it with song B. `insertBlock` always selects the
+		// newly inserted block, but both blocks' sidebar panels may be visible at
+		// once, so use `.last()` to target B's field (the second textarea).
+		await editor.insertBlock({ name: "piano-block/piano" });
+		await editor.clickBlockToolbarButton("Edit as JSON");
+		const fieldB = editor.canvas.getByLabel("Song (JSON)").last();
+		await fieldB.fill(ISOLATION_SONG_B);
+
+		const postId = await editor.publishPost();
+		await page.goto(`/?p=${postId}`);
+
+		// Both wrappers must be present.
+		await expect(page.locator(`.${BLOCK_CLASS}`)).toHaveCount(2);
+
+		// Exactly two labeled SVG graphics — one per block.
+		const svgs = page.locator(`.${BLOCK_CLASS} svg[role="img"]`);
+		await expect(svgs).toHaveCount(2);
+
+		// Each SVG carries its own accessible name — no cross-contamination.
+		await expect(svgs.nth(0)).toHaveAccessibleName("Alpha by X");
+		await expect(svgs.nth(1)).toHaveAccessibleName("Beta by Y");
+
+		// The two notation trees must differ measurably: song A has one notehead,
+		// song B has three, so the counts cannot be equal. If both blocks read the
+		// same song the counts would be identical and the test would fail.
+		const noteheadsA = await svgs.nth(0).locator("[data-notehead]").count();
+		const noteheadsB = await svgs.nth(1).locator("[data-notehead]").count();
+		expect(noteheadsA).toBeGreaterThan(0);
+		expect(noteheadsB).toBeGreaterThan(0);
+		expect(noteheadsA).not.toBe(noteheadsB);
+	});
+
 	test("AC8 (relocated) — a conformant song with hostile free text renders inert and still draws", async ({
 		admin,
 		editor,
@@ -645,15 +753,15 @@ test.describe("Piano block — front-end render", () => {
 
 		const svg = blockSvg(page);
 
-		// (a) Because the song is CONFORMANT, the `<` escape round-trips: the
-		// JSON <script> did NOT break out, `JSON.parse` succeeded on the exact
-		// author bytes, and the notation RENDERS.
+		// (a) Because the song is CONFORMANT, `wp_interactivity_data_wp_context()`'s
+		// JSON_HEX_TAG escape round-trips cleanly: `JSON.parse` succeeded on the
+		// exact author bytes, and the notation RENDERS.
 		await expect(svg).toBeVisible();
 		await expect(svg.locator("[data-staff-lines]")).not.toHaveCount(0);
 
-		// (b) No script executed from the block payload: the only <script> inside
-		// the wrapper is the inert application/json data carrier — there is no live
-		// (executable / no-type) <script> injected by the song, and alert never fired.
+		// (b) No script executed from the block payload: route B emits a childless
+		// wrapper with NO carrier `<script>` at all — there is no live (executable /
+		// no-type) `<script>` injected by the song, and alert never fired.
 		await expect(
 			page.locator(`.${BLOCK_CLASS} script:not([type="application/json"])`),
 		).toHaveCount(0);
@@ -669,31 +777,45 @@ test.describe("Piano block — front-end render", () => {
 		// verbatim as inert text, with the "by composer" wrapper.
 		await expect(svg).toHaveAccessibleName(`${HOSTILE_TITLE} by A. Composer`);
 
-		// (d) Transport-side proof the JSON `<script>` did NOT break out: fetch the
-		// RAW server HTML (before `view.js` runs and swaps the carrier for the SVG).
-		// `render.php` escapes every `<` to the JSON unicode escape `<`, so the
-		// hostile `</script>` / `<!--` literals appear ONLY in their escaped form
-		// inside the carrier — the raw markup must contain `</script` and NOT a
-		// literal `</script>` that would have closed the carrier early. Because the
-		// escape is a legal JSON escape, the carrier still `JSON.parse`s back to the
-		// EXACT author bytes (already proven by (a)+(c) rendering the verbatim text).
+		// (d) Transport-side proof the route-B `data-wp-context` attribute did NOT
+		// break out: fetch the RAW server HTML (before `view.js` runs and draws the
+		// SVG). `wp_interactivity_data_wp_context()` encodes the context via
+		// `wp_json_encode( …, JSON_HEX_TAG | JSON_HEX_APOS | … )`, so every `<` →
+		// `<`, `/` → `\/`, `'` → `'` — the hostile `</script>` /
+		// `<!--` literals appear ONLY in their escaped form inside the attribute value,
+		// and the single-quote attribute delimiter is never confused with an in-payload
+		// `'` (which comes out as `'`). The escaped JSON still round-trips to
+		// the exact author bytes (already proven by (a)+(c) rendering verbatim text).
 		const rawHtml = await (await page.request.get(`/?p=${postId}`)).text();
-		const carrierStart = rawHtml.indexOf(
-			'<script type="application/json" class="wp-block-piano-block-piano__song">',
+		// Anchor on the piano block's own interactive namespace, then find the
+		// data-wp-context attribute that immediately follows it on the same element.
+		const interactiveAnchor = 'data-wp-interactive="piano-block/piano"';
+		const anchorPos = rawHtml.indexOf(interactiveAnchor);
+		expect(anchorPos).toBeGreaterThan(-1);
+		const ctxOpener = "data-wp-context='";
+		const ctxStart = rawHtml.indexOf(ctxOpener, anchorPos);
+		expect(ctxStart).toBeGreaterThan(-1);
+		// The first `'` after the opener is the true attribute close because any
+		// in-payload `'` is encoded to `'` by JSON_HEX_APOS.
+		const attrValue = rawHtml.slice(
+			ctxStart + ctxOpener.length,
+			rawHtml.indexOf("'", ctxStart + ctxOpener.length),
 		);
-		expect(carrierStart).toBeGreaterThan(-1);
-		// The carrier opening tag is followed by the escaped payload; the FIRST
-		// `</script>` after it is the carrier's own (intact) closing tag, with the
-		// escaped hostile sequence sitting safely before it.
-		const afterOpen = rawHtml.slice(carrierStart);
-		expect(afterOpen).toContain("\\u003C/script>");
-		expect(afterOpen).toContain("\\u003C!--");
-		// The escaped JSON still parses back to the exact author bytes.
-		const payload = afterOpen.slice(
-			afterOpen.indexOf(">") + 1,
-			afterOpen.indexOf("</script>"),
-		);
-		expect(JSON.parse(payload)).toEqual(JSON.parse(HOSTILE_SONG));
+		// Escape-safety: hostile sequences appear only in their unicode-escaped form.
+		// `wp_json_encode` with JSON_HEX_TAG encodes `<` → `<` and also emits
+		// `\/` for `/` (a valid JSON escape), so `</script>` becomes `<\/script`.
+		expect(attrValue).toContain("\\u003C\\/script");
+		expect(attrValue).toContain("\\u003C!--");
+		expect(attrValue).not.toContain("</script>");
+		expect(attrValue).not.toContain("<!--");
+		// JSON_HEX_APOS encodes `'` → `'` so the single-quote attribute
+		// delimiter never appears inside the value.
+		expect(attrValue).not.toContain("'");
+		// Byte-exact round-trip: the attribute value is the JSON of the whole context
+		// object; the song field is an inner JSON string that parses to the exact bytes.
+		const ctx = JSON.parse(attrValue);
+		expect(JSON.parse(ctx.song)).toEqual(JSON.parse(HOSTILE_SONG));
+		expect(ctx.accessibleName).toBe(`${HOSTILE_TITLE} by A. Composer`);
 	});
 });
 
@@ -911,7 +1033,9 @@ test.describe("Piano block — hostile free text in a note renders inert", () =>
 
 		// No markup was injected from the free text: the angle-bracketed literal did NOT
 		// create a <script> or <foreignObject> node anywhere in the block, and no live
-		// (executable) <script> exists beyond the inert JSON carrier.
+		// (executable) <script> exists. Route B emits a childless wrapper with no
+		// carrier `<script>` at all, so the `:not([type="application/json"])` filter
+		// excludes nothing real — it simply selects every script in the block (none).
 		await expect(page.locator(`.${BLOCK_CLASS} foreignObject`)).toHaveCount(0);
 		await expect(
 			page.locator(`.${BLOCK_CLASS} script:not([type="application/json"])`),
