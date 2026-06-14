@@ -17,7 +17,8 @@
 		"env:stop": "wp-env stop",
 		"lint": "biome lint .",
 		"format": "biome format --write .",
-		"check": "biome check --write ."
+		"check": "biome check --write .",
+		"plugin-zip": "npm run build && node scripts/check-build.js && wp-scripts plugin-zip"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "2.4.16",
