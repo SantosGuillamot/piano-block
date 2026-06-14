@@ -18,13 +18,15 @@ The documentation work has two jobs:
 
 1. **Add coverage** of the new viewer feature where end users and contributors
    will look for it (the README's frontend section; the block's discovery
-   metadata; the contributor architecture notes; the "Forthcoming" framing).
+   metadata; the contributor architecture notes).
 2. **Repair drift** in every existing passage that today asserts or implies the
    frontend is render-only / has no interactive controls, that the editor and
    frontend SVG are byte-identical without qualification, or that the frontend
-   does not consume the song's `language` field. Each of these becomes inaccurate
-   or under-qualified once the feature ships, and must be corrected to match the
-   shipped behavior the doc-writers will read in code.
+   does not consume the song's `language` field — including the "Forthcoming"
+   section's "what has landed on the frontend" summary, which frames the frontend
+   as notation-rendering-only. Each of these becomes inaccurate or under-qualified
+   once the feature ships, and must be corrected to match the shipped behavior the
+   doc-writers will read in code.
 
 Two precision points every task must respect (they are easy to get wrong and the
 prior phases pin them):
@@ -252,10 +254,21 @@ for any others, since line numbers will shift):
   names-off default — the frontend can additionally show names the editor never
   does. Qualify it without overstating divergence (geometry is unchanged; the
   frontend simply overlays optional names).
-- The "Forthcoming"/additive-growth mention that the frontend "reads neither"
+- The Additive-growth contributor paragraph stating the frontend "reads neither"
   `language` nor `name` (line 223): the `language` half is now stale — the
   frontend DOES read `language` (to pick the note-name system when names are on).
   The `name` half stays true. Split or re-qualify accordingly.
+- The "Forthcoming" section (lines 233-240; the opener at line 235 reads "Song
+  storage, visual authoring, and front-end notation rendering have landed, …"):
+  this "what has landed on the frontend" summary frames the frontend as
+  render-only — it lists notation rendering as the frontend's accomplishment with
+  no viewer controls. After this feature ships, the frontend gains its first
+  viewer-operable control (the note-name toggle), so that summary under-states the
+  shipped state. Update the framing proportionately so it acknowledges the
+  frontend now carries a viewer control alongside its rendering — keep it
+  drift-resistant (describe the outcome, not exact wording), keep it consistent
+  with the names-off byte-identity scope used elsewhere, and do not disturb the
+  planned-but-not-in-v1 list (audio playback, richer notation) below it.
 
 **Depends on**
 Should land together with Tasks 1-3 (same file). Sequence so the additive
@@ -275,6 +288,10 @@ default off; `system = language ?? infer`). Code-plan Tasks 3, 6.
 - The README no longer says the frontend does not consume `language`; it reflects
   that `language` selects the note-name system on the frontend when names are
   shown, while `name` is still frontend-unused.
+- The "Forthcoming" section's "what has landed" summary no longer frames the
+  frontend as notation-rendering-only / with no viewer controls; it acknowledges
+  the frontend's first viewer-operable control. The planned-but-not-in-v1 list
+  (audio playback, richer notation) below it is unchanged.
 - The repaired statements are consistent with the coverage added in Tasks 1-3
   (no contradiction between sections).
 
@@ -459,6 +476,8 @@ changed `render.php`, `view.js`, `noteNames.js`). Code-plan Tasks 1, 5, 6.
 - README — contributor architecture / pipeline / byte-identity scope: Task 3.
 - README — drift repair (render-only framing, byte-identity qualifier,
   `language` consumption): Task 4.
+- README — "Forthcoming" section "what has landed" summary (frames the frontend
+  as render-only; now gains its first viewer control): Task 4.
 - `docs/song-format.md` — `language` consumption, additive-growth claim,
   note-name-systems cross-reference: Task 5.
 - `src/block.json` — discovery metadata (description, keywords): Task 6.
