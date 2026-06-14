@@ -249,9 +249,9 @@ export default function Edit({ attributes, setAttributes }) {
 	};
 
 	// Append an empty measure to a section. The Structure list passes an explicit
-	// `sectionIndex`; the default-to-last fallback covers a call with no target. The
-	// new measure is reachable via the Structure list, so the selection is left as-is.
-	const onAddMeasure = (sectionIndex = working.sections.length - 1) => {
+	// `sectionIndex`. The new measure is reachable via the Structure list, so the
+	// selection is left as-is.
+	const onAddMeasure = (sectionIndex) => {
 		const section = working.sections[sectionIndex];
 		if (!section) {
 			return;
