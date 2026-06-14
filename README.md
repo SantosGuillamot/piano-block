@@ -88,6 +88,14 @@ The notation is drawn entirely in the browser by the block's own code once the I
 - **What a name is.** Each name is a **bare** pitch letter or syllable in the song's own note-name system — the same English / Spanish systems the editor uses (see the [song format reference](docs/song-format.md)). It carries **no accidental** (a C-sharp note simply reads `C`, or `do` in a Spanish song — the accidental still shows as its usual glyph beside the notehead) and **no octave number**. Both hands are named, and every notehead of a chord gets its own name; rests get none.
 - **The system follows the song, not the viewer.** The control only shows or hides names; it never lets the viewer switch between English and Spanish. Which system the names appear in is a property of the song itself.
 - **It is per block, and it does not stick.** Each Piano block on a page has its **own** control and its own on/off state — toggling one block's names never touches another's. The choice is **not remembered**: reload the page (or open it again) and the names start hidden once more.
+- **It is accessible and translatable.** The control **communicates its current on/off state to assistive technology**, so a screen-reader user can tell whether the names are showing. Its **label is a translatable string** under the plugin's `piano-block` text domain — the same way the block already supplies translated text to the front end (such as the score's accessible name) — so a localized site presents the control in its own language.
+
+**When the control appears.** The control is shown only when the block actually **draws nameable notes** — it is tied to the score being drawn and there being something to name:
+
+- A song that **renders nothing** shows **no control**. An empty or whitespace-only song draws no score at all (see above), so there is no control; an invalid or non-conformant song likewise draws nothing and shows no control.
+- A **conformant song with nothing to name** — for example one made up only of **rests** — renders its score **without the control**, because rests get no name.
+
+In short, you only ever see the control on a score that has at least one named-or-nameable note to reveal.
 
 > **Tip:** The [annotated example song](docs/song-format.md#annotated-example-song) in the format reference is a ready-made starting template. Switch to raw-JSON mode, paste it into the field, view the published post, and you will see it rendered as a grand staff.
 
