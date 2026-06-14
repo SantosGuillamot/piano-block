@@ -1396,6 +1396,55 @@ describe("renderSvg — measure-number absence", () => {
 	});
 });
 
+// ── wigglePathD pure helper ────────────────────────────────────────────────────────
+
+import { wigglePathD } from "../svg.js";
+
+describe("wigglePathD", () => {
+	it("returns a string starting at (x, bottomY) with an M command", () => {
+		const d = wigglePathD(5, 0, 20, 1, 4);
+		expect(typeof d).toBe("string");
+		expect(d.trimStart()).toMatch(/^M 5 20/);
+	});
+
+	it("derives bump count n = max(1, round(height / (period/2)))", () => {
+		// height = 16, period = 4, period/2 = 2 → n = round(16/2) = 8
+		const d = wigglePathD(5, 0, 16, 1, 4);
+		const qCount = (d.match(/\bQ\b/g) ?? []).length;
+		expect(qCount).toBe(8);
+	});
+
+	it("clamps to n = 1 when topY === bottomY (height 0)", () => {
+		// height = 0 → max(1, round(0/2)) = 1
+		const d = wigglePathD(5, 10, 10, 1, 4);
+		expect(d).not.toContain("NaN");
+		expect(d).not.toContain("Infinity");
+		const qCount = (d.match(/\bQ\b/g) ?? []).length;
+		expect(qCount).toBe(1);
+	});
+
+	it("path reaches topY as the last anchor point", () => {
+		const d = wigglePathD(5, 2, 18, 1, 4);
+		// The final Q segment ends at topY (the last number in the string)
+		const numbers = d.match(/-?[\d.]+/g).map(Number);
+		expect(numbers[numbers.length - 1]).toBeCloseTo(2, 6);
+	});
+
+	it("a taller span yields more Q segments than a short span", () => {
+		const tall = wigglePathD(5, 0, 40, 1, 4);
+		const short = wigglePathD(5, 10, 20, 1, 4);
+		const tallQs = (tall.match(/\bQ\b/g) ?? []).length;
+		const shortQs = (short.match(/\bQ\b/g) ?? []).length;
+		expect(tallQs).toBeGreaterThan(shortQs);
+	});
+
+	it("is pure: same arguments always produce the same output", () => {
+		const a = wigglePathD(3, 1, 25, 2, 6);
+		const b = wigglePathD(3, 1, 25, 2, 6);
+		expect(a).toBe(b);
+	});
+});
+
 describe("renderSvg — duration-ordered spacing reaches the SVG (issue #21)", () => {
 	// Four eighths + two quarters, single-pitch (single-pitch ⇒ cx === note.x,
 	// so the chord back-head skew never enters the gap comparison). This is the

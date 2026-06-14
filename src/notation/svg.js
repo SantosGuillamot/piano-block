@@ -975,6 +975,35 @@ function appendInlineKeySig(parent, cluster, baseX, staffBottomY) {
 }
 
 /**
+ * Build a vertical wavy-line SVG `d` string for an arpeggio bracket, walking from
+ * `bottomY` up to `topY` in half-period steps and emitting a chain of quadratic (`Q`)
+ * bumps whose control point alternates left/right of `x` each step.
+ *
+ * The bump count is `n = max(1, round((bottomY - topY) / (period / 2)))`. The only
+ * division is by `n` (always ≥ 1), so there is no divide-by-zero risk.
+ *
+ * @param {number} x The center X of the wiggle, in sp.
+ * @param {number} topY The destination Y (top of the span), in sp.
+ * @param {number} bottomY The start Y (bottom of the span), in sp.
+ * @param {number} amplitude The horizontal reach of each control point, in sp.
+ * @param {number} period The wavelength of one full oscillation, in sp.
+ * @return {string} An SVG `d` string beginning with `M x bottomY` and reaching `topY`.
+ */
+export function wigglePathD(x, topY, bottomY, amplitude, period) {
+	const height = bottomY - topY;
+	const n = Math.max(1, Math.round(height / (period / 2)));
+	const step = height / n;
+	let d = `M ${x} ${bottomY}`;
+	for (let i = 0; i < n; i++) {
+		const anchorY = bottomY - (i + 1) * step;
+		const controlX = i % 2 === 0 ? x - amplitude : x + amplitude;
+		const controlY = bottomY - i * step - step / 2;
+		d += ` Q ${controlX} ${controlY} ${x} ${anchorY}`;
+	}
+	return d;
+}
+
+/**
  * Render one resolved span (a tie or a slur) as a quadratic-Bézier `<path>` between
  * its endpoints with the model's control point. All four points + the control are
  * absolute (system-local) sp; the path stroke is the ink color, unfilled.
