@@ -8,8 +8,8 @@
  * Stage 2 of the plugin-zip chain; run via `node scripts/check-build.js`.
  */
 
-import { existsSync } from "node:fs";
-import { join } from "node:path";
+const { existsSync } = require( 'node:fs' );
+const { join } = require( 'node:path' );
 
 /**
  * Check whether the keystone build output exists under `cwd`.
@@ -22,23 +22,25 @@ import { join } from "node:path";
  *   `build/block.json` exists; `message` is the actionable error string when
  *   `ok` is `false`, or an empty string when `ok` is `true`.
  */
-export function checkBuild(cwd) {
-	const target = join(cwd, "build", "block.json");
-	if (existsSync(target)) {
-		return { ok: true, message: "" };
+function checkBuild( cwd ) {
+	const target = join( cwd, 'build', 'block.json' );
+	if ( existsSync( target ) ) {
+		return { ok: true, message: '' };
 	}
 	return {
 		ok: false,
-		message: "build/block.json not found — run `npm run build` first.",
+		message: 'build/block.json not found — run `npm run build` first.',
 	};
 }
 
+module.exports = { checkBuild };
+
 // CLI entry point: map the pure result to stderr + exit code. Only runs when
 // this file is executed directly (not when imported by tests).
-if (process.argv[1] === new URL(import.meta.url).pathname) {
-	const result = checkBuild(process.cwd());
-	if (!result.ok) {
-		process.stderr.write(result.message + "\n");
-		process.exit(1);
+if ( require.main === module ) {
+	const result = checkBuild( process.cwd() );
+	if ( ! result.ok ) {
+		process.stderr.write( result.message + '\n' );
+		process.exit( 1 );
 	}
 }
