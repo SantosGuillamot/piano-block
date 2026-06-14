@@ -1627,3 +1627,83 @@ describe("renderSvg — arpeggio wavy line and arrowhead", () => {
 		expect(svg.querySelector("[data-arpeggio]")).toBeNull();
 	});
 });
+
+// ── Combined markings: arpeggio + tie + dots + dynamic (AC7) ──────────────────────
+//
+// Proves that the arpeggio renders alongside other per-event markings — each in its
+// own region — and that the arpeggio's X sits to the left of the leftmost accidental
+// (the easy-to-forget independence case). The chord carries an explicit sharp so the
+// left-of-accidentals claim is non-vacuous.
+
+describe("renderSvg — arpeggio coexists with tie, dots, and dynamic", () => {
+	// Two-measure song: the first measure's chord carries all four markings plus an
+	// accidental (F#5); the second measure's note receives the tie stop so the tie
+	// span resolves to a rendered path.
+	const COMBINED_SONG = {
+		metadata: {},
+		sections: [
+			{
+				measures: [
+					{
+						rightHand: [
+							{
+								type: "note",
+								duration: "quarter",
+								dots: 1,
+								dynamic: "mf",
+								arpeggio: "up",
+								tie: "start",
+								pitches: [
+									{ step: "C", octave: 5 },
+									{ step: "F", octave: 5, alter: 1 },
+								],
+							},
+						],
+					},
+					{
+						barlineEnd: "final",
+						rightHand: [
+							{
+								type: "note",
+								duration: "quarter",
+								tie: "stop",
+								pitches: [{ step: "C", octave: 5 }],
+							},
+						],
+					},
+				],
+			},
+		],
+	};
+
+	it("renders [data-arpeggio], tie path, [data-dot], and dynamic text all present together", () => {
+		const model = buildLayoutModel(COMBINED_SONG, 400);
+		const svg = renderSvg(model);
+
+		// Arpeggio wavy line group present.
+		expect(svg.querySelector("[data-arpeggio]")).not.toBeNull();
+		// Tie resolves to a <path data-span="tie">.
+		expect(svg.querySelector('path[data-span="tie"]')).not.toBeNull();
+		// Augmentation dot(s) present.
+		expect(svg.querySelector("[data-dot]")).not.toBeNull();
+		// Dynamic text present.
+		const dynamics = [...svg.querySelectorAll('[data-text="dynamic"]')].map(
+			(n) => n.textContent,
+		);
+		expect(dynamics).toContain("mf");
+	});
+
+	it("arpeggio dx exceeds the leftmost accidental dx so the wiggle sits left of the sharp", () => {
+		// The chord has F#5 which draws a sharp accidental. The layout must place the
+		// arpeggio further left than that accidental: arp.dx > max(acc.dx).
+		const model = buildLayoutModel(COMBINED_SONG, 400);
+		const layoutNote = model.systems[0].measures[0].right.notes[0];
+
+		// Guard: the accidental must actually be present for this claim to be testable.
+		expect(layoutNote.accidentals.length).toBeGreaterThan(0);
+		expect(layoutNote.arpeggio).toBeDefined();
+
+		const maxAccDx = Math.max(...layoutNote.accidentals.map((a) => a.dx));
+		expect(layoutNote.arpeggio.dx).toBeGreaterThan(maxAccDx);
+	});
+});
