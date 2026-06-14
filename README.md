@@ -113,7 +113,21 @@ Then open **http://localhost:8888/** (front end) or **http://localhost:8888/wp-a
 
 ## Building & installing into an existing site
 
-Because the block is compiled, the installable plugin is the repository **plus its generated `build/` output** (which is git-ignored):
+Because the block is compiled, the installable plugin is the repository **plus its generated `build/` output** (which is git-ignored). There are two ways to get an installable copy onto a site.
+
+### Recommended: package a zip with `npm run plugin-zip`
+
+```bash
+npm install && npm run plugin-zip
+```
+
+This produces **`piano-block.zip`** at the repository root — a ready-to-install archive with a single top-level `piano-block/` folder that a WordPress 6.9+ / PHP 7.4+ site can take directly via **Plugins → Add New Plugin → Upload Plugin**. (The script name is `plugin-zip`, the WordPress `create-block` community-standard name for this step, which is why it isn't `build:zip`.)
+
+The command **builds the block fresh first, then archives.** If that build is missing or incomplete it **aborts with a non-zero exit and writes no zip**, so the archive can never silently ship without the block.
+
+The archive carries only the **runtime payload** a site needs: the main plugin file (`piano-block.php`), the generated `build/` directory, and `README.md` (plus a `languages/` folder if one is ever added). Everything else — the `src/` sources, dependencies, build/lint config, tests, and all project tooling — is **left out by default**: inclusion is an allowlist of the standard WordPress plugin layout, so anything new that lands under `build/` is picked up automatically with no change here, while unrelated files stay out without anyone having to exclude them. Re-running the command cleanly overwrites any existing `piano-block.zip`. The artifact is git-ignored so it is never committed (see the [Scripts](#scripts) entry).
+
+### Manual: build and copy the plugin directory
 
 ```bash
 npm install && npm run build
@@ -131,6 +145,21 @@ The block is built with [`@wordpress/scripts`](https://developer.wordpress.org/b
 - **SCSS.** Styles are split across two stylesheets so editor-only CSS never ships to the front end. The front-end stylesheet carries only the `@font-face` declaration — `src/style.scss`, compiled to `build/style-index.css` and enqueued via the `style` handle; editor-only styles (the workspace layout, structure tree, canvas, and selection-highlight rules) live in `src/editor.scss`, compiled to `build/index.css` and enqueued via the `editorStyle` handle. (Biome does not process SCSS; the build's Sass step owns it.)
 - **Biome for lint/format.** Biome (tab indentation, double-quoted JS) lints and formats the JavaScript/JSON sources in `src/`. The generated `build/` directory is git-ignored and therefore outside Biome's set; the PHP files sit outside Biome's processing set and are not linted by it.
 - **`register_block_type()` targets `build/`.** `piano-block.php` registers the block from the `build/` directory, so you must run `npm run build` before the plugin will work.
+
+### Packaging a release
+
+`npm run plugin-zip` runs three stages joined so that any failure aborts the rest:
+
+1. It reuses the repo's `npm run build` — the **single source of truth** for how the plugin builds. Packaging does **not** re-implement the build; it just runs it first so the archive is always made from a fresh `build/`.
+2. It runs the committed guard `scripts/check-build.js`, which asserts the build actually produced the block before anything is archived.
+3. It invokes `@wordpress/scripts`' built-in `plugin-zip` archiver, which selects files by the standard WordPress plugin-layout **allowlist** — so exclusion is the default, and any new file that lands under `build/` is captured automatically with no change here.
+
+**Why the guard checks `build/block.json` specifically.** `block.json` is the keystone WordPress loads to register the block, so its absence means there is effectively no block to ship. The build keeps `build/fonts/` across rebuilds, so a partial build can leave the fonts on disk with no `block.json` — a naive "is `build/` non-empty?" check would wrongly pass that. The guard exists to reject exactly that case, so the archive can never silently ship without the block.
+
+Two constraints keep the packaging correct; do not break either when changing the tooling.
+
+- **Do not add a `files` field to `package.json`.** The archiver uses the safe WordPress plugin-layout allowlist **only while `package.json` has no `files` field**. Adding one silently switches it to npm's `files`-driven selection mode and would change — and most likely break — what the zip contains. The correct file set is the safe-by-omission default; keep it that way.
+- **Run `wp-scripts plugin-zip` bare, from the repo root.** No flags. Running it from the repo root is what lands `piano-block.zip` at the root and produces the single top-level `piano-block/` folder inside it. Do not add flags or change the working directory.
 
 ### File layout
 
@@ -155,11 +184,13 @@ The block is built with [`@wordpress/scripts`](https://developer.wordpress.org/b
 | `src/song/__tests__/` | Jest unit tests for the schema and validator (run by `npm run test:unit`). |
 | `specs/` | Playwright end-to-end tests — `editor.spec.js` (authoring + persistence) and `render.spec.js` (front-end SVG render across the three display states + injection safety), run by `npm run test:e2e`. |
 | `build/` | Compiled output (generated by `npm run build`; git-ignored). |
+| `scripts/check-build.js` | The build-payload guard run before archiving (stage 2 of `npm run plugin-zip`): asserts `build/block.json` exists, so the zip can never ship without the block. `scripts/` sits outside the plugin payload, so it is automatically excluded from the zip. |
 | `.wp-env.json` | Local `wp-env` configuration (latest WordPress, PHP 8.3, this plugin mapped in). |
 
 ### Scripts
 
 - `npm run build` — compile `src/` → `build/` (production build).
+- `npm run plugin-zip` — build the block, then package the installable `piano-block.zip` at the repository root (the generated zip is git-ignored).
 - `npm run start` — compile and watch `src/` for changes (development).
 - `npm run env:start` / `npm run env:stop` — start / stop the local `wp-env` WordPress.
 - `npm run test:unit` — run the Jest unit tests (the song validator suite) in pure Node, no WordPress runtime.
