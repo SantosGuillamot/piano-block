@@ -3,13 +3,13 @@
  * AC7, AC8 injection protection, AC12).
  *
  * These tests drive a real WordPress instance via wp-env and verify the
- * client-side notation the `viewScript` (`view.js`) draws from the song the
- * server-rendered container carries (design §2.5, §8). The frontend has three
- * display states:
+ * client-side notation the Interactivity API `view.js` runtime draws from the
+ * song each block carries in its per-instance `data-wp-context` (design §2.5,
+ * §8). The frontend has three display states:
  *
  *   - empty / whitespace song     → nothing (no container, no SVG);
- *   - present-but-non-renderable  → nothing visible (the wrapper may exist with
- *                                   the inert JSON `<script>` inside, but no SVG);
+ *   - present-but-non-renderable  → nothing visible (the wrapper may exist as a
+ *                                   childless element, but no SVG);
  *   - present-and-conformant      → an `<svg role="img">` grand staff (two staff
  *                                   bands, brace, both clefs) with an accessible
  *                                   name from `metadata`, and NO raw-JSON `<pre>`.
@@ -18,10 +18,10 @@
  * of stacked systems changes between a wide and a narrow viewport, AC5), and a
  * conformant song carrying hostile literals (`</script>`, `<!--`,
  * `<script>alert()</script>`) in its free-text fields renders inert text and
- * still parses back to the exact author bytes — the JSON `<script>` does not
- * break out and no script executes (the relocated AC8 protection: the old
- * `esc_html(<pre>)` guarantee now lives in the `render.php` ETAGO escape +
- * the SVG `textContent` emit, design §6.8).
+ * still parses back to the exact author bytes — the `data-wp-context` payload
+ * does not break out and no script executes (the relocated AC8 protection: the
+ * old `esc_html(<pre>)` guarantee now lives in the core context encoder's
+ * escape + the SVG `textContent` emit, design §6.8).
  *
  * Prerequisites (run from the worktree root):
  *   1. npm install        — installs the toolchain (Playwright via @wordpress/scripts)
@@ -169,8 +169,8 @@ const COMPREHENSIVE_NAME = "Example by A. Composer";
 // all, so the page has no Piano-block wrapper.
 const WHITESPACE_SONG = "   \n\t  ";
 
-// AC7 case (i): not parseable as JSON — `validateSong` returns a parse error, so
-// `view.js` draws nothing (the wrapper stays empty).
+// AC7 case (i): not parseable as JSON — the client-side `validateSong` gate
+// returns a parse error, so the view module draws no SVG.
 const INVALID_JSON_SONG = "{ not json";
 
 // AC7 case (ii): valid JSON but non-conformant — `quaver` is not in the closed
@@ -270,7 +270,7 @@ const ISOLATION_SONG_B = JSON.stringify({
 // AC8 injection protection: a CONFORMANT song whose free-text fields carry the
 // HTML-significant breakout literals. A note's `text` and `metadata.title` are free
 // text, so the song stays conformant; it must therefore still `JSON.parse` back
-// to these exact bytes (the `render.php` `<` escape round-trips) and RENDER.
+// to these exact bytes (the core context encoder round-trips them byte-exact) and RENDER.
 const HOSTILE_TITLE = `Pwn </script><!-- <script>alert("xss")</script>`;
 const HOSTILE_CHORD = `C7 </script><!-- <script>alert('chord')</script>`;
 const HOSTILE_SONG = JSON.stringify({
@@ -581,14 +581,14 @@ test.describe("Piano block — front-end render", () => {
 		await expect(svg.locator('[data-text="annotation"]')).toContainText("C");
 
 		// (AC12 boundary) The editor-only per-event hit-rect is NOT in the published
-		// DOM: `view.js` renders without the `interactive` flag, so the front-end SVG
-		// stays byte-identical to before the editor work. No `[data-hit]` rect exists.
+		// DOM: the publish-time render path is unchanged, so the front-end SVG stays
+		// byte-identical to before the editor work. No `[data-hit]` rect exists.
 		await expect(svg.locator("[data-hit]")).toHaveCount(0);
 
 		// (AC1) The raw JSON is NOT shown to the reader: no <pre>, and the visible
-		// text of the block is not the JSON document. (A successful render replaces
-		// the inert JSON `<script>` carrier with the SVG, so it is no longer in the
-		// DOM — the song never appears as visible text or executable script.)
+		// text of the block is not the JSON document. (The song rides in the block's
+		// per-instance `data-wp-context` attribute, never as visible text or
+		// executable script, and the rendered SVG is the only on-page content.)
 		await expect(page.locator("pre")).toHaveCount(0);
 		const blockText = await page.locator(`.${BLOCK_CLASS}`).innerText();
 		expect(blockText).not.toContain('"sections"');
@@ -607,8 +607,8 @@ test.describe("Piano block — front-end render", () => {
 
 		await page.goto(`/?p=${postId}`);
 
-		// The wrapper MAY exist (carrying the inert JSON <script>), but the
-		// validate gate fails, so NO SVG and no visible notation is drawn.
+		// The wrapper MAY exist (a childless element carrying the `data-wp-context`),
+		// but the validate gate fails, so NO SVG and no visible notation is drawn.
 		await expect(blockSvg(page)).toHaveCount(0);
 		await expect(page.locator("pre")).toHaveCount(0);
 
@@ -1033,7 +1033,9 @@ test.describe("Piano block — hostile free text in a note renders inert", () =>
 
 		// No markup was injected from the free text: the angle-bracketed literal did NOT
 		// create a <script> or <foreignObject> node anywhere in the block, and no live
-		// (executable) <script> exists beyond the inert JSON carrier.
+		// (executable) <script> exists. Route B emits a childless wrapper with no
+		// carrier `<script>` at all, so the `:not([type="application/json"])` filter
+		// excludes nothing real — it simply selects every script in the block (none).
 		await expect(page.locator(`.${BLOCK_CLASS} foreignObject`)).toHaveCount(0);
 		await expect(
 			page.locator(`.${BLOCK_CLASS} script:not([type="application/json"])`),
