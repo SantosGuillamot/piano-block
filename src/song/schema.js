@@ -36,6 +36,12 @@ const songSchema = {
 			// additionalProperties permissive (unknown keys ignored)
 		},
 		defaults: { $ref: "#/$defs/context" },
+		// language: the editor-internal note-name system the editor displays this
+		// song in. Permissive and optional (not `required`): its keys are exactly
+		// the note-name system keys ("spanish" / "english"), and an unrecognised
+		// value yields only the generic enum message — it never blocks raw-JSON
+		// saving (matching today's non-blocking behaviour).
+		language: { enum: ["spanish", "english"] },
 		sections: {
 			type: "array",
 			items: { $ref: "#/$defs/section" },
@@ -58,6 +64,10 @@ const songSchema = {
 			type: "object",
 			required: ["measures"],
 			properties: {
+				// name: the optional editor-side label for this section. Permissive
+				// and never `required` — an absent/blank name is valid and a stored
+				// string round-trips; it never blocks raw-JSON saving.
+				name: { type: "string" },
 				tempo: { $ref: "#/$defs/tempo" },
 				timeSignature: { $ref: "#/$defs/timeSignature" },
 				rightHand: { $ref: "#/$defs/handConfig" },
@@ -72,6 +82,10 @@ const songSchema = {
 		measure: {
 			type: "object",
 			properties: {
+				// name: the optional editor-side label for this measure. Permissive
+				// and never `required` — an absent/blank name is valid and a stored
+				// string round-trips; it never blocks raw-JSON saving.
+				name: { type: "string" },
 				rightHand: { type: "array", items: { $ref: "#/$defs/event" } },
 				leftHand: { type: "array", items: { $ref: "#/$defs/event" } },
 				barlineStart: {

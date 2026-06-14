@@ -6,19 +6,20 @@ This is the canonical reference for the Piano block's **song format** — the cu
 
 A song is a custom, dependency-free JSON document owned by this plugin. It is **not** MusicXML, ABC, or MIDI — it is its own small format, designed to model a **grand staff**: a right-hand part and a left-hand part read together. The JSON you write is the *content* stored in the block's `song` attribute (a single text string).
 
-In v1 you author a song **by hand**, by typing or pasting the JSON directly into the block's raw-JSON field in the editor. There is no visual notation *editor* yet — authoring is still raw JSON by hand — and no audio playback; those are future work. The published **front end**, however, now renders the song as visual notation: a braced grand staff drawn as an SVG. This document describes only what the format supports today. For the end-to-end editor workflow (inserting the block, entering a song, what validation does, and what the front end shows), see [Using the Piano block](../README.md#using-the-piano-block) in the README — its [What the front end shows](../README.md#4-what-the-front-end-shows) section describes the rendered notation.
+The block has a **visual editor** — the default authoring surface, where you navigate and select the song through a structure tree beside the canvas and edit settings in the block sidebar; the canvas displays the song and highlights the current selection — and **raw JSON** is also available as an alternative, by typing or pasting the JSON directly into the block's raw-JSON field. Both modes produce the **same song**, and this document is the reference for the **format** they produce; what you read here applies whichever mode you author in. There is no audio playback yet; that is still future work. The published **front end** renders the song as visual notation: a braced grand staff drawn as an SVG. This document describes only what the format supports today. For the end-to-end editor workflow (inserting the block, entering a song, what validation does, and what the front end shows), see [Using the Piano block](../README.md#using-the-piano-block) in the README — its [What the front end shows](../README.md#4-what-the-front-end-shows) section describes the rendered notation.
 
 ## Top-level shape
 
 A song is a single JSON object:
 
 ```
-song := { metadata?, defaults?, sections }
+song := { metadata?, defaults?, language?, sections }
 ```
 
 - **`sections`** — the only **required** member. An array of section objects; the song's musical content lives here.
 - **`metadata`** — optional bibliographic data (title, composer).
 - **`defaults`** — optional song-wide context that every section inherits.
+- **`language`** — optional; the note-name system (`"spanish"` or `"english"`) the song is written in (see [`language`](#language)).
 
 The smallest valid song has just an empty section with no measures:
 
@@ -44,6 +45,22 @@ Optional bibliographic data. Both fields are optional free-text strings:
 }
 ```
 
+## `language`
+
+Optional. It records the **note-name system the song is written in** — `"spanish"` or `"english"` (these exact strings, *not* the ISO codes `es`/`en`). It is the song-level twin of the two [note-name systems](#note-name-systems-english-and-spanish-and-case) you may use for an individual `pitch.step`.
+
+```json
+{
+  "language": "spanish",
+  "sections": [ { "measures": [] } ]
+}
+```
+
+- **Optional and additive.** Absent is valid — it is one of the format's optional fields (see [Additive growth](#additive-growth-no-version-field)). An older song that omits it stays conformant.
+- **What it means.** It is used by the **visual editor** to display note names in the chosen system and to **convert** every note name when you switch systems. The README's [Note names](../README.md#2-build-the-song-in-the-visual-editor) describes that selector. The C↔do equivalence itself is the [note-name systems](#note-name-systems-english-and-spanish-and-case) table; this field just names which side the song is on.
+- **Front end does not consume it yet.** The published front end **ignores `language`** — a page renders a song's notes exactly as before regardless of this field, and storing or changing it changes **nothing** about the rendered notation. Consuming it on the front end is future work.
+- **Stored, round-trips, and validates.** It is stored verbatim in the `song` JSON and survives raw-JSON editing unchanged. Validation accepts the two values `"spanish"` and `"english"`; an out-of-vocabulary value is flagged informationally only and, like all raw-JSON validation, **never blocks saving** (see [Additive growth](#additive-growth-no-version-field) for the closed-enum rule and the never-blocking stance).
+
 ## `defaults` and `sections` — the constant-context model
 
 A **section** is a run of music over which the musical context — tempo, time signature, and each hand's clef, default accidentals, and octave shift — stays **constant**. When any of those change, you start a **new section**.
@@ -52,6 +69,7 @@ A **section** is a run of music over which the musical context — tempo, time s
 
 ```
 section := {
+  name?,             // optional editor-side label; see "name"
   tempo?,            // overrides defaults.tempo for this section
   timeSignature?,    // overrides defaults.timeSignature
   rightHand?,        // handConfig — overrides defaults.rightHand
@@ -70,6 +88,7 @@ A **measure** is one bar. It pairs the two hands' event streams and carries opti
 
 ```
 measure := {
+  name?,          // optional editor-side label; see "name"
   rightHand?,     // array of event objects — the right-hand part for this bar
   leftHand?,      // array of event objects — the left-hand part for this bar
   barlineStart?,  // enum (see "Barlines and repeats") — absent means a regular barline
@@ -83,6 +102,26 @@ measure := {
 `annotations` is an optional array of **standalone annotations** — free-text annotations placed directly on the bar rather than tied to a single event (for example a tempo word like `"rit."`). It is the standalone half of the `annotations` capability described in [Notes (annotations)](#annotations); a standalone annotation names its own `staff` and may carry an optional `beat` anchor. Absent, or `annotations: []`, means the measure has no measure-level annotations.
 
 **Timing is your responsibility.** The two hands need **not** be time-aligned, and a measure's events need **not** add up to its time signature. There is no musical-timing validation: a bar where the events do not "add up," or where the hands have different total lengths, is still accepted. The format checks structure and field values, not rhythm.
+
+## `name`
+
+Optional. A free-text label a **section** or **measure** may carry. It is the editor-side counterpart of the positional labels the visual editor shows for the song's structure.
+
+```json
+{
+  "sections": [
+    {
+      "name": "Verse",
+      "measures": [ { "name": "Pickup", "rightHand": [] } ]
+    }
+  ]
+}
+```
+
+- **Optional and additive.** Absent is valid — it is one of the format's optional fields (see [Additive growth](#additive-growth-no-version-field)). An older song that omits it stays conformant.
+- **What it means.** It is a free-text label the **visual editor** shows in the structure tree for that section or measure. When it is unset, the tree falls back to a positional label (`Section 1`, `Measure 1`). You edit it from the **Section / Measure** inspector panel; the README's [Using the Piano block](../README.md#2-build-the-song-in-the-visual-editor) describes that affordance. It is purely a label — it has no musical meaning.
+- **Front end does not consume it yet.** The published front end **ignores `name`** — a page renders the song exactly as before regardless of this field, and storing or changing it changes **nothing** about the rendered notation. Consuming it on the front end is future work.
+- **Stored, round-trips, and validates.** It is stored verbatim in the `song` JSON and survives raw-JSON editing unchanged. Validation accepts a string `name`; a non-string value is a type error, but like all raw-JSON validation it is flagged informationally only and, like every check, **never blocks saving** (see [Additive growth](#additive-growth-no-version-field) for the never-blocking stance).
 
 ## `tempo` and `timeSignature`
 
@@ -382,7 +421,7 @@ So a pitch's sounding result is its note name plus its effective alteration, pla
 
 ## Additive growth (no `version` field)
 
-The format **has no `version` field**. It starts minimal and grows by adding **optional** fields to existing objects. A song you write today stays valid as the format grows, because new fields are optional and older songs simply omit them.
+The format **has no `version` field**. It starts minimal and grows by adding **optional** fields to existing objects. A song you write today stays valid as the format grows, because new fields are optional and older songs simply omit them. The song-level [`language`](#language) field and the section/measure [`name`](#name) label are the latest such additive options — a song that omits either is still conformant, and the front end reads neither.
 
 Three consequences you can observe as an author:
 

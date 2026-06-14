@@ -416,6 +416,7 @@ async function publishPostWithSong({ admin, editor }, song) {
 	await editor.insertBlock({ name: "piano-block/piano" });
 
 	if (song !== null) {
+		await editor.clickBlockToolbarButton("Edit as JSON");
 		const field = editor.canvas.getByLabel("Song (JSON)");
 		await field.fill(song);
 	}
@@ -522,6 +523,11 @@ test.describe("Piano block — front-end render", () => {
 		// and the free-text note annotation "C" renders as inert SVG <text>.
 		await expect(svg.locator("[data-notehead]")).not.toHaveCount(0);
 		await expect(svg.locator('[data-text="annotation"]')).toContainText("C");
+
+		// (AC12 boundary) The editor-only per-event hit-rect is NOT in the published
+		// DOM: `view.js` renders without the `interactive` flag, so the front-end SVG
+		// stays byte-identical to before the editor work. No `[data-hit]` rect exists.
+		await expect(svg.locator("[data-hit]")).toHaveCount(0);
 
 		// (AC1) The raw JSON is NOT shown to the reader: no <pre>, and the visible
 		// text of the block is not the JSON document. (A successful render replaces

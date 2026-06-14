@@ -9,7 +9,7 @@
  * (case-insensitive), and structural-only validation (no musical-timing
  * validation). They run in pure Node with no WordPress runtime.
  */
-import validateSong from "../validate.js";
+import validateSong, { parseAndValidate } from "../validate.js";
 
 /**
  * The annotated comprehensive example song, transcribed verbatim (the
@@ -886,6 +886,36 @@ describe("validateSong — walker special cases", () => {
 	});
 });
 
+describe("validateSong — optional `language` enum", () => {
+	// The editor-internal note-name system field: additive, permissive, and
+	// non-blocking. Its enum keys are exactly the note-name system keys.
+	const languageSong = (language) => ({
+		language,
+		sections: [{ measures: [] }],
+	});
+
+	it('accepts `language: "spanish"`', () => {
+		expect(check(languageSong("spanish"))).toEqual([]);
+	});
+
+	it('accepts `language: "english"`', () => {
+		expect(check(languageSong("english"))).toEqual([]);
+	});
+
+	it("accepts a song with no `language` field (it is optional)", () => {
+		expect(check({ sections: [{ measures: [] }] })).toEqual([]);
+	});
+
+	it("reports exactly one informational enum message for an unknown `language` (never blocks saving)", () => {
+		// A bad value is flagged so the author sees it, but raw JSON still stores
+		// the song — the single message is informational, not a second error.
+		const result = check(languageSong("fr"));
+		expect(result).toHaveLength(1);
+		expect(result[0]).toMatch(/language/);
+		expect(result[0]).toMatch(/not one of the allowed values/);
+	});
+});
+
 describe("validateSong — lenient on unknown properties", () => {
 	it("ignores an unknown property at the root", () => {
 		expect(check({ foo: 1, sections: [{ measures: [] }] })).toEqual([]);
@@ -993,5 +1023,28 @@ describe("validateSong — structural only, no musical-timing validation", () =>
 				],
 			}),
 		).toEqual([]);
+	});
+});
+
+describe("parseAndValidate", () => {
+	it("returns the parsed object and an empty errors array for a conformant song", () => {
+		const raw = '{"sections":[{"measures":[]}]}';
+		const result = parseAndValidate(raw);
+		expect(result.data).toEqual(JSON.parse(raw));
+		expect(result.errors).toEqual([]);
+	});
+
+	it("returns data: null and a single Invalid JSON error for unparseable input", () => {
+		const result = parseAndValidate("{ not json");
+		expect(result.data).toBeNull();
+		expect(result.errors).toHaveLength(1);
+		expect(result.errors[0]).toMatch(/^Invalid JSON:/);
+	});
+
+	it("returns the parsed object and the same errors as validateSong for well-formed but non-conformant JSON", () => {
+		const raw = "{}";
+		const result = parseAndValidate(raw);
+		expect(result.data).toEqual({});
+		expect(result.errors).toEqual(validateSong(raw));
 	});
 });

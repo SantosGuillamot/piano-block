@@ -983,6 +983,20 @@ describe("renderSvg — structure", () => {
 	});
 });
 
+describe("renderSvg — front-end emit has no hit rects", () => {
+	it("a flagless render emits no `data-hit` in any note/rest group", () => {
+		// The front-end call shape: no options. The published SVG carries zero
+		// hit-rects — the front-end byte-identity guard.
+		const svg = renderSvg(modelFor());
+		expect(svg.querySelectorAll("[data-hit]")).toHaveLength(0);
+		for (const group of svg.querySelectorAll(
+			'[data-kind="note"], [data-kind="rest"]',
+		)) {
+			expect(group.querySelector("[data-hit]")).toBeNull();
+		}
+	});
+});
+
 describe("renderInto", () => {
 	it("replaces the container's contents with the fresh SVG", () => {
 		const container = document.createElement("div");
@@ -1399,7 +1413,10 @@ describe("renderSvg — duration-ordered spacing reaches the SVG (issue #21)", (
 			pitches: [{ step: "C", octave: 5 }],
 		})),
 	];
-	const song = { metadata: {}, sections: [{ measures: [{ rightHand: events }] }] };
+	const song = {
+		metadata: {},
+		sections: [{ measures: [{ rightHand: events }] }],
+	};
 
 	it("renders eighth noteheads closer together than the quarter noteheads (AC10)", () => {
 		const svg = renderSvg(buildLayoutModel(song, 1000));

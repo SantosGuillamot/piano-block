@@ -323,6 +323,34 @@ function checkBpm(tempo, path, errors) {
 }
 
 /**
+ * Parse and validate a raw song string, returning both the parsed data and
+ * any conformance errors.
+ *
+ * Three result shapes are possible:
+ *   1. Parse failure   → `{ data: null, errors: ["Invalid JSON: …"] }`
+ *   2. Conformant song → `{ data: <parsed object>, errors: [] }`
+ *   3. Non-conformant  → `{ data: <parsed object>, errors: [<messages…>] }`
+ *
+ * In cases 2 and 3 `data` is the parsed value; the caller decides what to do
+ * with a non-conformant-but-parseable result.
+ *
+ * @param {string} rawString The author's raw `song` text.
+ * @return {{ data: *, errors: string[] }} Parsed value (or null) + error list.
+ */
+export function parseAndValidate(rawString) {
+	let data;
+	try {
+		data = JSON.parse(rawString);
+	} catch (error) {
+		return { data: null, errors: [`Invalid JSON: ${error.message}`] };
+	}
+
+	const errors = [];
+	validateValue(data, songSchema, "", errors);
+	return { data, errors };
+}
+
+/**
  * Validate a raw song string against the song format.
  *
  * @param {string} rawString The author's raw `song` text.
@@ -330,14 +358,5 @@ function checkBpm(tempo, path, errors) {
  *                    the song is conformant.
  */
 export default function validateSong(rawString) {
-	let data;
-	try {
-		data = JSON.parse(rawString);
-	} catch (error) {
-		return [`Invalid JSON: ${error.message}`];
-	}
-
-	const errors = [];
-	validateValue(data, songSchema, "", errors);
-	return errors;
+	return parseAndValidate(rawString).errors;
 }

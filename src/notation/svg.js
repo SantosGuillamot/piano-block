@@ -227,8 +227,9 @@ function drawSpec(spec, x, y, { filled } = {}) {
  *
  * @param {{ systems: object[], width: number, height: number }} model The layout
  *   model from `buildLayoutModel` (sp units).
- * @param {{ accessibleName?: string }} [options] `accessibleName` the single
- *   labeled-graphic name (already computed + i18n-wrapped by the caller).
+ * @param {{ accessibleName?: string }} [options]
+ *   `accessibleName` the single labeled-graphic name (already computed +
+ *   i18n-wrapped by the caller).
  * @return {SVGSVGElement} The rendered `<svg role="img">`.
  */
 export function renderSvg(model, { accessibleName = "" } = {}) {
@@ -698,7 +699,7 @@ function renderHand(hand, handKey, staffBottomY, resolveNoteY) {
  * Render one note event: its noteheads (each on the correct side of the stem), the
  * stem, a flag (when not beamed), accidentals, ledger lines, and augmentation dots.
  * The whole group is stamped with the event index + hand so a later store can target
- * it (the interactivity hook). All Ys are notehead Ys in the staff frame.
+ * it. All Ys are notehead Ys in the staff frame.
  */
 function renderNote(note, handKey) {
 	const g = el("g", {

@@ -27,5 +27,8 @@
 	},
 	"overrides": {
 		"@wordpress/e2e-test-utils-playwright": "1.46.0"
+	},
+	"dependencies": {
+		"@wordpress/icons": "^10.32.0"
 	}
 }

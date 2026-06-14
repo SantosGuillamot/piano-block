@@ -1,6 +1,7 @@
 /**
- * Piano block — placeholder styles (applied in the editor and on the front end).
- * Minimal scaffold styling; the real piano UI will replace this.
+ * Piano block — front-end stylesheet.
+ * Editor-only rules live in editor.scss; only the @font-face declaration
+ * is loaded on the front end.
  */
 
 /**
@@ -19,10 +20,4 @@
 	font-weight: normal;
 	font-style: normal;
 	font-display: swap;
-}
-
-.wp-block-piano-block-piano {
-	border: 1px dashed #767676;
-	padding: 1em;
-	color: #767676;
 }
