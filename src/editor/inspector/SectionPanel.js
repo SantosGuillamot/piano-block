@@ -106,7 +106,9 @@ export function SectionPanel({
 	 * an unset override drops its key.
 	 */
 	const emitOverrides = (next) => {
-		const { tempo, timeSignature, rightHand, leftHand, ...keep } = section;
+		const keep = Object.fromEntries(
+			Object.entries(section).filter(([key]) => !OVERRIDE_KEYS.includes(key)),
+		);
 		emitSection({ ...keep, ...next });
 	};
 
