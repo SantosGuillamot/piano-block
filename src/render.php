@@ -95,6 +95,7 @@ $context = array(
 	data-wp-watch="callbacks.draw"
 	<?php echo get_block_wrapper_attributes(); ?>>
 	<button type="button"
+		class="wp-block-piano-block-piano__toggle-note-names"
 		data-wp-on--click="actions.toggleNoteNames"
 		data-wp-bind--aria-pressed="context.showNoteNames"
 		data-wp-bind--hidden="!context.hasNameableNotes"
