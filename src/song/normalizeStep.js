@@ -2,13 +2,16 @@
  * The single shared home for the closed two-system note-name vocabulary and the
  * `step → canonical English letter` mapping.
  *
- * Both the validator (`validate.js`) and the renderer (`notation/`) need to know
- * the recognised note names and how to canonicalize them; encoding that
- * knowledge twice would let the two drift apart. So the 14-token equivalence
- * lives here ONCE — English `c d e f g a b` and Spanish `do re mi fa sol la si`,
+ * The validator (`validate.js`), the renderer (`notation/`), and the shared
+ * note-name-system module (`noteNameSystem.js`) all need to know the recognised
+ * note names and how to canonicalize them; encoding that knowledge more than
+ * once would let the consumers drift apart. So the 14-token equivalence lives
+ * here ONCE — English `c d e f g a b` and Spanish `do re mi fa sol la si`,
  * lowercased, with each token mapping to its canonical UPPERCASE English letter
  * (`do→C re→D mi→E fa→F sol→G la→A si→B`; English letters map to their own
- * uppercase). No token collides across the two systems.
+ * uppercase). No token collides across the two systems. The editor and the
+ * frontend view reach this vocabulary indirectly, through that shared module's
+ * per-system resolution.
  *
  * This module only *exposes/reuses* the vocabulary; it does NOT change what the
  * validator accepts — `NOTE_NAMES` and `isNoteName` keep the validator's exact
