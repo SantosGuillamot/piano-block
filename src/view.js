@@ -1,117 +1,116 @@
 /**
- * The frontend `viewScript` entry — the thin, DOM-coupled half of the renderer.
- * WordPress enqueues this on the frontend only, only when the block is present,
- * after the block markup. It owns NO layout math: every musical decision lives in
- * the pure layout layer (`notation/layout.js`); the emit layer (`notation/svg.js`)
- * turns the model into SVG. This file only wires the DOM to those two.
+ * The frontend `viewScriptModule` entry — a thin Interactivity API store module.
  *
- * Per block container (the wrapper `<div>` `render.php` emits) it:
- *   1. reads the inert `application/json` `<script>`'s `textContent` (the raw song);
- *   2. runs the reused `validateSong` gate — render-or-nothing;
- *   3. for a conformant song, parses it, builds the layout model at the live
- *      container width, and mounts the SVG (a non-conformant or invalid song leaves
- *      the wrapper empty — the non-renderable state, no raw echo, no error);
- *   4. computes the accessible name from `metadata` (i18n-wrapped);
+ * WordPress builds this as a real ES module (via `viewScriptModule` in `block.json`)
+ * and enqueues it on the frontend only, only when the block is present. It owns boot,
+ * lifecycle, and per-instance state; every musical decision lives in the pure layout
+ * layer (`notation/layout.js`); the emit layer (`notation/svg.js`) turns the model
+ * into SVG. This file only wires the Interactivity API to those two.
+ *
+ * The store registers a single `callbacks.init` wired via `data-wp-init` on the block
+ * wrapper. Per block instance it:
+ *   1. reads the container from `getElement().ref` (live, painted wrapper — non-null
+ *      inside `data-wp-init`);
+ *   2. reads the raw song string and the server-computed accessible name from
+ *      per-instance context (`getContext()`);
+ *   3. runs the reused `validateSong` gate once — render-or-nothing (validate-once
+ *      pattern: resize redraws skip re-validation);
+ *   4. for a conformant song, parses it and builds the draw closure (frozen core);
  *   5. gates the FIRST draw on the music font so the ornate glyphs are present on
  *      first paint; and
- *   6. reflows on container resize via a rAF-debounced, one-way `ResizeObserver`
- *      (width flows container → SVG only, never back).
+ *   6. attaches a rAF-debounced, one-way `ResizeObserver` and returns a disconnect
+ *      cleanup so the Interactivity API can tear it down on unmount.
+ *
+ * Imperative-SVG carve-out: the SVG body is built imperatively in the frozen notation
+ * core (`createElementNS` + `container.replaceChildren`). The spec explicitly
+ * authorises that imperative mount as an accepted exception to the directives-only
+ * ideal — analogous to the allowed `.focus()` write. The iAPI win here is ownership
+ * of boot, lifecycle, and state, not declarative rendering of the notation.
  */
 
-import domReady from "@wordpress/dom-ready";
+import { store, getContext, getElement } from "@wordpress/interactivity";
 import { availableWidthInSp, drawWhenFontReady } from "./notation/dom.js";
 import { buildLayoutModel } from "./notation/layout.js";
 import { renderInto } from "./notation/svg.js";
-import { accessibleNameFor } from "./song/accessibleName.js";
 import validateSong from "./song/validate.js";
 
 /**
- * The block wrapper class WordPress emits for `piano-block/piano` (the
- * `get_block_wrapper_attributes()` class on `render.php`'s `<div>`). The frontend
- * scopes its query to this so it never touches unrelated markup.
- */
-const BLOCK_CLASS = "wp-block-piano-block-piano";
-
-/**
- * The class on the inert JSON `<script>` `render.php` nests inside the wrapper.
- * Scoped to the wrapper so a stray match elsewhere is impossible.
- */
-const SONG_SCRIPT_CLASS = "wp-block-piano-block-piano__song";
-
-/**
- * Wire one block container: gate on `validateSong`, and for a conformant song draw
- * the notation and attach the resize observer. A non-renderable song (invalid JSON
- * or non-conformant) leaves the wrapper empty — no raw echo, no error.
- *
- * @param {Element} container The block wrapper `<div>`.
- */
-function setupContainer(container) {
-	const script = container.querySelector(`script.${SONG_SCRIPT_CLASS}`);
-	if (!script) {
-		return;
-	}
-
-	const raw = script.textContent ?? "";
-	// The reused gate: one call covers both invalid JSON ("Invalid JSON: …") and a
-	// non-conformant structure. Any error → render nothing.
-	if (validateSong(raw).length > 0) {
-		return;
-	}
-
-	// Safe after a clean validate (it cannot fail), but wrapped defensively so a
-	// surprise still leaves the wrapper empty rather than throwing on the frontend.
-	let data;
-	try {
-		data = JSON.parse(raw);
-	} catch {
-		return;
-	}
-
-	const accessibleName = accessibleNameFor(data?.metadata);
-	const draw = () => {
-		const model = buildLayoutModel(data, availableWidthInSp(container));
-		renderInto(container, model, { accessibleName });
-	};
-
-	// Gate the FIRST draw on the music font so the ornate glyphs (clefs, rests,
-	// accidentals, flags, brace) are present on first paint. Subsequent
-	// resize redraws need not re-wait — the font is cached by then.
-	drawWhenFontReady(draw);
-
-	observeResize(container, draw);
-}
-
-/**
  * Attach a rAF-debounced, one-way `ResizeObserver` to the container. On a width
- * change it re-runs `draw` (re-pack/justify + a fresh SVG); it NEVER
- * writes the container width back, so it cannot trigger an observer loop. The work is
- * wrapped in `requestAnimationFrame`, which also clears the benign "undelivered
+ * change it re-runs `draw` (re-pack/justify + a fresh SVG); it NEVER writes the
+ * container width back, so it cannot trigger an observer loop. The work is wrapped
+ * in `requestAnimationFrame`, which also clears the benign "undelivered
  * notifications" warning.
  *
- * @param {Element} container The observed block wrapper.
- * @param {() => void} draw The redraw callback.
+ * Returns the `ResizeObserver` instance so the caller can disconnect it on unmount,
+ * or `undefined` when `ResizeObserver` is unavailable.
+ *
+ * @param {Element}   container The observed block wrapper.
+ * @param {() => void} draw     The redraw callback.
+ * @return {ResizeObserver|undefined}
  */
-function observeResize(container, draw) {
-	if (typeof ResizeObserver === "undefined") {
+function observeResize( container, draw ) {
+	if ( typeof ResizeObserver === 'undefined' ) {
 		return;
 	}
 	let frame = 0;
-	const observer = new ResizeObserver(() => {
-		if (frame) {
+	const observer = new ResizeObserver( () => {
+		if ( frame ) {
 			return;
 		}
-		frame = requestAnimationFrame(() => {
+		frame = requestAnimationFrame( () => {
 			frame = 0;
 			draw();
-		});
-	});
-	observer.observe(container);
+		} );
+	} );
+	observer.observe( container );
+	return observer;
 }
 
-// Boot on DOM ready: wire every Piano block container on the page.
-domReady(() => {
-	const containers = document.querySelectorAll(`.${BLOCK_CLASS}`);
-	for (const container of containers) {
-		setupContainer(container);
-	}
-});
+store( 'piano-block/piano', {
+	callbacks: {
+		init() {
+			const { ref: container } = getElement();
+			const { song: raw, accessibleName } = getContext();
+
+			// The reused gate: one call covers both invalid JSON and a non-conformant
+			// structure. Any error → render nothing (validate-once — resize redraws
+			// skip re-validation and re-parsing).
+			if ( validateSong( raw ).length > 0 ) {
+				return;
+			}
+
+			// Safe after a clean validate (it cannot fail), but wrapped defensively so
+			// a surprise parse failure still leaves the wrapper empty rather than
+			// throwing on the frontend.
+			let data;
+			try {
+				data = JSON.parse( raw );
+			} catch {
+				return;
+			}
+
+			// `draw` closes over the cached `data` and the context `accessibleName`;
+			// it contains no `validateSong` and no `JSON.parse`, so resize redraws
+			// reuse the cached parse with no re-validation (validate-once, R6/D16).
+			// `renderInto` ends in `container.replaceChildren(svg)` — the authorised
+			// imperative carve-out write (D11).
+			const draw = () => {
+				const model = buildLayoutModel( data, availableWidthInSp( container ) );
+				renderInto( container, model, { accessibleName } );
+			};
+
+			// Gate the FIRST draw on the music font so the ornate glyphs (clefs,
+			// rests, accidentals, flags, brace) are present on first paint. Subsequent
+			// resize redraws need not re-wait — the font is cached by then. Runs
+			// before the observer is attached, so the initial draw is unconditional.
+			drawWhenFontReady( draw );
+
+			const observer = observeResize( container, draw );
+
+			// Return a cleanup function — `data-wp-init` treats a function return value
+			// as a `useEffect` teardown, run on unmount. The `?.` covers the
+			// no-ResizeObserver path where `observeResize` returns `undefined`.
+			return () => observer?.disconnect();
+		},
+	},
+} );
