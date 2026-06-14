@@ -1440,3 +1440,250 @@ describe("renderSvg — duration-ordered spacing reaches the SVG (issue #21)", (
 		expect(cx(1) - cx(0)).toBeLessThan(cx(5) - cx(4));
 	});
 });
+
+// ── Note-name text emit (Task 4) ──────────────────────────────────────────────────
+//
+// Asserts the per-head `<text data-note-name>` emitter: one text per head when
+// `head.name` is present (model built with `showNoteNames: true`), positioned to
+// the right of the notehead, and no extra nodes emitted when names are off.
+
+/**
+ * A minimal single-pitch right-hand song exercising the note-name path.
+ * Uses a quarter note (no dots) on C5 so the model is simple and predictable.
+ */
+const SINGLE_NOTE_SONG = {
+	metadata: {},
+	sections: [
+		{
+			measures: [
+				{
+					rightHand: [
+						{
+							type: "note",
+							duration: "quarter",
+							pitches: [{ step: "C", octave: 5 }],
+						},
+					],
+				},
+			],
+		},
+	],
+};
+
+/**
+ * A two-pitch chord (C5 + E5) to assert one name per head in a chord.
+ */
+const CHORD_SONG = {
+	metadata: {},
+	sections: [
+		{
+			measures: [
+				{
+					rightHand: [
+						{
+							type: "note",
+							duration: "quarter",
+							pitches: [
+								{ step: "C", octave: 5 },
+								{ step: "E", octave: 5 },
+							],
+						},
+					],
+				},
+			],
+		},
+	],
+};
+
+/**
+ * A dotted quarter note to confirm the name X clears the augmentation dot.
+ */
+const DOTTED_SONG = {
+	metadata: {},
+	sections: [
+		{
+			measures: [
+				{
+					rightHand: [
+						{
+							type: "note",
+							duration: "quarter",
+							dots: 1,
+							pitches: [{ step: "C", octave: 5 }],
+						},
+					],
+				},
+			],
+		},
+	],
+};
+
+describe("renderSvg — note-name <text> emit (Task 4)", () => {
+	it("emits exactly one <text data-note-name> per notehead when showNoteNames is true", () => {
+		const model = buildLayoutModel(SINGLE_NOTE_SONG, 120, {
+			showNoteNames: true,
+		});
+		const svg = renderSvg(model);
+		const nameNodes = svg.querySelectorAll("[data-note-name]");
+		expect(nameNodes).toHaveLength(1);
+		expect(nameNodes[0].tagName.toLowerCase()).toBe("text");
+	});
+
+	it("sets the text content of each name node to the head's bare name string", () => {
+		const model = buildLayoutModel(SINGLE_NOTE_SONG, 120, {
+			showNoteNames: true,
+		});
+		const svg = renderSvg(model);
+		const nameNode = svg.querySelector("[data-note-name]");
+		expect(nameNode).not.toBeNull();
+		// head.name comes from stepInSystem which defaults to the step letter
+		expect(nameNode.textContent).toMatch(/^[A-G]/);
+		// Specifically C5 should give "C" in the default (latin) system
+		expect(nameNode.textContent).toBe("C");
+	});
+
+	it("emits one <text data-note-name> per head in a chord (both heads get names)", () => {
+		const model = buildLayoutModel(CHORD_SONG, 120, { showNoteNames: true });
+		const svg = renderSvg(model);
+		const nameNodes = svg.querySelectorAll("[data-note-name]");
+		// The chord has two noteheads (C5 and E5), so two name nodes.
+		expect(nameNodes).toHaveLength(2);
+		const texts = [...nameNodes].map((n) => n.textContent).sort();
+		expect(texts).toEqual(["C", "E"]);
+	});
+
+	it("sets font-size to NOTE_NAME_SIZE (1.8) on each name node", () => {
+		const model = buildLayoutModel(SINGLE_NOTE_SONG, 120, {
+			showNoteNames: true,
+		});
+		const svg = renderSvg(model);
+		const nameNode = svg.querySelector("[data-note-name]");
+		expect(nameNode).not.toBeNull();
+		expect(Number(nameNode.getAttribute("font-size"))).toBeCloseTo(1.8, 6);
+	});
+
+	it("uses text-anchor=start on each name node (left-edge anchored at x)", () => {
+		const model = buildLayoutModel(SINGLE_NOTE_SONG, 120, {
+			showNoteNames: true,
+		});
+		const svg = renderSvg(model);
+		const nameNode = svg.querySelector("[data-note-name]");
+		expect(nameNode).not.toBeNull();
+		expect(nameNode.getAttribute("text-anchor")).toBe("start");
+	});
+
+	it("places the name node's X to the right of the notehead center (x > note.x)", () => {
+		const model = buildLayoutModel(SINGLE_NOTE_SONG, 120, {
+			showNoteNames: true,
+		});
+		const svg = renderSvg(model);
+		const nameNode = svg.querySelector("[data-note-name]");
+		const headNode = svg.querySelector("[data-notehead]");
+		// The notehead cx is the note column X; the name x must be further right.
+		const headCx = Number(headNode.getAttribute("cx"));
+		const nameX = Number(nameNode.getAttribute("x"));
+		expect(nameX).toBeGreaterThan(headCx);
+	});
+
+	it("places a dotted note's name X further right than a non-dotted note's name X", () => {
+		const plainModel = buildLayoutModel(SINGLE_NOTE_SONG, 120, {
+			showNoteNames: true,
+		});
+		const dottedModel = buildLayoutModel(DOTTED_SONG, 120, {
+			showNoteNames: true,
+		});
+		const plainX = Number(
+			renderSvg(plainModel).querySelector("[data-note-name]").getAttribute("x"),
+		);
+		const dottedX = Number(
+			renderSvg(dottedModel)
+				.querySelector("[data-note-name]")
+				.getAttribute("x"),
+		);
+		// The dotted name must clear the augmentation dot, pushing it further right.
+		expect(dottedX).toBeGreaterThan(plainX);
+	});
+
+	it("emits NO <text data-note-name> nodes when showNoteNames is false (names off, AC10)", () => {
+		const model = buildLayoutModel(SINGLE_NOTE_SONG, 120, {
+			showNoteNames: false,
+		});
+		const svg = renderSvg(model);
+		expect(svg.querySelectorAll("[data-note-name]")).toHaveLength(0);
+	});
+
+	it("names-off SVG is byte-identical to default (no showNoteNames) SVG (AC10)", () => {
+		// The critical byte-identity guarantee: passing showNoteNames:false produces
+		// the EXACT same outerHTML as omitting the option entirely.
+		const defaultModel = buildLayoutModel(SINGLE_NOTE_SONG, 120);
+		const namesOffModel = buildLayoutModel(SINGLE_NOTE_SONG, 120, {
+			showNoteNames: false,
+		});
+		const defaultHtml = renderSvg(defaultModel).outerHTML;
+		const namesOffHtml = renderSvg(namesOffModel).outerHTML;
+		expect(namesOffHtml).toBe(defaultHtml);
+	});
+
+	it("keeps existing note/rest/text structure intact with showNoteNames off (no regression)", () => {
+		// The SONG fixture has notes, rests, chords, dynamic — use it as a regression
+		// check that the names-off path leaves the SVG structure byte-identical.
+		const defaultSvg = renderSvg(buildLayoutModel(SONG, 120));
+		const namesOffSvg = renderSvg(
+			buildLayoutModel(SONG, 120, { showNoteNames: false }),
+		);
+		expect(namesOffSvg.outerHTML).toBe(defaultSvg.outerHTML);
+	});
+
+	it("name nodes are nested inside the note's <g data-kind=note> group", () => {
+		const model = buildLayoutModel(SINGLE_NOTE_SONG, 120, {
+			showNoteNames: true,
+		});
+		const svg = renderSvg(model);
+		const nameNode = svg.querySelector("[data-note-name]");
+		expect(nameNode).not.toBeNull();
+		const parentGroup = nameNode.closest('[data-kind="note"]');
+		expect(parentGroup).not.toBeNull();
+	});
+
+	it("name nodes on both staves (RH and LH) when both hands have notes with names", () => {
+		const bothHandsSong = {
+			metadata: {},
+			sections: [
+				{
+					measures: [
+						{
+							rightHand: [
+								{
+									type: "note",
+									duration: "quarter",
+									pitches: [{ step: "C", octave: 5 }],
+								},
+							],
+							leftHand: [
+								{
+									type: "note",
+									duration: "quarter",
+									pitches: [{ step: "C", octave: 3 }],
+								},
+							],
+						},
+					],
+				},
+			],
+		};
+		const model = buildLayoutModel(bothHandsSong, 120, { showNoteNames: true });
+		const svg = renderSvg(model);
+		const nameNodes = svg.querySelectorAll("[data-note-name]");
+		// One name per hand (C5 right, C3 left).
+		expect(nameNodes).toHaveLength(2);
+		// Each is in its respective hand group.
+		const rhName = svg.querySelector(
+			'[data-hand="rightHand"] [data-note-name]',
+		);
+		const lhName = svg.querySelector(
+			'[data-hand="leftHand"] [data-note-name]',
+		);
+		expect(rhName).not.toBeNull();
+		expect(lhName).not.toBeNull();
+	});
+});
