@@ -13,9 +13,10 @@
  *      inside `data-wp-init`);
  *   2. reads the raw song string and the server-computed accessible name from
  *      per-instance context (`getContext()`);
- *   3. runs the reused `validateSong` gate once — render-or-nothing (validate-once
- *      pattern: resize redraws skip re-validation);
- *   4. for a conformant song, parses it and builds the draw closure (frozen core);
+ *   3. runs the reused `parseAndValidate` gate once — a single parse yields both the
+ *      conformance errors and the parsed data; any error → render nothing
+ *      (validate-once: resize redraws skip re-validation and re-parsing);
+ *   4. for a conformant song, builds the draw closure over the parsed data (frozen core);
  *   5. gates the FIRST draw on the music font so the ornate glyphs are present on
  *      first paint; and
  *   6. attaches a rAF-debounced, one-way `ResizeObserver` and returns a disconnect
@@ -32,7 +33,7 @@ import { store, getContext, getElement } from "@wordpress/interactivity";
 import { availableWidthInSp, drawWhenFontReady } from "./notation/dom.js";
 import { buildLayoutModel } from "./notation/layout.js";
 import { renderInto } from "./notation/svg.js";
-import validateSong from "./song/validate.js";
+import { parseAndValidate } from "./song/validate.js";
 
 /**
  * Attach a rAF-debounced, one-way `ResizeObserver` to the container. On a width
@@ -72,26 +73,20 @@ store( 'piano-block/piano', {
 			const { ref: container } = getElement();
 			const { song: raw, accessibleName } = getContext();
 
-			// The reused gate: one call covers both invalid JSON and a non-conformant
-			// structure. Any error → render nothing (validate-once — resize redraws
-			// skip re-validation and re-parsing).
-			if ( validateSong( raw ).length > 0 ) {
-				return;
-			}
-
-			// Safe after a clean validate (it cannot fail), but wrapped defensively so
-			// a surprise parse failure still leaves the wrapper empty rather than
-			// throwing on the frontend.
-			let data;
-			try {
-				data = JSON.parse( raw );
-			} catch {
+			// The reused gate: a single `parseAndValidate` call both parses the raw
+			// string and checks conformance, covering invalid JSON and a non-conformant
+			// structure in ONE parse. Any error → render nothing (a parse failure
+			// surfaces as a non-empty `errors`, so no separate JSON.parse guard is
+			// needed). Validate-once — resize redraws reuse the parsed `data` with no
+			// re-validation and no re-parsing.
+			const { data, errors } = parseAndValidate( raw );
+			if ( errors.length > 0 ) {
 				return;
 			}
 
 			// `draw` closes over the cached `data` and the context `accessibleName`;
-			// it contains no `validateSong` and no `JSON.parse`, so resize redraws
-			// reuse the cached parse with no re-validation (validate-once, R6/D16).
+			// it contains no `parseAndValidate`, so resize redraws reuse the cached
+			// parse with no re-validation and no re-parsing (validate-once, R6/D16).
 			// `renderInto` ends in `container.replaceChildren(svg)` — the authorised
 			// imperative carve-out write (D11).
 			const draw = () => {
