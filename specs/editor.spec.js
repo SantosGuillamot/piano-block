@@ -172,7 +172,6 @@ const NON_CONFORMANT_JSON = JSON.stringify({
 
 // A conformant song whose single right-hand event is a chord carrying
 // `arpeggio: "up"`. Used to seed the arpeggio SelectControl authoring tests
-// (AC1, AC2, AC4, AC8).
 const ARPEGGIO_SONG = JSON.stringify(
 	{
 		sections: [
@@ -201,7 +200,7 @@ const ARPEGGIO_SONG = JSON.stringify(
 );
 
 // A song with `arpeggio: "sideways"` — outside the closed enum — used for the
-// never-blocks / round-trip test (AC8). `sideways` is invalid, so the editor
+// never-blocks / round-trip test. `sideways` is invalid, so the editor
 // shows an error notice, but the song is STILL stored and can be saved.
 const ARPEGGIO_INVALID_SONG = JSON.stringify(
 	{
@@ -227,7 +226,7 @@ const ARPEGGIO_INVALID_SONG = JSON.stringify(
 );
 
 // A conformant song carrying a valid `arpeggio: "down"` field, used to prove
-// a valid arpeggio value round-trips through JSON mode unchanged (AC8).
+// a valid arpeggio value round-trips through JSON mode unchanged.
 const ARPEGGIO_VALID_TAGGED_SONG = JSON.stringify(
 	{
 		sections: [
@@ -1668,7 +1667,7 @@ test.describe("Piano block — R-FOCUS: post-mutation focus management", () => {
 		await expect(structureTree(editor)).toBeFocused();
 	});
 
-	test("AC4 — the Arpeggio SelectControl sets arpeggio on the stored song and the canvas SVG reflects it; clearing sets None", async ({
+	test("the Arpeggio SelectControl sets arpeggio on the stored song and the canvas SVG reflects it; clearing sets None", async ({
 		editor,
 		page,
 	}) => {
@@ -1712,7 +1711,7 @@ test.describe("Piano block — R-FOCUS: post-mutation focus management", () => {
 		await expect
 			.poll(async () => {
 				const parsed = await storedSongObject(editor);
-				return Object.prototype.hasOwnProperty.call(
+				return Object.hasOwn(
 					parsed.sections[0].measures[0].rightHand[0],
 					"arpeggio",
 				);
@@ -1723,7 +1722,7 @@ test.describe("Piano block — R-FOCUS: post-mutation focus management", () => {
 		await expect(canvasSvg(editor).locator("[data-arpeggio]")).toHaveCount(0);
 	});
 
-	test("AC8 — the arpeggio field round-trips through JSON mode and never blocks saving", async ({
+	test("the arpeggio field round-trips through JSON mode and never blocks saving", async ({
 		editor,
 	}) => {
 		await editor.insertBlock({ name: "piano-block/piano" });
@@ -1731,7 +1730,7 @@ test.describe("Piano block — R-FOCUS: post-mutation focus management", () => {
 		// A song that carries `arpeggio: "sideways"` is NON-conformant (sideways is
 		// outside the closed enum), but the editor must STILL store and save it
 		// (persistence is unconditional — the never-blocks guarantee). The error
-		// notice is shown but does not gate the save path (AC8).
+		// notice is shown but does not gate the save path.
 		await switchToJsonMode(editor);
 		const field = songField(editor);
 		await field.fill(ARPEGGIO_INVALID_SONG);
@@ -1741,7 +1740,7 @@ test.describe("Piano block — R-FOCUS: post-mutation focus management", () => {
 
 		// A song that carries a VALID `arpeggio: "down"` is conformant: JSON mode
 		// shows no error and stores the exact bytes verbatim — the additive field
-		// validates and never blocks saving (AC8).
+		// validates and never blocks saving.
 		await field.fill(ARPEGGIO_VALID_TAGGED_SONG);
 		await field.blur();
 		await expect(errorNotice(editor)).toHaveCount(0);

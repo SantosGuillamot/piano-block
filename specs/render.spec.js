@@ -988,7 +988,7 @@ test.describe("Piano block — note annotations rendered on a real page", () => 
 	});
 });
 
-// AC1/AC2: a song carrying arpeggio: "up" on a chord note — the minimum fixture
+// A song carrying arpeggio: "up" on a chord note — the minimum fixture
 // that exercises the arpeggio render path. One right-hand chord, directional up.
 const ARPEGGIO_UP_SONG = JSON.stringify({
 	sections: [
@@ -1051,7 +1051,7 @@ test.describe("Piano block — arpeggio direction rendered on a real page", () =
 		await requestUtils.deleteAllPosts();
 	});
 
-	test("AC1/AC2 — arpeggio: up renders [data-arpeggio=\"up\"] with an arrowhead", async ({
+	test("arpeggio: up renders [data-arpeggio=\"up\"] with an arrowhead", async ({
 		admin,
 		editor,
 		page,
@@ -1075,7 +1075,7 @@ test.describe("Piano block — arpeggio direction rendered on a real page", () =
 		await expect(svg.locator("[data-arpeggio-arrow]")).toHaveCount(1);
 	});
 
-	test("AC1/AC2 — arpeggio: nondirectional renders [data-arpeggio=\"nondirectional\"] with no arrowhead", async ({
+	test("arpeggio: nondirectional renders [data-arpeggio=\"nondirectional\"] with no arrowhead", async ({
 		admin,
 		editor,
 		page,
