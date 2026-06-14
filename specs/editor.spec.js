@@ -323,19 +323,27 @@ function rowChevron(editor, name) {
 
 /**
  * Expand a structure-tree row by clicking its disclosure chevron, revealing its
- * children. After S5 a collapsed section/measure label click also expands, so
- * callers have two affordances: clicking the chevron (this helper) or clicking a
- * collapsed label (see `treeRow`). `expandRow` continues to click the chevron and
- * remains valid for all callers — the comment no longer asserts a label can't
- * expand. (Hand-group rows also toggle on their label click, but `expandRow`
- * works for them too via the same chevron, giving every level one consistent
- * expand interaction.)
+ * children. Idempotent: reads the row's aria-expanded attribute and clicks the
+ * chevron only when the row is not already open. If the row is already expanded
+ * this is a no-op — re-calling it cannot accidentally collapse an open row (the
+ * chevron is a pure toggle, so clicking an already-open row would collapse it).
+ * Use raw rowChevron(...).click() when you specifically need to collapse a row.
  *
  * @param {Object} editor The Playwright editor fixture.
  * @param {string} name   The row's exact label to expand (e.g. "Section 1").
  */
 async function expandRow(editor, name) {
-	await rowChevron(editor, name).click();
+	// Idempotent: edit.js seeds s0 + s0m0 expanded on mount, so the seeded
+	// first section/measure may already be open. The chevron is a pure toggle,
+	// so clicking an open row would COLLAPSE it — only click when collapsed.
+	// The row's <tr> carries aria-expanded (real + mock __experimentalTreeGridRow);
+	// "true" means already open → no-op.
+	const row = structureTree(editor)
+		.locator("tr")
+		.filter({ has: treeRow(editor, name) });
+	if ((await row.getAttribute("aria-expanded")) !== "true") {
+		await rowChevron(editor, name).click();
+	}
 }
 
 /**
@@ -1299,6 +1307,10 @@ test.describe("Piano block — structure tree keyboard expand/collapse and acces
 		await switchToVisualMode(editor);
 		await assertStructureTreeOpen(editor);
 
+		// edit.js seeds s0 expanded on mount; collapse it so this test can drive the
+		// keyboard expand from a known-collapsed section row.
+		await rowChevron(editor, "Section 1").click();
+
 		// The section row carries data-expansion-key="s0". Confirm that measure rows
 		// are NOT yet visible — the tree starts collapsed at the section level.
 		const sectionRow = structureTree(editor).locator(
@@ -1335,6 +1347,11 @@ test.describe("Piano block — structure tree keyboard expand/collapse and acces
 		await switchToVisualMode(editor);
 		await assertStructureTreeOpen(editor);
 		await expandRow(editor, "Section 1");
+
+		// edit.js seeds s0m0 expanded on mount; collapse the measure so this test can
+		// drive the keyboard expand from a known-collapsed measure row (the section
+		// stays expanded so the measure row is visible to receive focus).
+		await rowChevron(editor, "Measure 1").click();
 
 		// The measure row carries data-expansion-key="s0m0". Hand rows are hidden.
 		const measureRow = structureTree(editor).locator(
