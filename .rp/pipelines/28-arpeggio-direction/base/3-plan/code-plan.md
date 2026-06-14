@@ -33,7 +33,7 @@ code-writer.
 
 ## Task dependency overview
 
-- T1 (schema enum) — foundation; no deps.
+- T1 (schema enum + schema/validator unit tests) — foundation; no deps.
 - T2 (`ARPEGGIO` option list) — deps T1.
 - T3 (`NotePanel` control + reset-all) — deps T2.
 - T4 (constants) — no deps (parallelizable with T1–T3).
@@ -45,13 +45,16 @@ code-writer.
 
 ---
 
-### T1 — Declare the `arpeggio` enum on the event schema
+### T1 — Declare the `arpeggio` enum on the event schema (+ schema & validator unit tests)
 
 - **Goal.** Add the single closed-enum field declaration that makes the format
-  accept and validate `arpeggio`, with zero validator code.
+  accept and validate `arpeggio`, with zero validator code — and cover both the
+  schema-shape and the validator-behavior at the unit tier.
 - **Files.**
   - `src/song/schema.js` (modify)
   - `src/song/__tests__/schema.test.js` (modify)
+  - `src/song/__tests__/validate.test.js` (modify — the validator-behavior unit
+    tests; the validator **source** `src/song/validate.js` stays untouched)
 - **Changes.**
   - In `schema.js`, on the `event` `$def` `properties` block (around the
     `dynamic` line, `schema.js:162`), add one property line beside `dynamic`:
@@ -62,11 +65,36 @@ code-writer.
     byte-for-byte enum assertions (`schema.test.js:27-32`), add an assertion that
     `songSchema.$defs.event.properties.arpeggio` equals
     `{ enum: ["up", "down", "nondirectional"] }`.
+  - In `validate.test.js`, exercise the validator walking a real song (the
+    schema-shape assertion above does **not** do this — different layer, different
+    assertion):
+    - In the `describe("validateSong — conformant songs")` block
+      (`validate.test.js:174`), assert that a song carrying `arpeggio: "up"`
+      validates to `[]`, and independently that `arpeggio: "down"` and
+      `arpeggio: "nondirectional"` each validate to `[]`. Build the songs with the
+      block's existing fixture/helper style; assert `check(...)` (the
+      `validate.test.js:150` helper, `validateSong(JSON.stringify(value))`) returns
+      `[]`.
+    - In the `describe("validateSong — closed-enum errors")` block
+      (`validate.test.js:282`), mirror the dynamic/crescendo "flags … with its
+      path" precedents (`validate.test.js:307`, `:353`): using the block's local
+      `eventSong` helper (`validate.test.js:285`), assert `arpeggio: "sideways"`
+      is flagged with its path and value — e.g.
+      `result.some((e) => /arpeggio/.test(e) && /sideways/.test(e))` is `true` —
+      and that the validator returned messages (an array) rather than throwing
+      (the song still parses; the validator never throws).
+    - Add `arpeggio: "up"` to one chord of the comprehensive full-song fixture,
+      the way `dynamic: "mf"` already rides one chord (`validate.test.js:53`), so
+      the conformant full-song case carries the field end-to-end.
 - **Depends on.** —
-- **Traces to.** R1, R12, AC1, AC2.
-- **Acceptance.** New `schema.test.js` assertion passes; whole
-  `npm run test:unit` stays green. `validate.js`, `glyphs.js`, and the font are
-  untouched.
+- **Traces to.** R1, R12, R13, AC1, AC2.
+- **Acceptance.** New `schema.test.js` assertion passes; the three new
+  `validate.test.js` assertions (conformant `up`/`down`/`nondirectional` → `[]`;
+  `"sideways"` flagged with path/value while the song still parses; the
+  comprehensive fixture carrying `arpeggio: "up"` still validates to `[]`) pass;
+  whole `npm run test:unit` stays green. The validator **source** `validate.js`,
+  `glyphs.js`, and the font are untouched (only the `validate.test.js` test file
+  gains assertions).
 
 ---
 
@@ -375,7 +403,10 @@ code-writer.
 After T1–T9, run `npm run lint` and `npm run check` (biome) and fix any
 formatting/lint issues, then a full `npm run test:unit`. Confirm the untouched-set
 holds: `git diff --name-only` shows changes only in `src/song/schema.js`,
+`src/song/__tests__/schema.test.js`, `src/song/__tests__/validate.test.js`,
 `src/editor/songModel.js`, `src/editor/inspector/NotePanel.js`,
 `src/notation/constants.js`, `src/notation/layout.js`, `src/notation/svg.js`,
 their `__tests__`, and `specs/` — and **nothing** in `src/edit.js`,
-`src/song/validate.js`, `src/notation/glyphs.js`, or the font.
+`src/song/validate.js` (the validator **source** — note this is distinct from the
+allowed `src/song/__tests__/validate.test.js` test file),
+`src/notation/glyphs.js`, or the font.
