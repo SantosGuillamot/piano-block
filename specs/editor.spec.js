@@ -660,14 +660,11 @@ test.describe("Piano block — editor authoring, persistence and validation", ()
 			})
 			.toBe(2);
 
-		// Remove the third (empty) section from its actions menu → the section-row
-		// remove is gated behind a ConfirmDialog (S7 entry B); click "OK" to confirm.
+		// Remove the third (empty) section from its actions menu → removed immediately
+		// (no confirm dialog; removes are immediate and undo-reversible).
 		await (
 			await openRowAction(editor, "Actions for Section 3", "Remove")
 		).click();
-		await editor.canvas
-			.getByRole("button", { name: "OK", exact: true })
-			.click();
 		await expect
 			.poll(async () => (await storedSongObject(editor)).sections.length)
 			.toBe(2);
@@ -1182,13 +1179,11 @@ test.describe("Piano block — editor authoring, persistence and validation", ()
 		await expect(songField(editor)).toHaveValue(ROUND_TRIP_SONG);
 	});
 
-	// S7 real-component proof (entry A): the Section panel's "Remove section" button
-	// now opens a real `__experimentalConfirmDialog` before firing the remove. This
-	// test seeds a two-section song, selects a section, clicks the panel button,
-	// confirms the real dialog, and polls that `sections.length` dropped by one.
-	// The cancel path (closing without removing) is not retested here; it is covered
-	// by the SectionPanel unit tests.
-	test("the Section panel Remove section button confirms via a real dialog before removing", async ({
+	// The Section panel's "Remove section" button removes the section immediately
+	// (no confirm dialog; removes are immediate and undo-reversible). This test
+	// seeds a two-section song, selects a section, clicks the panel button, and
+	// polls that `sections.length` dropped by one.
+	test("the Section panel Remove section button removes the section immediately", async ({
 		editor,
 		page,
 	}) => {
@@ -1222,16 +1217,16 @@ test.describe("Piano block — editor authoring, persistence and validation", ()
 		await treeRow(editor, "Section 1").click();
 		await expect(inspectorPanel(sidebar, "Section")).toBeVisible();
 
-		// Click the panel's "Remove section" button — it opens the real ConfirmDialog.
+		// Click the panel's "Remove section" button — the section is removed immediately.
 		await sidebar
 			.getByRole("button", { name: "Remove section", exact: true })
 			.click();
 
-		// Confirm via the real dialog's confirm button — the real ConfirmDialog renders
-		// its buttons in a modal/dialog; locate the confirm button by its default text.
-		await page.getByRole("button", { name: "OK" }).click();
+		// No confirm dialog: the remove is immediate. A re-added ConfirmDialog would
+		// surface an "OK" button here and re-break this test.
+		await expect(page.getByRole("button", { name: "OK" })).toHaveCount(0);
 
-		// The section is removed: sections.length drops from 2 to 1.
+		// The section is removed immediately: sections.length drops from 2 to 1.
 		await expect
 			.poll(async () => (await storedSongObject(editor)).sections.length)
 			.toBe(1);
