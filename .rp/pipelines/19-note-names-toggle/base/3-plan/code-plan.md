@@ -62,8 +62,9 @@ Key reference facts pinned from the codebase (current line numbers):
 - `src/edit.js:165-168`: `system = working?.language ?? inferNoteNameSystem(working)`
   — the editor parity expression to mirror in `view.js`.
 - `src/render.php`: today emits one childless `data-wp-interactive` wrapper (line
-  77); seeds `song` + `accessibleName` into `data-wp-context`; returns early on an
-  empty/whitespace song (line 63-65).
+  77) carrying `data-wp-init="callbacks.init"` but NO `data-wp-watch` (the watch
+  directive is net-new in Task 5); seeds `song` + `accessibleName` into
+  `data-wp-context`; returns early on an empty/whitespace song (line 63-65).
 - `src/view.js`: a single `callbacks.init` (line 72) that parses once, builds a
   `draw` closure (92-95), gates on the music font (101), and attaches a
   `ResizeObserver` that calls `draw` directly (52-68, 103).
@@ -98,16 +99,21 @@ drift).
    - the generator `stepsOf(song)`,
    - `inferNoteNameSystem(song)`,
    - `stepInSystem(step, system)`.
-   Export `stepInSystem`, `inferNoteNameSystem`, and `stepsOf` (the names the
-   layout layer and `view.js` and the gating will import). The module's only
-   import is `{ isNoteName, normalizeStep }` from `./normalizeStep.js` (note the
-   relative path is now `./` since the module lives in `src/song/`).
+   Export `stepInSystem` and `inferNoteNameSystem` (the two functions the layout
+   layer and `view.js` import). Also export `SYSTEMS` (re-consumed by
+   `noteNames.js`'s `noteNameOptions`). `stepsOf` is the private generator that
+   `inferNoteNameSystem` walks internally and has no frontend or editor consumer
+   outside this module, so it stays MODULE-PRIVATE (not exported). The module's
+   only import is `{ isNoteName, normalizeStep }` from `./normalizeStep.js` (note
+   the relative path is now `./` since the module lives in `src/song/`).
 2. In `src/editor/noteNames.js`:
    - REMOVE the moved in-file definitions of `SYSTEMS`, `CANONICAL_LETTERS`,
      `SPANISH_TOKENS`, `stepsOf`, `inferNoteNameSystem`, and `stepInSystem`.
-   - IMPORT `stepInSystem`, `inferNoteNameSystem`, and `stepsOf` from
+   - IMPORT `stepInSystem` and `inferNoteNameSystem` from
      `../song/noteNameSystem.js`, plus import `SYSTEMS` from the same module
-     (because `noteNameOptions` reads `SYSTEMS[system]`).
+     (because `noteNameOptions` reads `SYSTEMS[system]`). Do NOT import `stepsOf`
+     — `noteNames.js` never called it directly (only `inferNoteNameSystem` did,
+     and that now lives in the new module).
    - RE-EXPORT the public symbols that existing importers expect FROM
      `noteNames.js`: `export { inferNoteNameSystem, stepInSystem } from
      "../song/noteNameSystem.js";` so that `noteNames.test.js` (which imports
@@ -130,8 +136,8 @@ editor names); AC3.
 
 **Acceptance**
 - `src/song/noteNameSystem.js` exists, exports `stepInSystem`,
-  `inferNoteNameSystem`, and `stepsOf`, and does not reference
-  `@wordpress/i18n`.
+  `inferNoteNameSystem`, and `SYSTEMS` (and does NOT export `stepsOf`, which
+  stays private to the module), and does not reference `@wordpress/i18n`.
 - The spelling arrays, `CANONICAL_LETTERS`, and `SPANISH_TOKENS` are defined in
   exactly one place across the codebase (no duplicate definition remains in
   `noteNames.js`).
@@ -182,10 +188,14 @@ is resolved yet.
 3. Adapt EVERY downstream consumer that previously read `positions: number[]` —
    there is exactly ONE prescribed expression for each, so two implementers
    cannot diverge:
-   - `stemDirectionForChord` (line 1503): call
+   - `stemDirectionForChord` (line 1503, inside `layoutHand`): call
      `stemDirectionForChord(headInputs.map((h) => h.sFromBottom))`.
      `stemDirectionForChord`'s signature stays `number[]` (UNCHANGED at line
-     262); its unit tests are untouched.
+     262); its unit tests are untouched. NOTE: `stemDirectionForChord` has TWO
+     callers in `layout.js` — this one at line 1503 (the only one changed here)
+     and a second at line 512 (`beamGeometry`), which passes an independent
+     `number[]` (`allSteps`) and is UNAFFECTED because the signature is preserved.
+     Do not change the line 512 call.
    - `stackChord` (line 1504): call `stackChord(headInputs, direction)`.
    - Accidentals loop (lines 1507-1517): build the accidental inputs from the
      same paired walk that produced `headInputs` (each pair carries the resolved
@@ -411,6 +421,7 @@ fields (`showNoteNames: false`, `hasNameableNotes: false`, the translated
    <div data-wp-interactive="piano-block/piano"
         <?php echo wp_interactivity_data_wp_context( $context ); ?>
         data-wp-init="callbacks.init"
+        data-wp-watch="callbacks.draw"
         <?php echo get_block_wrapper_attributes(); ?>>
      <button type="button"
              data-wp-on--click="actions.toggleNoteNames"
@@ -426,6 +437,15 @@ fields (`showNoteNames: false`, `hasNameableNotes: false`, the translated
    state. The button carries the LITERAL `hidden` attribute so it is hidden
    pre-JS and FOUC-safe (the directive's first computed value, given the seeded
    `hasNameableNotes: false`, is also hidden — no flash, no mismatch).
+
+   This `render.php` markup is the SOLE owner of the
+   `data-wp-watch="callbacks.draw"` directive. The directive is an HTML attribute
+   that only server-rendered markup can carry; it is what binds the
+   `callbacks.draw` redraw funnel (registered in Task 6's `view.js` store) to
+   per-instance context changes (`showNoteNames`, `width`). Task 6 does NOT add
+   it (it physically cannot — `view.js` registers store callbacks and never
+   writes attributes onto the wrapper). It MUST appear exactly once, on the
+   wrapper, here.
 4. Keep the early `return` for an empty/whitespace song (lines 63-65) and the
    accessible-name computation unchanged. The render-or-nothing decision stays
    100% client-side; PHP still does NOT validate or gate on conformance.
@@ -447,6 +467,9 @@ AC9, AC12.
   `data-wp-bind--hidden="!context.hasNameableNotes"`,
   `data-wp-text="context.toggleLabel"`, and a literal `hidden` attribute) and a
   sibling inner `<div class="wp-block-piano-block-piano__score">`.
+- The wrapper `<div>` carries exactly one `data-wp-watch="callbacks.draw"`
+  attribute (alongside `data-wp-init="callbacks.init"`) — this is the sole place
+  the watch directive is emitted.
 - The seeded `data-wp-context` includes `showNoteNames: false`,
   `hasNameableNotes: false`, a `toggleLabel` string produced by `__('Show note
   names', 'piano-block')`, and `width: 0`, alongside the existing `song` and
@@ -489,10 +512,13 @@ button reveals only when nameable notes exist.
      `const score = wrapper.querySelector('.wp-block-piano-block-piano__score');`.
    - Run `parseAndValidate(context.song)` ONCE; on error, draw nothing, leave
      `hasNameableNotes` false, and return (the existing early-return semantics).
-   - Cache the parsed `data` in a per-instance memo reachable by the watch
-     `draw` (e.g. a `WeakMap` keyed by the wrapper/score element, or stored on the
-     context — choose the per-instance-safe form; do NOT use a module-level
-     single variable that would leak across instances).
+   - Cache the parsed `data` (and, per the next bullet, the `fontReady` flag) in a
+     per-instance memo reachable by the watch `draw` (e.g. a `WeakMap` keyed by
+     the wrapper or score element, or fields stored on the context — choose the
+     per-instance-safe form; do NOT use a module-level single variable that would
+     leak across instances). `draw` re-resolves this memo by the same element key,
+     so the choice of memo form MUST be one `draw` can look up from
+     `getElement().ref` + the `.__score` selector alone.
    - Build the layout model once (names off) and set
      `context.hasNameableNotes = true` ONLY when the model has ≥1 note record:
      `model.systems.some(s => s.measures.some(m => (m.right?.notes?.length || 0)
@@ -501,25 +527,46 @@ button reveals only when nameable notes exist.
      the real `systems[].measures[].{right,left}.notes` structure; the
      observable requirement is "true iff the song yields at least one notehead
      record".)
-   - Gate the FIRST draw on the music font via `drawWhenFontReady`, and seed a
-     `fontReady` flag (on context or the per-instance memo) so subsequent redraws
-     do not re-wait.
+   - Gate the FIRST draw on the music font via `drawWhenFontReady`, and seed the
+     `fontReady` flag in the SAME per-instance memo that holds the parsed `data`
+     (so the watch `draw` reads both from one place) — set it true once the font
+     gate resolves, so subsequent redraws do not re-wait. Until `fontReady` is
+     true, `draw` returns early (the watch may fire before the font resolves).
    - Attach the `ResizeObserver` to the SCORE div (not the wrapper); on a width
      change it WRITES `context.width = availableWidthInSp(score)` (or a measured
      px value the draw converts) instead of calling draw directly. Keep the
      rAF-debounce. Return the disconnect cleanup.
-4. Add `callbacks.draw`, wired by `data-wp-watch` (the directive is added on the
-   wrapper in markup — note: add `data-wp-watch="callbacks.draw"` to the
-   `render.php` wrapper as part of Task 5's directives, OR add it here per the
-   project's directive convention; the watch MUST fire on `showNoteNames` and
-   `width` changes). The `draw` callback:
+4. Add `callbacks.draw`, registered in the store as the single redraw funnel. The
+   `data-wp-watch="callbacks.draw"` attribute that binds this callback to context
+   changes is owned by Task 5's `render.php` wrapper markup (it is an HTML
+   attribute; `view.js` cannot and MUST NOT add it). Task 6 ONLY registers the
+   `callbacks.draw` method in the store; it does not touch markup. The watch fires
+   on `showNoteNames` and `width` changes because the callback reads both from
+   context.
+
+   Critically, `callbacks.draw` is a separate store method and does NOT close
+   over `init`'s local scope (`init`'s `container`/`score`/`accessibleName`/`data`
+   locals are NOT visible here). Each `draw` run MUST re-resolve everything it
+   needs by the SAME means `init` uses, so the two never diverge and so there is
+   no `ReferenceError`:
+   - the wrapper from `getElement().ref`;
+   - the inner score div from the SAME selector `init` uses:
+     `wrapper.querySelector('.wp-block-piano-block-piano__score')`;
+   - `accessibleName` from `getContext()`;
+   - the parsed song and `fontReady` flag from the per-instance memo seeded by
+     `init`, looked up by the same element key `init` stored under (per step 3 —
+     never a module-level single variable).
    ```js
    draw() {
      const c = getContext();
      const show = c.showNoteNames;   // subscribes the watch to the toggle
      const width = c.width;          // subscribes the watch to resize
-     if (!fontReady) return;         // first run awaits the font gate
-     const data = cachedParsedSong;  // per-instance memo, parsed once
+     const { ref: wrapper } = getElement();
+     const score = wrapper.querySelector('.wp-block-piano-block-piano__score');
+     const memo = /* per-instance memo lookup keyed by wrapper/score (step 3) */;
+     if (!memo || !memo.fontReady) return;  // first run awaits init's font gate
+     const data = memo.data;                // parsed once by init, reused here
+     const { accessibleName } = c;          // read from context, not init's scope
      const system = data.language ?? inferNoteNameSystem(data);
      const model = buildLayoutModel(data, availableWidthInSp(score),
        { showNoteNames: show, system });
@@ -529,14 +576,10 @@ button reveals only when nameable notes exist.
    Each redraw recomputes model + SVG from scratch from the cached parsed song;
    the render is pure, so identical inputs yield byte-identical output (no drift).
 5. `renderInto` and width measurement both target the inner score `<div>` so the
-   `replaceChildren` draw never wipes the SSR button.
-
-   NOTE on the watch directive location: the design specifies a single
-   `data-wp-watch` callback. The code-writer MUST place `data-wp-watch` such that
-   it fires on context changes for this instance (per the Interactivity API,
-   `data-wp-watch="callbacks.draw"` on the wrapper element). If Task 5 owns the
-   wrapper markup, the `data-wp-watch` attribute belongs there; coordinate so the
-   attribute is present exactly once on the wrapper.
+   `replaceChildren` draw never wipes the SSR button. Because `draw` re-resolves
+   the score div from `getElement().ref` + the same
+   `.wp-block-piano-block-piano__score` selector `init` uses, both lifecycles
+   operate on the identical per-instance element.
 
 **Depends on**
 Task 1 (`inferNoteNameSystem` from the shared module), Task 3 (the
@@ -570,6 +613,14 @@ FR2, FR3, FR6, FR7, FR9, FR11, FR12; AC1, AC2, AC4, AC6, AC7, AC9, AC12.
   false and the button stays hidden.
 - The parsed song is parsed exactly once per instance and reused on every redraw
   (no re-parse on toggle or resize).
+- `callbacks.draw` references no identifier from `init`'s closure: it re-resolves
+  the wrapper via `getElement().ref`, the score div via the
+  `.wp-block-piano-block-piano__score` selector, `accessibleName` via
+  `getContext()`, and `data`/`fontReady` via the per-instance memo — so it runs
+  without `ReferenceError` and resolves the same element `init` does.
+- `view.js` does not write the `data-wp-watch` attribute (it is owned by Task 5's
+  `render.php` markup); `view.js` only registers the `callbacks.draw` store
+  method.
 
 ---
 
