@@ -4,9 +4,9 @@
  * The front-end stylesheet (style.scss) carries only the @font-face declaration;
  * all editor surface rules (canvas, tree, selection highlight) live here.
  * The sheet-music canvas displays the score and highlights the current selection
- * (display + highlight only); on-canvas add affordances sit beside it; the song-level
- * and selected-event settings live in the block's `InspectorControls` sidebar,
- * which WordPress styles.
+ * (display + highlight only); the song-level and selected-event settings live in the
+ * block's `InspectorControls` sidebar, which WordPress styles. Adds live in the
+ * structure tree and the Note panel inside the sidebar.
  */
 
 // Top-level: the inspector sidebar renders OUTSIDE the block wrapper, so this
@@ -103,7 +103,7 @@
 		}
 	}
 
-	/* The canvas display wrapper: the SVG host plus the add affordances. The
+	/* The canvas display wrapper: the SVG host. The
 	 * load-bearing `min-width: 0` lets the canvas column shrink inside the flex
 	 * workspace so the SVG host's own `min-width`/`overflow-x` (below) engages and
 	 * scrolls a wide score, rather than crushing the tree rail. */
