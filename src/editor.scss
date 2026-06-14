@@ -18,8 +18,12 @@
 //                          rendered last in each list row); flex: 0 0 auto gives
 //                          it a fixed, non-shrinking footprint so it does not
 //                          collapse when the leading editor is wide.
-//   > :first-child       — the leading leaf editor (PitchEditor / AnnotationEditor
-//                          / the SelectControl+NumberControl pair in HandConfig);
+//   > :first-child       — the single leading control of the list row. Across all
+//                          three list-row users: HandConfigEditor places a
+//                          SelectControl first (then a NumberControl, then the trash
+//                          Button); PitchEditor and AnnotationEditor return React
+//                          Fragments whose children flatten into the parent HStack,
+//                          so their leading control is also a single SelectControl.
 //                          min-width keeps it from shrinking to zero at narrow
 //                          inspector widths. 8em matches roughly the minimum
 //                          usable width of a SelectControl option list, which is
