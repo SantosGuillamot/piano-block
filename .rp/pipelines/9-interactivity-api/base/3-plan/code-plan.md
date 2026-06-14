@@ -53,7 +53,16 @@ built** (D2/D26). T1 adds that flag. Therefore:
 - `npm run test:e2e` (Playwright via `wp-scripts test-playwright`) does **not** auto-build,
   so a **flagged `npm run build` must have run first**, and `wp-env` must be up
   (`npm run env:start`). The view-module-dependent e2e checks (AC1/AC5/AC8/AC9) only pass
-  once the module actually builds (T1+T2) and the server emits the directives (T3).
+  once the module actually builds (**T5** — see below) and the server emits the directives
+  (T3). The flagged module build is **broken in the middle of the sequence**: the moment T2
+  declares `viewScriptModule`, the still-old `view.js` (which imports `@wordpress/dom-ready`
+  and, transitively via `accessibleNameFor`, `@wordpress/i18n`) hard-errors the module pass
+  (`Attempted to use WordPress script in a module: @wordpress/i18n`), and no `build/view.js` /
+  `build/view.asset.php` module asset is emitted until **T5** removes those imports. Before
+  T2 there is no `viewScriptModule` entry at all, so the module pass reports "No entry file
+  discovered." A successful flagged module build therefore first exists at **T5**, and every
+  acceptance check that depends on a built/typed view module (or on a clean zero-exit flagged
+  build for serving) is anchored to T5 below — not earlier.
 
 A pragmatic TDD note for the e2e-touching tasks: the new/reworked e2e assertions (T6, T7)
 are written against the migrated behavior, so they are expected to fail (or not yet build)
@@ -80,10 +89,13 @@ and a running `wp-env`.
 - **Depends on:** (none — do this first so every later build actually produces the module).
 - **Traces to:** D2, D26; R13 (build/test workflow), R10/AC14 (no new dependency).
 - **Acceptance:** `package.json` parses (`node -e "require('./package.json')"` exits 0) and
-  both scripts contain `--experimental-modules`. A full build (`npm run build`) completes
-  without the "No entry file discovered" error for the view module and emits
-  `build/view.js` plus `build/view.asset.php`. (The module's *contents* are still the old
-  classic script until T5 — that is fine; this task only proves the module pass runs.)
+  both the `build` and `start` scripts contain `--experimental-modules`. `npm run build`
+  exits 0 and still emits the **classic** `build/view.js` + `build/view.asset.php` from the
+  script pass (`block.json` still declares `viewScript` at this step, so there is no module
+  entry — the module pass is **not** exercised here and emits no module asset). Do **not**
+  assert a `build/view.asset.php` with `'type' => 'module'` yet: the `viewScriptModule`
+  declaration arrives in T2, and a successfully-built view *module* first exists at T5. This
+  task only proves the flag is wired and the existing (non-module) build still succeeds.
 
 ---
 
@@ -110,8 +122,15 @@ and a running `wp-env`.
   only `@wordpress/interactivity` — proven later at T5).
 - **Acceptance:** `block.json` is valid JSON (`node -e "require('./src/block.json')"` exits
   0) and contains `viewScriptModule` + `supports.interactivity: true` and **no**
-  `viewScript`. After `npm run build`, `build/block.json` reflects the same fields and
-  `build/view.asset.php` is generated with `'type' => 'module'`. (Hydration is not yet
+  `viewScript`. **NOTE — the flagged module build is now expected to FAIL until T5, and that
+  is not a regression:** with `viewScriptModule` declared and the flag on (T1), the module
+  pass runs against the still-old `view.js`, which imports `@wordpress/i18n` (transitively via
+  `accessibleNameFor`) and `@wordpress/dom-ready`, so a full `npm run build` hard-errors with
+  `Attempted to use WordPress script in a module: @wordpress/i18n, which is not supported yet.`
+  This is the known mid-sequence state; T5 removes those imports and is where the module build
+  first succeeds. Do **not** assert a generated `build/view.asset.php` with `'type' =>
+  'module'` at this step (it is not emitted until T5). The only build-signal in scope here is
+  JSON validity of `block.json` itself (the `node -e` check above). (Hydration is not yet
   meaningful until render.php emits the directives — T3.)
 
 ---
@@ -175,24 +194,32 @@ and a running `wp-env`.
 - **Traces to:** D4, D12, D13, D14, D15; R2 (wrapper attrs, childless), R3 (accessible-name
   parity, four branches), R4 (per-instance context transport), R5/AC8 (escape-safety),
   R6/AC6/AC7 (early return + client-only gate), R9 (i18n computed in PHP).
-- **Acceptance:**
+- **Acceptance** (verify the file and its server-rendered HTML *shape* now; defer any check
+  that needs a working module build — the flagged build is broken until T5):
   - PHP lints clean: `php -l src/render.php` reports "No syntax errors detected".
-  - After a flagged `npm run build` and with `wp-env` running, fetch a published
-    comprehensive-song post's raw HTML: the wrapper carries
-    `data-wp-interactive="piano-block/piano"`, a `data-wp-context='…'` attribute whose
-    decoded JSON has `song` (the raw song string) and
-    `accessibleName === "Example by A. Composer"`, `data-wp-init="callbacks.init"`, and the
-    class `wp-block-piano-block-piano`; there is **no** `<script class="…__song">` carrier
-    and the wrapper has no element children.
-  - For a hostile song, the raw `data-wp-context` value contains the escaped `<` (no
-    literal `</script>` / `<!--` / `'` breakout) and `JSON.parse` of the attribute (then of
-    its `song`) round-trips to the exact author bytes. (This is pinned by the reworked AC8
-    sub-check in T6.)
-  - For an empty/whitespace song, no wrapper is emitted at all (AC6).
-  - The full e2e suite is **not** expected to pass yet — the client still runs the old
-    classic `view.js`, which reads the now-removed carrier, so the SVG will not draw until
-    T5. Server-HTML-only checks (the AC8 transport sub-check, AC6) are the meaningful
-    signals at this point.
+  - Verify the route-B HTML *shape* this file produces without depending on a clean flagged
+    build. Inspecting the server-rendered HTML directly (e.g. render the block via PHP, or
+    read the route-B markup the script pass already copies into `build/render.php`) shows: a
+    single childless `<div>` wrapper carrying `data-wp-interactive="piano-block/piano"`, a
+    `data-wp-context='…'` attribute whose decoded JSON has `song` (the raw song string) and
+    `accessibleName === "Example by A. Composer"` for a comprehensive song,
+    `data-wp-init="callbacks.init"`, and the class `wp-block-piano-block-piano`; there is
+    **no** `<script class="…__song">` carrier and the wrapper has no element children. For an
+    empty/whitespace song, no wrapper is emitted at all (AC6). Do **not** gate this on a
+    zero-exit flagged `npm run build`: the module pass hard-errors until T5, so whether a full
+    flagged build serves a fresh `build/` for `wp-env` is toolchain-dependent and not a
+    reliable T3 signal.
+  - **DEFERRED to after T5** (when a clean flagged build first exists): the full
+    server-HTML e2e fetch — fetching a published post's raw HTML over `wp-env` and asserting
+    the hostile-song escape-safety (`data-wp-context` contains the escaped `<`, no literal
+    `</script>` / `<!--` / `'` breakout) and the `JSON.parse` outer→inner byte-exact
+    round-trip. This is exactly the reworked AC8 transport sub-check in T6, which runs against
+    a fresh flagged build + running `wp-env`; it is not expected to be runnable at the T3 step
+    because the module build is still broken here.
+  - The full e2e suite is **not** expected to pass yet — even setting aside the broken module
+    build, the client still runs the old classic `view.js`, which reads the now-removed
+    carrier, so the SVG will not draw until T5. The meaningful, runnable signals at T3 are the
+    `php -l` lint and the static route-B HTML-shape check above.
 
 ---
 
@@ -305,10 +332,14 @@ and a running `wp-env`.
 - **Acceptance:**
   - `npm run test:unit` passes (no unit test imports `view.js`, so this is a regression
     guard for the frozen core — D25).
-  - A flagged `npm run build` succeeds **without** the "Attempted to use WordPress script
-    in a module: @wordpress/i18n" / `@wordpress/dom-ready` errors; the emitted
-    `build/view.asset.php` declares dependencies of exactly `array('@wordpress/interactivity')`
-    with `'type' => 'module'` (D3 — the purest R10/AC14).
+  - **This is the step where the full flagged module build first succeeds and first emits the
+    view module asset** (it was expected to fail from T2 through T4 on the old `view.js`
+    imports). A flagged `npm run build` exits 0 **without** the "Attempted to use WordPress
+    script in a module: @wordpress/i18n" / `@wordpress/dom-ready` errors and emits
+    `build/view.js`; the emitted `build/view.asset.php` declares dependencies of exactly
+    `array('@wordpress/interactivity')` with `'type' => 'module'` (D3 — the purest R10/AC14).
+    The build-success + module-emission acceptance the earlier tasks deferred is satisfied
+    here.
   - A static scan of `src/view.js` shows it imports only `@wordpress/interactivity` plus
     relative `./notation/*` / `./song/*` modules — no other `@wordpress/*` and no
     third-party runtime import (AC14). Example check:
@@ -337,9 +368,10 @@ and a running `wp-env`.
   - Fetch the raw server HTML the same way:
     `const rawHtml = await (await page.request.get(`/?p=${postId}`)).text();`.
   - **Locate** the `data-wp-context='` opener in `rawHtml` and slice the value to the next
-    `'` — safe because the core encoder escapes any in-payload `'` to `&#039;`
-    (JSON_HEX_APOS), so the first `'` after the opener is the true attribute close. (Account
-    for the exact attribute spelling the runtime emits; assert `indexOf` is `> -1` first.)
+    `'` — safe because the core encoder escapes any in-payload `'` to the JSON unicode escape
+    `'` (JSON_HEX_APOS; six chars, not the HTML entity `&#039;`, which `json_encode` does
+    *not* emit), so the first `'` after the opener is the true attribute close. (Account for
+    the exact attribute spelling the runtime emits; assert `indexOf` is `> -1` first.)
   - **Escape-safety asserts:** the sliced value **contains** the escaped `<` sequences and
     **does not contain** a literal `</script>`, a literal `<!--`, or a literal `'`. The
     needle for an escaped `<` is the six characters `<` — in JS test source the
