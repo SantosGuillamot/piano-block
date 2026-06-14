@@ -19,6 +19,7 @@
  */
 
 import { normalizeStep } from "../song/normalizeStep.js";
+import { stepInSystem } from "../song/noteNameSystem.js";
 import {
 	ABOVE_STAFF_PAD,
 	ACCIDENTAL_COL_STEP,
@@ -1460,10 +1461,22 @@ export function systemScale(contentSp, availSp, { isLast = false } = {}) {
  * @param {number[]} onsets This hand's per-event onsets (`handOnsets`).
  * @param {{ clef: string, alters: object }} ctx The hand's resolved context.
  * @param {object} [timeSignature] For beam grouping ONLY (never for positions).
+ * @param {{ showNoteNames?: boolean, system?: string }} [opts] Optional display
+ *   options. When `showNoteNames` is true, each head object gets a bare `name`
+ *   string resolved via `stepInSystem(head.step, system)`. When false (default)
+ *   the `name` key is omitted entirely — the model is byte-identical to the
+ *   pre-flag model.
  * @return {{ notes: object[], rests: object[], texts: object[] }} The hand's
  *   positioned primitives.
  */
-function layoutHand(events, columnX, onsets, ctx, timeSignature) {
+function layoutHand(
+	events,
+	columnX,
+	onsets,
+	ctx,
+	timeSignature,
+	{ showNoteNames = false, system } = {},
+) {
 	const list = events ?? [];
 	const normAlters = normalizeAlters(ctx.alters);
 	const groups = beamGroups(list, timeSignature);
@@ -1496,7 +1509,10 @@ function layoutHand(events, columnX, onsets, ctx, timeSignature) {
 
 		const pitches = Array.isArray(event?.pitches) ? event.pitches : [];
 		const headInputs = pitches
-			.map((p) => ({ sFromBottom: pitchToStaffStep(p, ctx.clef), step: p?.step }))
+			.map((p) => ({
+				sFromBottom: pitchToStaffStep(p, ctx.clef),
+				step: p?.step,
+			}))
 			.filter((h) => h.sFromBottom !== null);
 		if (headInputs.length === 0) {
 			collectEventTexts(event, x, texts);
@@ -1504,8 +1520,16 @@ function layoutHand(events, columnX, onsets, ctx, timeSignature) {
 		}
 
 		const decoded = decodeDuration(event.duration);
-		const direction = stemDirectionForChord(headInputs.map((h) => h.sFromBottom));
+		const direction = stemDirectionForChord(
+			headInputs.map((h) => h.sFromBottom),
+		);
 		const heads = stackChord(headInputs, direction);
+
+		if (showNoteNames) {
+			heads.forEach((h) => {
+				h.name = stepInSystem(h.step, system);
+			});
+		}
 
 		// Accidentals: resolve per pitch, then column-stack the ones that draw.
 		const accInputs = [];
@@ -1746,9 +1770,18 @@ export function collectStandaloneAnnotations(measureNotes, ctx) {
  *   song (the validator is the gate upstream; this stays defensive but assumes
  *   conformant shape).
  * @param {number} availableWidthInSp The live container width, in staff spaces.
+ * @param {{ showNoteNames?: boolean, system?: string }} [opts] Optional display
+ *   options. When `showNoteNames` is true, each notehead in the model carries a
+ *   bare `name` string (the step resolved through `system` via `stepInSystem`).
+ *   When false or absent (default), the `name` key is omitted entirely and the
+ *   model is byte-identical to the pre-flag model.
  * @return {{ systems: object[], width: number }} The layout model in sp units.
  */
-export function buildLayoutModel(song, availableWidthInSp) {
+export function buildLayoutModel(
+	song,
+	availableWidthInSp,
+	{ showNoteNames = false, system } = {},
+) {
 	const budgetSp = Math.max(availableWidthInSp ?? 0, 0);
 	const contexts = resolveSectionContexts(song);
 	const sections = Array.isArray(song?.sections) ? song.sections : [];
@@ -2076,6 +2109,7 @@ export function buildLayoutModel(song, availableWidthInSp) {
 				ml.hands.right.onsets,
 				m.ctx.rightHand,
 				ts,
+				{ showNoteNames, system },
 			);
 			const left = layoutHand(
 				m.measure?.leftHand,
@@ -2083,6 +2117,7 @@ export function buildLayoutModel(song, availableWidthInSp) {
 				ml.hands.left.onsets,
 				m.ctx.leftHand,
 				ts,
+				{ showNoteNames, system },
 			);
 
 			// The bar sits at the measure's content end (the last note already has its
