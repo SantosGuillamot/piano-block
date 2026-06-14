@@ -84,7 +84,21 @@ Then open **http://localhost:8888/** (front end) or **http://localhost:8888/wp-a
 
 ## Building & installing into an existing site
 
-Because the block is compiled, the installable plugin is the repository **plus its generated `build/` output** (which is git-ignored):
+Because the block is compiled, the installable plugin is the repository **plus its generated `build/` output** (which is git-ignored). There are two ways to get an installable copy onto a site.
+
+### Recommended: package a zip with `npm run plugin-zip`
+
+```bash
+npm install && npm run plugin-zip
+```
+
+This produces **`piano-block.zip`** at the repository root — a ready-to-install archive with a single top-level `piano-block/` folder that a WordPress 6.9+ / PHP 7.4+ site can take directly via **Plugins → Add New Plugin → Upload Plugin**. (The script name is `plugin-zip`, the WordPress `create-block` community-standard name for this step, which is why it isn't `build:zip`.)
+
+The command **builds the block fresh first, then archives.** If that build is missing or incomplete it **aborts with a non-zero exit and writes no zip**, so the archive can never silently ship without the block.
+
+The archive carries only the **runtime payload** a site needs: the main plugin file (`piano-block.php`), the generated `build/` directory, and `README.md` (plus a `languages/` folder if one is ever added). Everything else — the `src/` sources, dependencies, build/lint config, tests, and all project tooling — is **left out by default**: inclusion is an allowlist of the standard WordPress plugin layout, so anything new that lands under `build/` is picked up automatically with no change here, while unrelated files stay out without anyone having to exclude them. Re-running the command cleanly overwrites any existing `piano-block.zip`. The artifact is git-ignored so it is never committed (see the [Scripts](#scripts) entry).
+
+### Manual: build and copy the plugin directory
 
 ```bash
 npm install && npm run build
