@@ -127,7 +127,8 @@ The block is built with [`@wordpress/scripts`](https://developer.wordpress.org/b
 
 ### The build model
 
-- **JSX + ES modules.** `src/` is authored with JSX and `import`s from the `@wordpress/*` packages; the build transpiles the JSX and externalises those imports to WordPress's runtime script handles, generating `build/index.asset.php` (the script's dependencies and version) automatically.
+- **JSX + ES modules.** `src/` is authored with JSX and `import`s from the `@wordpress/*` packages; the editor bundle (`index.js`) builds as a **classic script** — the build transpiles the JSX and externalises those imports to WordPress's runtime script handles, generating `build/index.asset.php` (the script's dependencies and version) automatically.
+- **The front-end view builds as a script module.** The front end is a separate, smaller bundle: `src/view.js`, declared in `block.json` as **`viewScriptModule`** (the **view module**), is built as a real ES **script module** rather than a classic script. Its generated `build/view.asset.php` is a module asset whose only dependency is the script-module id **`@wordpress/interactivity`** — a module id, not a classic `wp-` script handle — and WordPress provides that module at runtime (it is not a `package.json` dependency). On this toolchain (`@wordpress/scripts` 32.3.0) webpack's module pass is **opt-in**, so `npm run build` and `npm run start` pass **`--experimental-modules`** (equivalently `WP_EXPERIMENTAL_MODULES=true`). Without that flag the module pass reports "No entry file discovered", `view.js` is not built, and nothing hydrates on the front end.
 - **SCSS.** Styles are split across two stylesheets so editor-only CSS never ships to the front end. The front-end stylesheet carries only the `@font-face` declaration — `src/style.scss`, compiled to `build/style-index.css` and enqueued via the `style` handle; editor-only styles (the workspace layout, structure tree, canvas, and selection-highlight rules) live in `src/editor.scss`, compiled to `build/index.css` and enqueued via the `editorStyle` handle. (Biome does not process SCSS; the build's Sass step owns it.)
 - **Biome for lint/format.** Biome (tab indentation, double-quoted JS) lints and formats the JavaScript/JSON sources in `src/`. The generated `build/` directory is git-ignored and therefore outside Biome's set; the PHP files sit outside Biome's processing set and are not linted by it.
 - **`register_block_type()` targets `build/`.** `piano-block.php` registers the block from the `build/` directory, so you must run `npm run build` before the plugin will work.
@@ -159,8 +160,8 @@ The block is built with [`@wordpress/scripts`](https://developer.wordpress.org/b
 
 ### Scripts
 
-- `npm run build` — compile `src/` → `build/` (production build).
-- `npm run start` — compile and watch `src/` for changes (development).
+- `npm run build` — compile `src/` → `build/` (production build). Carries `--experimental-modules` so the front-end view module is built alongside the classic editor bundle.
+- `npm run start` — compile and watch `src/` for changes (development). Also carries `--experimental-modules` so the view module is rebuilt on change.
 - `npm run env:start` / `npm run env:stop` — start / stop the local `wp-env` WordPress.
 - `npm run test:unit` — run the Jest unit tests (the song validator suite) in pure Node, no WordPress runtime.
 - `npm run test:e2e` — run the Playwright end-to-end tests against the local `wp-env` (editor + front-end behavior). Prerequisites in order: `npm install` → `npm run build` → `npm run env:start` → `npm run test:e2e`.
