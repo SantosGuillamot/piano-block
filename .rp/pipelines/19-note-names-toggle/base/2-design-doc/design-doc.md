@@ -49,12 +49,16 @@ with per-instance state so each block toggles independently.
 - **AC7 (names survive a width change):** resize and toggle share ONE redraw
   funnel (the watch reads both `showNoteNames` and a width signal), so a resize
   re-fires the same path that reads the live flag. (Key Decision 4.)
-- **AC8 (translatable label):** the label is computed server-side with `__()`
-  under the `piano-block` text domain and transported via context. (Key Decision 5.)
-- **AC9 (no nameable notes → no control):** the button is gated on a
-  client-computed `hasNameableNotes` flag; an all-rests conformant song produces
-  zero note records, so the flag stays false and the button stays hidden. (Key
-  Decision 7.)
+- **AC8 (translatable label):** the toggle `<button>` is SSR'd by `render.php` (the
+  PHP layer), which computes the label with PHP `__('Show note names', 'piano-block')`
+  and ships it into per-instance `data-wp-context` as `toggleLabel`; the button's text
+  is bound with `data-wp-text="context.toggleLabel"`. `view.js` never imports
+  `@wordpress/i18n` and renders no label. (Key Decision 5.)
+- **AC9 (no nameable notes → no control):** the button is SSR-hidden and gated on a
+  `hasNameableNotes` flag that is computed on the CLIENT in `view.js`'s `init` (the
+  server cannot, since validation/layout are client-side); an all-rests conformant
+  song produces zero note records, so the flag stays false and the button stays
+  hidden. (Key Decision 7.)
 - **AC10 (names-off byte-identical, frontend default + editor equivalence):** ONE
   flag site (`buildLayoutModel`), default OFF; when off the model omits `head.name`
   and the emitted SVG is unchanged. Added an `outerHTML` pin test. (Key Decisions 2, 4.)
@@ -85,9 +89,15 @@ decision):
 
 2. **Name-resolution layer (shared vocabulary).** A new frontend-safe module
    (sibling of `normalizeStep.js`) holds the per-system spellings and resolution
-   functions, extracted from the editor's `noteNames.js`. The editor re-imports
-   from it; the layout layer imports `stepInSystem` from it. One source of truth
-   means frontend names equal editor names by construction.
+   functions, extracted from the editor's `noteNames.js`. This is a REFACTOR, not a
+   copy: the editor's `noteNames.js` is changed to IMPORT those symbols from the new
+   module (its in-file `SYSTEMS`/`CANONICAL_LETTERS`/`SPANISH_TOKENS` definitions and
+   the `stepInSystem`/`inferNoteNameSystem`/`stepsOf` functions are MOVED to the shared
+   module and re-exported/consumed, not duplicated). The layout layer imports
+   `stepInSystem` from the SAME module. There is exactly ONE definition of the
+   spellings and the resolution rule, so frontend names equal editor names by
+   construction — satisfying FR4 ("the names shown on the frontend match the note-name
+   strings the editor already uses") with no drift-prone second copy.
 
 3. **Layout + emit layer (where names are computed and drawn).** A single flag
    site, `buildLayoutModel(data, width, { showNoteNames, system })`, threads the
@@ -112,11 +122,13 @@ byte-identity. A full re-render from the pure render path also makes idempotency
 ### New
 
 - **`src/song/noteNameSystem.js`** (new shared module). Frontend-safe (no
-  `@wordpress/i18n` import). Holds the ordered per-system spelling arrays
-  (`SYSTEMS = { english: [C..B], spanish: [do..si] }`), `CANONICAL_LETTERS`,
-  `SPANISH_TOKENS`, and the pure functions `stepInSystem(step, system)`,
-  `inferNoteNameSystem(song)`, and `stepsOf(song)`. Extracted verbatim from
-  `src/editor/noteNames.js`; depends only on the existing `normalizeStep.js`.
+  `@wordpress/i18n` import). Becomes the SINGLE definition of the ordered per-system
+  spelling arrays (`SYSTEMS = { english: [C..B], spanish: [do..si] }`),
+  `CANONICAL_LETTERS`, `SPANISH_TOKENS`, and the pure functions
+  `stepInSystem(step, system)`, `inferNoteNameSystem(song)`, and `stepsOf(song)`.
+  These are MOVED out of `src/editor/noteNames.js` (which then imports them back), so
+  the definition lives in exactly one place — not duplicated. Depends only on the
+  existing `normalizeStep.js`.
 
 - **`NOTE_NAME_SIZE`** constant in `src/notation/constants.js`. A new font-size
   constant of 1.8 staff units (14.4px at the 8px/sp scale), a sibling of
@@ -142,13 +154,15 @@ byte-identity. A full re-render from the pure render path also makes idempotency
 
 - **`src/notation/layout.js`.** `buildLayoutModel` accepts a third options arg
   `{ showNoteNames = false, system } = {}` and threads it to `layoutHand`.
-  `layoutHand` builds atomic `{ sFromBottom, step }` pairs per pitch (before
-  `stackChord`), and — only when `showNoteNames` — resolves each head's bare name
-  via `stepInSystem(step, system)` and attaches `head.name`. `stackChord`'s input
-  changes from `number[]` to `{ sFromBottom, step }[]` (sort comparator and
-  head-build map updated; the seconds-rule loop is unchanged). The four downstream
-  number-consumers in `layoutHand` are adapted (see Interfaces). The name dodge for
-  clashing chord/run names reuses a parameterized form of the existing
+  `layoutHand` builds an atomic `{ sFromBottom, step }` pair array per pitch (call
+  it `headInputs`, replacing today's `positions: number[]`), and — only when
+  `showNoteNames` — resolves each head's bare name via `stepInSystem(step, system)`
+  and attaches `head.name`. `stackChord`'s input changes from `number[]` to
+  `{ sFromBottom, step }[]` (sort comparator and head-build map updated; the
+  seconds-rule loop is unchanged). `stemDirectionForChord` is NOT changed — it stays
+  on `number[]`, and the single caller recovers the number array from the pairs (see
+  "layout.js downstream adaptations" for every consumer's exact expression). The name
+  dodge for clashing chord/run names reuses a parameterized form of the existing
   `stackAccidentals` packing.
 
 - **`src/notation/svg.js`.** `renderNote` appends one inert `<text>` per head when
@@ -156,11 +170,17 @@ byte-identity. A full re-render from the pure render path also makes idempotency
   `font-size = NOTE_NAME_SIZE` and an observability `data-*` attribute. No flag is
   added to `svg.js`; the presence of `head.name` is the only signal.
 
-- **`src/editor/noteNames.js`.** Re-imports `SYSTEMS`, `CANONICAL_LETTERS`,
-  `SPANISH_TOKENS`, `stepInSystem`, `inferNoteNameSystem`, and `stepsOf` from the
-  new shared module. Keeps `noteLabel` (and its editor-side
-  `__("rest", "piano-block")`), `mapSong`, and `noteNameOptions`. No editor
-  behavior changes.
+- **`src/editor/noteNames.js`.** REFACTORED to single-source the vocabulary: its own
+  in-file definitions of `SYSTEMS`, `CANONICAL_LETTERS`, `SPANISH_TOKENS`,
+  `stepInSystem`, `inferNoteNameSystem`, and `stepsOf` are REMOVED and IMPORTED from
+  the new `src/song/noteNameSystem.js` instead (re-exported where existing
+  editor/test importers expect them from `noteNames.js`, so the editor's public
+  surface is preserved). It keeps the editor-only pieces: `noteLabel` (and its
+  editor-side `__("rest", "piano-block")`), `mapSong`, and `noteNameOptions` (these
+  consume the now-imported `stepInSystem`/`SYSTEMS`). No editor BEHAVIOR changes — the
+  editor resolves names through the exact same code the frontend does, which is what
+  makes FR4 hold by construction (one source, no copy that can drift). Existing
+  `noteNames.test.js` continues to import from `noteNames.js` and passes unchanged.
 
 - **`src/style.scss`.** Net-new minimal frontend CSS for the button (spacing below
   it). Today this file is `@font-face` only.
@@ -170,8 +190,11 @@ byte-identity. A full re-render from the pure render path also makes idempotency
 - **`src/editor/SongCanvas.js`** keeps calling `buildLayoutModel(song, width)` with
   no third arg and `renderInto(container, model, { accessibleName })` — so the
   editor never resolves a name (AC11) and the names-off equivalence holds (AC10).
-- **`stemDirectionForChord`** stays on `number[]` (the one caller passes
-  `positions.map(p => p.sFromBottom)`), so its tests are untouched.
+- **`stemDirectionForChord`** stays on `number[]` (signature unchanged: `layout.js`
+  line 262, `@param {number[]} positions`). Its one caller inside `layoutHand`
+  recovers the number array from the new pair array:
+  `stemDirectionForChord(headInputs.map((p) => p.sFromBottom))`. Its unit tests are
+  untouched.
 
 ## Interfaces and Data Flow
 
@@ -251,12 +274,14 @@ watch re-fires (it read `context.width`) → redraw at the new width with the li
 ### Name resolution
 
 ```
-view.js:  system = data.language ?? inferNoteNameSystem(data)   // == editor's edit.js:166-167
+view.js:  system = data.language ?? inferNoteNameSystem(data)   // == editor src/edit.js:166-167 (working?.language ?? infer)
           buildLayoutModel(data, width, { showNoteNames, system })
             -> layoutHand(..., { showNoteNames, system })
-                 pairs = pitches.map(pitchToStaffStep paired with step) // {sFromBottom, step}, .filter drops a pair atomically
-                 heads = stackChord(pairs, direction)                   // sorts head OBJECTS; step rides the sort
-                 if (showNoteNames) head.name = stepInSystem(head.step, system)  // bare step, no alter, no octave
+                 headInputs = pitches.map(p => ({ sFromBottom: pitchToStaffStep(p), step: p.step }))
+                                    .filter(h => h.sFromBottom !== null)   // {sFromBottom, step}; filter drops a pair atomically
+                 direction = stemDirectionForChord(headInputs.map(h => h.sFromBottom))  // number[] recovered; signature unchanged
+                 heads = stackChord(headInputs, direction)                // sorts head OBJECTS; step rides the sort
+                 if (showNoteNames) heads.forEach(h => h.name = stepInSystem(h.step, system))  // bare step, no alter, no octave
 svg.js:   renderNote: for each head, if (head.name) append <text> beside the head  // emit iff name present
 ```
 
@@ -267,14 +292,47 @@ the same parsed-song field path, the strings match by construction (R4).
 
 ### layout.js downstream adaptations (mechanical, one function)
 
-`stackChord` input becomes `{ sFromBottom, step }[]`; inside `layoutHand` the four
-consumers that previously assumed `positions: number[]` are adapted:
-- `stemDirectionForChord(positions.map(p => p.sFromBottom))` — signature unchanged.
-- ledger loop and dot loop — destructure `{ sFromBottom: s }`.
-- `topStep` / `bottomStep` — `Math.max/min(...positions.map(p => p.sFromBottom))`.
+Today, inside `layoutHand` (`layout.js:1493-1559`), `positions` is a `number[]`:
+`pitches.map((p) => pitchToStaffStep(p, ctx.clef)).filter((s) => s !== null)`. The
+ONLY structural change is: rename/replace `positions` with `headInputs`, an array of
+`{ sFromBottom, step }` pairs built in the same pass, so the `.filter()` drops a pair
+atomically and the step stays bound to its position:
 
-The `stackChord` return shape is purely additive (heads gain `step`/`name`);
-existing consumers of `sFromBottom`/`y`/`side`/`displaced` are untouched.
+```js
+const headInputs = pitches
+  .map((p) => ({ sFromBottom: pitchToStaffStep(p, ctx.clef), step: p?.step }))
+  .filter((h) => h.sFromBottom !== null);
+if (headInputs.length === 0) { /* …existing empty-chord early return… */ }
+```
+
+`stackChord` now takes `headInputs` (its input becomes `{ sFromBottom, step }[]`).
+Every OTHER consumer that previously read `positions: number[]` recovers numbers from
+the pairs — there is exactly ONE way to do this, so two implementers cannot diverge:
+
+- **`stemDirectionForChord`** (line 1503): call
+  `stemDirectionForChord(headInputs.map((h) => h.sFromBottom))`. Signature unchanged
+  (`number[]`); tests untouched.
+- **Accidentals loop** (lines 1508-1517): the `pitches.forEach((p, pi) => …)` walk
+  reads `headInputs[pi].sFromBottom` (still index-aligned with `pitches` only when no
+  pitch filtered out; see the note below) instead of `positions[pi]`. To remove the
+  index-lockstep risk entirely, prefer building the accidental inputs from the same
+  paired walk that produced `headInputs` (each pair already carries the resolved
+  `sFromBottom` and the originating pitch's `glyph`). Either form is acceptable; the
+  paired-walk form is recommended.
+- **Ledger loop** (line 1522) and **dot loop** (line 1532): iterate
+  `for (const { sFromBottom: s } of headInputs)` instead of `for (const s of positions)`.
+- **`topStep` / `bottomStep`** (lines 1558-1559):
+  `Math.max(...headInputs.map((h) => h.sFromBottom))` /
+  `Math.min(...headInputs.map((h) => h.sFromBottom))`.
+
+After `stackChord` returns the sorted head objects, the name is attached per head
+(only when `showNoteNames`): `heads.forEach((h) => { h.name = stepInSystem(h.step, system); })`.
+The `step` rides `stackChord`'s sort because the sort reorders head OBJECTS (the sort
+comparator switches from `(a, b) => a - b` to `(a, b) => a.sFromBottom - b.sFromBottom`).
+
+The `stackChord` return shape is purely additive (heads gain `step`, and `name` only
+when names are on); existing consumers of `sFromBottom`/`y`/`side`/`displaced` are
+untouched.
 
 ### Note-name placement geometry (svg.js, per head)
 
@@ -293,6 +351,44 @@ Clashing chord/run names are dodged by a parameterized reuse of `stackAccidental
 accidentals' leftward, and the clash threshold widens to ≈4 staff-steps (the name's
 height at `NOTE_NAME_SIZE`). `Y` stays at `head.y` so each name keeps its head's
 true pitch height.
+
+### System box and baseline grid invariance when names are ON (AC10 on-state, AC13)
+
+Names-OFF byte-identity is the AC10 guarantee (one flag, default OFF, `head.name`
+omitted). But the ON state must also not corrupt layout, so this design pins TWO
+additional invariants for names-ON:
+
+1. **No baseline-grid shift.** Turning names on MUST NOT move any staff line, any
+   notehead, any clef/brace, or any system's vertical origin. This holds by
+   construction: the name is attached to an already-laid-out `head` object AFTER all
+   geometry is computed (`head.y`, `topMargin`, `STAFF_HEIGHT_SP`, lane occupancy,
+   `systemHeight` at `layout.js:1894-1952` are all derived from `headInputs`/ledger
+   extents, none of which depend on `head.name`). The `system`/`showNoteNames` options
+   feed ONLY the per-head name string; they are never read by `topMarginLayout`,
+   `ledgerTopExtent`, the lane-occupancy scan, or the `systemHeight` sum. So every
+   element keeps the exact Y it has when names are off — names are a purely additive
+   overlay at fixed coordinates.
+
+2. **No clipping past the system box / viewBox.** Names sit at `head.y ± ~NOTE_NAME_SIZE/2`
+   vertically and extend rightward horizontally. Horizontally there is no clip risk:
+   names fan into the inter-note gap and the measure's right padding, well inside
+   `staffEndX`. Vertically, a name on an EXTREME ledger note (top of the treble, bottom
+   of the bass) could in principle poke above/below the margin that today's
+   ledger-extent sum reserves. Because invariant 1 forbids growing `systemHeight` for
+   the common case, the safety rule is: the music-font ledger/margin reserve
+   (`SYSTEM_TOP_MARGIN`/`SYSTEM_BOTTOM_MARGIN` plus `ledgerTopExtent`/`ledgerBottom`)
+   already provides headroom that comfortably covers a `NOTE_NAME_SIZE`-tall glyph
+   centered on a notehead that sits at or inside the ledger extent (the ledger extent
+   is measured to the extreme NOTEHEAD, and the half-name-height is ≈0.9 sp, smaller
+   than the existing top/bottom margins). The plan MUST include a render assertion that
+   the names-ON `viewBox`/`systemHeight` is byte-identical to names-OFF for the common
+   fixture (proving no shift), and a visual/QA check that no name clips at the box edge
+   on the extreme-ledger fixture. IF (and only if) QA finds an extreme-ledger clip, the
+   documented contingency (Decision 8 / Risks "Contingency Topic E") adds a SMALL
+   name-extent term to the top/bottom margin, GATED `showNoteNames ? nameExtent : 0` so
+   the OFF path stays byte-identical (AC10) and the ON path grows the box rather than
+   clipping. The default ship path adds NO such term (zero `systemHeight` delta both
+   states).
 
 ## Key Decisions
 
@@ -336,22 +432,29 @@ true pitch height.
 
 ### Decision 3 — Per-head step threading + shared name module
 
-- **Choice:** In `layoutHand`, build atomic `{ sFromBottom, step }` pairs per pitch
-  BEFORE `stackChord`, so the `.filter()` (which can drop an unrecognized pitch)
-  removes a pair atomically and the step stays bound to its position; the step rides
-  `stackChord`'s sort because the sort reorders head OBJECTS. Resolve the final bare
-  name in the layout layer via `stepInSystem(step, system)` from a NEW shared
-  frontend-safe module (`src/song/noteNameSystem.js`) extracted from the editor's
-  `noteNames.js`. `system = data.language ?? inferNoteNameSystem(data)` — exact
-  editor parity.
+- **Choice:** In `layoutHand`, build an atomic `{ sFromBottom, step }` pair array
+  (`headInputs`) per pitch BEFORE `stackChord`, so the `.filter()` (which can drop an
+  unrecognized pitch) removes a pair atomically and the step stays bound to its
+  position; the step rides `stackChord`'s sort because the sort reorders head OBJECTS.
+  `stemDirectionForChord` is deliberately LEFT on `number[]`; the one caller recovers
+  the numbers with `headInputs.map((h) => h.sFromBottom)`, so its signature and tests
+  are untouched (resolving the contract cleanly: pairs feed `stackChord`, a derived
+  number array feeds `stemDirectionForChord`). Resolve the final bare name in the
+  layout layer via `stepInSystem(step, system)` from a NEW shared frontend-safe module
+  (`src/song/noteNameSystem.js`) extracted from the editor's `noteNames.js`.
+  `system = data.language ?? inferNoteNameSystem(data)` — exact editor parity (mirrors
+  `src/edit.js:166-167`, `working?.language ?? inferNoteNameSystem(working)`).
 - **Alternatives:** (a) Keep `stackChord` on `number[]` plus a parallel `steps[]`
   sorted in lockstep — re-introduces index-lockstep fragility through the sort. (b)
   A PHP mirror of the name vocabulary in `render.php` — a second source of truth
   (drift risk), and pointless because names are JS-drawn and default OFF (unlike
   `accessibleName`, which is needed pre-JS in the SVG `<title>`).
 - **Trade-offs:** `stackChord`'s input signature changes (`number[]` →
-  `{ sFromBottom, step }[]`), requiring migration of 4 existing unit tests and
-  adapting 4 downstream number-consumers in `layoutHand`. This is the minimal,
+  `{ sFromBottom, step }[]`), requiring migration of the 4 existing `stackChord`
+  unit-test call sites and adapting `layoutHand`'s remaining number-consumers
+  (`stemDirectionForChord`, the accidentals loop, the ledger loop, the dot loop, and
+  `topStep`/`bottomStep`) to recover `sFromBottom` from the pairs — see "layout.js
+  downstream adaptations" for each consumer's exact expression. This is the minimal,
   sort-safe change; coverage (both hands, per-head chords, rests excluded, ties
   named on both ends) falls out of the existing render structure for free.
 - **Traces to:** R4, R5, R2; AC2, AC3.
@@ -378,18 +481,43 @@ true pitch height.
 
 ### Decision 5 — Translatable label transported via context; inner score container
 
-- **Choice:** Compute the button label server-side in `render.php` with `__()`
-  under the `piano-block` text domain and pass it via `data-wp-context` (matching
-  the existing `accessibleName` precedent), bound with `data-wp-text`. Baseline is a
-  FIXED label "Show note names" (state is conveyed by `aria-pressed`); a Show↔Hide
-  flip is an allowed enhancement via a derived `state.toggleLabel` getter.
-  `render.php` also emits a dedicated inner score `<div>` as a SIBLING of the
-  button; `view.js` draws/measures/observes that inner div (NOT the wrapper).
-- **Alternatives:** (a) Import `@wordpress/i18n` into the view module — avoided; no
-  precedent on the frontend and the codebase already transports translated strings
-  via context. (b) SSR the button as a direct wrapper child with no inner score div
-  — `renderInto`'s `container.replaceChildren(svg)` on the wrapper would wipe the
-  button on the first draw and every resize.
+- **Choice — which layer renders the button, and how the translated label arrives.**
+  The toggle `<button>` is rendered by the PHP layer (`render.php`), NOT by `view.js`.
+  This resolves the PHP-`__()`-vs-JS-module tension decisively: server-side rendering
+  is the only layer with per-request access to WordPress's `__()` and the loaded
+  translations, and `view.js` is a plain `viewScriptModule` with no per-render server
+  i18n. Concretely:
+  1. `render.php` computes the label once per render with
+     `$toggle_label = __('Show note names', 'piano-block');` (same `piano-block` text
+     domain as the existing accessible-name strings).
+  2. `render.php` adds `toggleLabel => $toggle_label` to the `$context` array that is
+     already encoded by `wp_interactivity_data_wp_context( $context )` (the existing
+     `song`/`accessibleName` transport — the identical mechanism, no new machinery).
+  3. The SSR'd `<button>` binds its visible text declaratively with
+     `data-wp-text="context.toggleLabel"`. The button element itself is empty markup
+     in `render.php`; the directive fills its text on hydration. Because the string is
+     also the button's accessible name, AC8 is satisfied without `view.js` touching
+     i18n at all.
+
+  The label is a FIXED string "Show note names" in both states; the on/off STATE is
+  conveyed by `aria-pressed` (Decision 1), not by changing the label, so no second
+  translated string and no JS-side label logic are needed. (A Show↔Hide label flip is
+  explicitly OUT of scope for this design; if ever wanted, it too would be done by
+  SSR'ing both `__()`-translated strings into context and selecting between them with a
+  `data-wp-text` binding — still no `@wordpress/i18n` in `view.js`.)
+
+  `render.php` also emits a dedicated inner score `<div>` as a SIBLING of the button;
+  `view.js` draws/measures/observes that inner div (NOT the wrapper).
+- **Alternatives:** (a) Import `@wordpress/i18n` into the view module and build the
+  button in JS — rejected; there is no frontend i18n precedent in this codebase, and
+  the build-button-in-JS path is the Interactivity API anti-pattern (Decision 1).
+  (b) SSR the button as a direct wrapper child with no inner score div —
+  `renderInto`'s `container.replaceChildren(svg)` on the wrapper would wipe the
+  button on the first draw and every resize. (c) Deliver the label via
+  `wp_interactivity_state()` (global) instead of `data-wp-context` (local) — works for
+  a string, but the codebase already standardizes on local context for per-instance
+  transported strings (`accessibleName`), and AC4 wants per-instance isolation, so
+  local context is the consistent choice.
 - **Trade-offs:** The container model changes (wrapper now has two children), and
   `view.js` must `querySelector` the inner score div. This is the only structure
   that lets a declarative SSR'd button coexist with the imperative `replaceChildren`
@@ -410,21 +538,44 @@ true pitch height.
 - **Trade-offs:** None material; this is the idiomatic Interactivity API default.
 - **Traces to:** R3, R6, R12; AC1, AC4.
 
-### Decision 7 — Client-determined gating via `hasNameableNotes`
+### Decision 7 — Client-computed gating via `hasNameableNotes`, SSR-hidden until init
 
-- **Choice:** The button's visibility binds to a client-set context boolean
-  `hasNameableNotes` (seeded false, SSR `hidden`). After `init`'s cached
-  `parseAndValidate` succeeds, the client sets it true ONLY when the built model has
-  ≥1 note record (e.g.
-  `model.systems.some(s => s.measures.some(m => (m.right?.notes?.length || 0) + (m.left?.notes?.length || 0) > 0))`).
-- **Alternatives:** (a) Gate on the server — `render.php` cannot know
-  render-success or nameable-note presence because validation is client-side. (b)
-  Walk the parsed song with `stepsOf` — equivalent, but the model check is preferred
-  since the model is already in hand and a pitch that filtered to `null` produces no
-  note record.
+- **WHAT computes `hasNameableNotes`, and WHERE.** It is computed on the CLIENT, in
+  `view.js`'s `callbacks.init`, NOT on the server. After `init`'s cached
+  `parseAndValidate` succeeds, `init` builds the layout model once and sets
+  `context.hasNameableNotes = true` ONLY when the built model has ≥1 note record:
+  `model.systems.some(s => s.measures.some(m => (m.right?.notes?.length || 0) + (m.left?.notes?.length || 0) > 0))`.
+  (Equivalently it could walk the parsed song with the shared `stepsOf`, but the model
+  check is preferred since `init` already builds the model and a pitch that filtered to
+  `null` produces no note record — so "has a note record" is exactly "has a nameable
+  note".)
+- **WHY the server cannot compute it (so SSR-hidden-until-init is the safe default).**
+  `render.php` deliberately does NOT gate rendering (the render-or-nothing decision is
+  100% client-side, per the existing `render.php` header comment and R6). The server's
+  `json_decode` is used only to read `metadata` for the accessible name; it never runs
+  the JS validator (`parseAndValidate`) and never builds the layout model, so it cannot
+  know whether the song is conformant or whether it yields any nameable note. Mirroring
+  the validator + layout in PHP would be a second source of truth (drift risk) for a
+  decision the client already owns. Therefore the safe default is: `render.php` SSRs the
+  `<button>` WITH a literal `hidden` attribute AND
+  `data-wp-bind--hidden="!context.hasNameableNotes"` over a seeded
+  `hasNameableNotes: false`. The button stays hidden until `init` proves nameable notes
+  exist, then flips it visible by setting the context flag.
+- **Why this is FOUC-safe.** The SSR `hidden` attribute and the directive's FIRST
+  computed value (from the seeded `hasNameableNotes: false`) are BOTH "hidden", so there
+  is no flash-then-hide and no SSR/hydration mismatch on the hidden state. The button
+  only ever becomes visible by going from hidden→shown once `init` confirms notes — it
+  never starts shown and snaps away. With JS disabled, `init` never runs, the flag stays
+  false, the button stays hidden, and no score is drawn (no dangling control).
+- **Alternatives:** (a) Gate on the server — rejected: `render.php` cannot know
+  render-success or nameable-note presence without re-implementing the client-side
+  validator and layout (drift). (b) SSR the button visible and hide it in JS if there
+  are no notes — rejected: that flashes a control that then vanishes (FOUC) and shows a
+  dangling control with JS off.
 - **Trade-offs:** The button exists in the SSR DOM but is hidden until the client
   confirms nameable notes; with no JS it stays hidden and no score is drawn (no
-  dangling control). Empty song → no wrapper at all → no button.
+  dangling control). Empty/whitespace song → `render.php` emits no wrapper at all → no
+  button (Decision 5 / R6).
 - **Traces to:** R11; AC9, AC12.
 
 ### Decision 8 — Per-head-beside placement, small font, stackAccidentals-style dodge
@@ -434,7 +585,11 @@ true pitch height.
   `NOTE_NAME_SIZE` (1.8sp / 14.4px). Resolve chord/run collisions with a
   parameterized reuse of the existing tested `stackAccidentals` greedy column-pack
   (fan names rightward; widen the clash threshold to ≈4 staff-steps). Target ZERO
-  `systemHeight` change when off (and in the common single-note case when on).
+  `systemHeight` change in BOTH states: off is byte-identical (AC10), and on adds NO
+  vertical extent term on the default ship path (names attach to already-laid-out heads,
+  so the baseline grid does not shift and the box does not grow) — see "System box and
+  baseline grid invariance when names are ON". Clipping on extreme ledger notes is the
+  only on-state risk, handled by the gated contingency term (off-path stays 0).
 - **Alternatives:** (a) Per-notehead adjacency at full `NOTE_SIZE` — overlaps ~5.6×
   in a chord, illegible. (b) A reserved name LANE mirroring the dynamics/annotation
   band machinery — clean collision handling, but a chord's names stack/join in the
