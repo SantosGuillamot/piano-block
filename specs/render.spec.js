@@ -645,15 +645,15 @@ test.describe("Piano block — front-end render", () => {
 
 		const svg = blockSvg(page);
 
-		// (a) Because the song is CONFORMANT, the `<` escape round-trips: the
-		// JSON <script> did NOT break out, `JSON.parse` succeeded on the exact
-		// author bytes, and the notation RENDERS.
+		// (a) Because the song is CONFORMANT, `wp_interactivity_data_wp_context()`'s
+		// JSON_HEX_TAG escape round-trips cleanly: `JSON.parse` succeeded on the
+		// exact author bytes, and the notation RENDERS.
 		await expect(svg).toBeVisible();
 		await expect(svg.locator("[data-staff-lines]")).not.toHaveCount(0);
 
-		// (b) No script executed from the block payload: the only <script> inside
-		// the wrapper is the inert application/json data carrier — there is no live
-		// (executable / no-type) <script> injected by the song, and alert never fired.
+		// (b) No script executed from the block payload: route B emits a childless
+		// wrapper with NO carrier `<script>` at all — there is no live (executable /
+		// no-type) `<script>` injected by the song, and alert never fired.
 		await expect(
 			page.locator(`.${BLOCK_CLASS} script:not([type="application/json"])`),
 		).toHaveCount(0);
@@ -669,31 +669,45 @@ test.describe("Piano block — front-end render", () => {
 		// verbatim as inert text, with the "by composer" wrapper.
 		await expect(svg).toHaveAccessibleName(`${HOSTILE_TITLE} by A. Composer`);
 
-		// (d) Transport-side proof the JSON `<script>` did NOT break out: fetch the
-		// RAW server HTML (before `view.js` runs and swaps the carrier for the SVG).
-		// `render.php` escapes every `<` to the JSON unicode escape `<`, so the
-		// hostile `</script>` / `<!--` literals appear ONLY in their escaped form
-		// inside the carrier — the raw markup must contain `</script` and NOT a
-		// literal `</script>` that would have closed the carrier early. Because the
-		// escape is a legal JSON escape, the carrier still `JSON.parse`s back to the
-		// EXACT author bytes (already proven by (a)+(c) rendering the verbatim text).
+		// (d) Transport-side proof the route-B `data-wp-context` attribute did NOT
+		// break out: fetch the RAW server HTML (before `view.js` runs and draws the
+		// SVG). `wp_interactivity_data_wp_context()` encodes the context via
+		// `wp_json_encode( …, JSON_HEX_TAG | JSON_HEX_APOS | … )`, so every `<` →
+		// `<`, `/` → `\/`, `'` → `'` — the hostile `</script>` /
+		// `<!--` literals appear ONLY in their escaped form inside the attribute value,
+		// and the single-quote attribute delimiter is never confused with an in-payload
+		// `'` (which comes out as `'`). The escaped JSON still round-trips to
+		// the exact author bytes (already proven by (a)+(c) rendering verbatim text).
 		const rawHtml = await (await page.request.get(`/?p=${postId}`)).text();
-		const carrierStart = rawHtml.indexOf(
-			'<script type="application/json" class="wp-block-piano-block-piano__song">',
+		// Anchor on the piano block's own interactive namespace, then find the
+		// data-wp-context attribute that immediately follows it on the same element.
+		const interactiveAnchor = 'data-wp-interactive="piano-block/piano"';
+		const anchorPos = rawHtml.indexOf(interactiveAnchor);
+		expect(anchorPos).toBeGreaterThan(-1);
+		const ctxOpener = "data-wp-context='";
+		const ctxStart = rawHtml.indexOf(ctxOpener, anchorPos);
+		expect(ctxStart).toBeGreaterThan(-1);
+		// The first `'` after the opener is the true attribute close because any
+		// in-payload `'` is encoded to `'` by JSON_HEX_APOS.
+		const attrValue = rawHtml.slice(
+			ctxStart + ctxOpener.length,
+			rawHtml.indexOf("'", ctxStart + ctxOpener.length),
 		);
-		expect(carrierStart).toBeGreaterThan(-1);
-		// The carrier opening tag is followed by the escaped payload; the FIRST
-		// `</script>` after it is the carrier's own (intact) closing tag, with the
-		// escaped hostile sequence sitting safely before it.
-		const afterOpen = rawHtml.slice(carrierStart);
-		expect(afterOpen).toContain("\\u003C/script>");
-		expect(afterOpen).toContain("\\u003C!--");
-		// The escaped JSON still parses back to the exact author bytes.
-		const payload = afterOpen.slice(
-			afterOpen.indexOf(">") + 1,
-			afterOpen.indexOf("</script>"),
-		);
-		expect(JSON.parse(payload)).toEqual(JSON.parse(HOSTILE_SONG));
+		// Escape-safety: hostile sequences appear only in their unicode-escaped form.
+		// `wp_json_encode` with JSON_HEX_TAG encodes `<` → `<` and also emits
+		// `\/` for `/` (a valid JSON escape), so `</script>` becomes `<\/script`.
+		expect(attrValue).toContain("\\u003C\\/script");
+		expect(attrValue).toContain("\\u003C!--");
+		expect(attrValue).not.toContain("</script>");
+		expect(attrValue).not.toContain("<!--");
+		// JSON_HEX_APOS encodes `'` → `'` so the single-quote attribute
+		// delimiter never appears inside the value.
+		expect(attrValue).not.toContain("'");
+		// Byte-exact round-trip: the attribute value is the JSON of the whole context
+		// object; the song field is an inner JSON string that parses to the exact bytes.
+		const ctx = JSON.parse(attrValue);
+		expect(JSON.parse(ctx.song)).toEqual(JSON.parse(HOSTILE_SONG));
+		expect(ctx.accessibleName).toBe(`${HOSTILE_TITLE} by A. Composer`);
 	});
 });
 
