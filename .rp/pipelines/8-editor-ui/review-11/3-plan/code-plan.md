@@ -123,7 +123,7 @@ T1–T8 are the source/test edits, grouped by file and concern so they can be do
        .click();
    ```
 2. Keep the `openRowAction(editor, "Actions for Section 3", "Remove")` click and the trailing `sections.length` → `2` poll.
-3. Rewrite the stale comment (currently `:663-664`, which claims the remove "is gated behind a ConfirmDialog … click OK to confirm") to the immediate/undo-reversible story. Intended resulting block:
+3. Rewrite the stale comment (currently `:663-664`, which claims the remove "is gated behind a ConfirmDialog (S7 entry B); click OK to confirm") to the immediate/undo-reversible story. **Drop the `S7` and "entry B" tokens** — describe the behavior in plain standalone terms, with no pipeline-phase/`S7`/"entry" reference. Intended resulting block:
    ```js
    // Remove the third (empty) section from its actions menu → removed immediately
    // (no confirm dialog; removes are immediate and undo-reversible).
@@ -139,7 +139,7 @@ T1–T8 are the source/test edits, grouped by file and concern so they can be do
 *Drift site 2 — the dedicated section-remove test (currently `:1185-1238`):*
 5. Rename the test (currently `:1191`) from `"the Section panel Remove section button confirms via a real dialog before removing"` to `"the Section panel Remove section button removes the section immediately"`.
 6. Delete the OK-click block (currently `:1230-1232`): `await page.getByRole("button", { name: "OK" }).click();`
-7. Rewrite the false header comment block (currently `:1185-1190`, describing a `__experimentalConfirmDialog`) and the inline stale comment (currently `:1225`, "it opens the real ConfirmDialog") to the immediate/undo-reversible story.
+7. Rewrite the false header comment block (currently `:1185-1190`, which opens "S7 real-component proof (entry A): …" and describes a `__experimentalConfirmDialog`) and the inline stale comment (currently `:1225`, "it opens the real ConfirmDialog") to the immediate/undo-reversible story. **Drop the `S7` and "entry A" tokens** at `:1185` — describe the behavior in plain standalone terms, with no pipeline-phase/`S7`/"entry" reference.
 8. **Keep** the "Remove section" panel-button click and the `sections.length` → `1` poll. **Keep** the `page` fixture parameter (currently `:1193`) — it is still used by `openSettingsSidebar(editor, page)` (currently `:1220`).
 9. **Add the negative regression guard** AFTER the "Remove section" click and BEFORE the poll, page-scoped:
    ```js
@@ -164,8 +164,11 @@ T1–T8 are the source/test edits, grouped by file and concern so they can be do
        .toBe(1);
    ```
 
+*Shipped-artifact rule (AGENTS.md):*
+10. `specs/editor.spec.js` is a shipped, standalone artifact. Every comment this task rewrites MUST drop all pipeline-phase/commit references — concretely the tokens `S7`, "entry A", "entry B" at `:664` and `:1185` (and any `S5`/`4f3ed90`/"review N") — and describe behavior in plain terms only. The example rewrite snippets above are already clean (no `S7`/"entry"); a literal writer must not preserve the leading "S7 …/entry …" wording while only swapping the clause after it.
+
 *Do-not-regress:*
-10. Do NOT re-introduce a `ConfirmDialog` / `__experimentalConfirmDialog` anywhere (code or tests). Do NOT touch the measure-remove tests (currently `:646-661`, already asserting immediate behavior with no dialog). Do NOT touch any other `confirm`/`OK` reference in the file (button aria-labels, JSON-repopulate prose, an expansion-key string). After this task the two deleted clicks must be the only `name: "OK"` clicks removed.
+11. Do NOT re-introduce a `ConfirmDialog` / `__experimentalConfirmDialog` anywhere (code or tests). Do NOT touch the measure-remove tests (currently `:646-661`, already asserting immediate behavior with no dialog). Do NOT touch any other `confirm`/`OK` reference in the file (button aria-labels, JSON-repopulate prose, an expansion-key string). After this task the two deleted clicks must be the only `name: "OK"` clicks removed.
 
 **Depends on.** None (test-only). Verified by T10.
 
@@ -173,6 +176,7 @@ T1–T8 are the source/test edits, grouped by file and concern so they can be do
 
 **Acceptance.**
 - No `name: "OK"` section-remove click and no stale ConfirmDialog/"real dialog" comment remain; the two clicks deleted; the six stale comments (currently `:664`, `:1186`, `:1188`, the `:1191` test name, `:1225`, `:1230`) gone or rewritten to the immediate/undo-reversible story.
+- The `S7`/"entry A"/"entry B" leak tokens at `:664` and `:1185` are dropped (not preserved as a leading clause). After T4, `grep -nE 'S7|entry [AB]' specs/editor.spec.js` returns EMPTY (these two are the only `S7`/"entry" sites in the file). Combined with T6 dropping `S5`/`4f3ed90`, the whole-file `grep -nE 'S5|S7|entry [AB]|4f3ed90' specs/editor.spec.js` is EMPTY after T4+T6.
 - The dedicated test is renamed to "the Section panel Remove section button removes the section immediately" and contains the page-scoped `toHaveCount(0)` no-dialog guard placed after the "Remove section" click and before the poll; its `page` param is retained.
 - Gated by T10 (the section-remove tests run green).
 
@@ -206,6 +210,8 @@ T1–T8 are the source/test edits, grouped by file and concern so they can be do
    ```
    The row locator mirrors `rowChevron`'s own resolution (`tr` + `.filter({ has: treeRow })`). This matches the helper's documented "Expand … revealing its children" intent.
 
+   **Refresh the `expandRow` JSDoc directly above the body (currently `:324-332`) so it does not go stale against this rewrite** (T6 step 4 owns the same edit — do it here if T5 lands first, or leave it to T6, but it MUST happen exactly once). As written the JSDoc carries an `S5` phase-leak at `:326` and claims "`expandRow` continues to click the chevron and remains valid for all callers" (`:328-329`) — this rewrite makes that FALSE (the chevron is clicked only when collapsed). Rewrite the JSDoc to drop the `S5` token, drop the "continues to click the chevron / remains valid" clause, and describe the idempotent expand-only-when-collapsed / no-op-when-already-open behavior — in plain standalone terms with no `S5`/`4f3ed90`/commit/pipeline reference.
+
 *Prong 2 — two raw-collapse inserts for the keyboard expand/collapse tests:*
 2. `:1294` (ArrowRight/Left on the **section** row, section→measures). Re-grep for the test and its `assertStructureTreeOpen` (currently `:1305`) and collapsed-premise assert (currently `:1307`/`:1313`). Insert AFTER `assertStructureTreeOpen` and BEFORE the collapsed-premise assert:
    ```js
@@ -230,6 +236,7 @@ T1–T8 are the source/test edits, grouped by file and concern so they can be do
 
 **Acceptance.**
 - `expandRow` reads `aria-expanded` and clicks the chevron only when the row is not already `"true"`.
+- The `expandRow` JSDoc is refreshed to match (no `S5` token; no "continues to click the chevron / remains valid for all callers" claim; describes the idempotent expand-only-when-collapsed / no-op-when-open behavior) — done exactly once across T5/T6, never left stale.
 - The `:1294` and `:1331` tests each have exactly one raw `rowChevron(...).click()` collapse insert at the specified position, in the specified order; no `collapseRow` helper added.
 - Gated by T10: all 8 Hazard-A sites (`:469`, `:530`, `:676`, `:1294`, `:1331`, `:1361`, `:1504`, `:1535`) run green.
 
@@ -237,10 +244,12 @@ T1–T8 are the source/test edits, grouped by file and concern so they can be do
 
 ## T6 — B4 Hazard B: reconcile the symmetric-label-toggle reds + stale "select-only" prose (`specs/editor.spec.js`)
 
-**Goal.** Reconcile `specs/editor.spec.js` with the already-shipped symmetric LABEL toggle (`4f3ed90`, `StructureTree.js:156-159`) — a section/measure label click now selects AND toggles expansion (collapsing an open row). Fix the one RED-on-HEAD site (`:580`) and the one RED-under-B4 site (`:757`), plus the comment-only JSDoc/prose cleanup. No source change.
+**Goal.** Reconcile `specs/editor.spec.js` with the already-shipped symmetric LABEL toggle (`StructureTree.js:156-159`) — a section/measure label click now selects AND toggles expansion (collapsing an open row). Fix the one RED-on-HEAD site (`:580`) and the one RED-under-B4 site (`:757`), plus the comment-only JSDoc/prose cleanup. No source change.
+
+**Shipped-artifact rule (applies to every snippet/comment this task writes).** `specs/editor.spec.js` is a shipped, standalone artifact (AGENTS.md). Every comment/JSDoc this task writes MUST describe behavior in plain terms only — **no commit sha (`4f3ed90`), no pipeline-phase token (`S5`/`S7`/"review N"), no internal-workflow reference of any kind**. Describe the symmetric toggle as a behavior ("a section/measure label click selects the row and toggles its expansion, collapsing an open row"), never by citing the commit that introduced it. The snippets below are already written to this rule; if the implementer adapts them, the rule still binds.
 
 **Files.**
-- `specs/editor.spec.js` (`:580`/`:601` test; `:757`/`:774`/`:786` test; `treeRow` JSDoc currently `:290-295`; stale prose at `:21-26`, `:477`, `:542`, `:587`).
+- `specs/editor.spec.js` (`:580`/`:601` test; `:757`/`:774`/`:786` test; `treeRow` JSDoc currently `:290-295`; `expandRow` JSDoc currently `:324-332`; stale prose at `:21-26`, `:477`, `:542`, `:587`).
 
 **Changes.**
 
@@ -248,8 +257,9 @@ T1–T8 are the source/test edits, grouped by file and concern so they can be do
 1. Re-grep for the "…adds, removes and duplicates…" test. At its bare `await treeRow(editor, "Section 1").click();` (currently `:601`) that selects Section 1 for the panel — that label click now collapses the `s0` opened by the `expandRow` at `:593`, so the `openRowAction("Measure 1", …)` at `:613` no longer finds an expanded section. Replace the bare collapsing click with **select-then-idempotent-re-open**:
    ```js
    // The label click selects Section 1 (for the panel) AND toggles its
-   // expansion (4f3ed90's symmetric toggle), collapsing the s0 opened above.
-   // Re-open it idempotently so Measure 1 stays revealed for the row action below.
+   // expansion (a section/measure label is a symmetric toggle), collapsing the
+   // s0 opened above. Re-open it idempotently so Measure 1 stays revealed for
+   // the row action below.
    await treeRow(editor, "Section 1").click();
    await expandRow(editor, "Section 1");
    ```
@@ -260,8 +270,8 @@ T1–T8 are the source/test edits, grouped by file and concern so they can be do
    - BEFORE the `treeRow("Section 1").click()` (currently `:774`):
      ```js
      // edit.js seeds s0 expanded on mount; collapse it so the label click below
-     // opens-and-selects Section 1 (rather than collapsing it via 4f3ed90's
-     // symmetric toggle) and the next assert sees Measure 1 revealed.
+     // opens-and-selects Section 1 (rather than collapsing it via the symmetric
+     // label toggle) and the next assert sees Measure 1 revealed.
      await rowChevron(editor, "Section 1").click();
      ```
    - BEFORE the `treeRow("Measure 1").click()` (currently `:786`):
@@ -270,12 +280,20 @@ T1–T8 are the source/test edits, grouped by file and concern so they can be do
      // opens-and-selects Measure 1 and genuinely reveals its hand rows.
      await rowChevron(editor, "Measure 1").click();
      ```
-   Then rewrite the stale prose (currently `:770-772`, `:778-779`, `:783-784`) that describes the pre-`4f3ed90` "select-and-reveal, never collapses" label, to the symmetric-toggle contract: a section/measure label click selects AND toggles expansion, so the test collapses the auto-open row first to drive the open path.
+   Then rewrite the stale prose (currently `:770-772`, `:778-779`, `:783-784`) that describes the old "select-and-reveal, never collapses" label, to the symmetric-toggle contract: a section/measure label click selects AND toggles expansion, so the test collapses the auto-open row first to drive the open path. **Drop the `S5` tokens at `:770` ("After S5 clicking a collapsed section …") and `:783` ("After S5 a collapsed measure label …")** — describe the behavior in plain standalone terms, with no `S5`/`4f3ed90`/commit/pipeline reference.
 
 *Prong 3 (cont.) — JSDoc / prose reconciliation (comment-only, no-assertion-impact):*
-3. `treeRow` JSDoc (currently `:290-295`): rewrite the "SELECT-AND-REVEAL … never collapses" description to the actual contract — a section/measure label click is a symmetric toggle that selects the row AND toggles its expansion (collapsing an open row), per `4f3ed90`; a note-leaf label click only selects.
-4. Leave the `expandRow` JSDoc (currently `:324-332`) — T5 aligns the body with its existing "Expand … revealing its children" intent.
-5. Reconcile the remaining stale "select-only" / "never collapses" prose at `:21-26`, `:477`, `:542`, `:587` to the symmetric-toggle reality. Comment-only, no assertion impact.
+3. `treeRow` JSDoc (currently `:290-295`): rewrite the "SELECT-AND-REVEAL … never collapses" description to the actual contract — a section/measure label click is a symmetric toggle that selects the row AND toggles its expansion (collapsing an open row); a note-leaf label click only selects. **Drop the `S5` token at `:290` ("After S5 the label is SELECT-AND-REVEAL …")** — describe the behavior in plain standalone terms, with **no `S5`/`4f3ed90`/commit/pipeline reference** of any kind.
+4. **Refresh the `expandRow` JSDoc (currently `:324-332`) — do NOT leave it as-is.** As written it (a) carries an `S5` phase-leak at `:326` ("After S5 a collapsed section/measure label click also expands …") and (b) asserts "`expandRow` continues to click the chevron and remains valid for all callers" (`:328-329`), which T5 makes FALSE — T5 rewrites the body to branch on `aria-expanded` and click the chevron **only when collapsed**, making it idempotent. Rewrite the JSDoc to:
+   - **drop the `S5` token** (no pipeline-phase reference);
+   - **drop the now-false "continues to click the chevron / remains valid for all callers" clause**;
+   - **describe the idempotent behavior**: expand the row only when it is currently collapsed (read `aria-expanded`; click the chevron when not already open), and no-op when the row is already expanded (so re-calling it — e.g. on a seeded-open row — cannot accidentally collapse it). Keep the "Expand … revealing its children" intent and the note that a collapsed label click is an alternative expand affordance, but state it in plain terms with **no `S5`/`4f3ed90`/commit/pipeline reference**.
+
+   (This JSDoc edit pairs with T5's body rewrite; the implementer may land it in whichever of T5/T6 touches that helper, but it MUST happen — leaving it stale is the exact stale-comment-next-to-changed-code drift this run exists to fix.)
+5. Reconcile the remaining stale "select-only" / "never collapses" prose at `:21-26`, `:477`, `:542`, `:587` to the symmetric-toggle reality. Comment-only, no assertion impact. Each rewrite MUST stay free of any `S#`/commit/pipeline token (none of these currently carries one; confirm none is re-introduced).
+
+*Leak-token sweep (acceptance gate for this task):*
+7. Every comment/JSDoc this task writes or rewrites in `specs/editor.spec.js` MUST drop all pipeline-phase and commit references — concretely the tokens **`S5`, `S7`, "entry A", "entry B", `4f3ed90`** (and any "review N") — per AGENTS.md, so the shipped file reads as a standalone project (behavior only, no internal-workflow history). After T6's edits land, `grep -nE 'S5|S7|entry [AB]|4f3ed90' specs/editor.spec.js` MUST return EMPTY for every region this task owns (the `treeRow` JSDoc `:290`, the `expandRow` JSDoc `:326`, the `:770`/`:783` prose, and all snippets above).
 
 *Safe sites — leave untouched:*
 6. Do NOT change the label-click sites `:547` (note "C" leaf click), `:804` (rename), `:1222` (drift-site-2) — each only needs the row SELECTED, never expanded, so the symmetric toggle is inert for them.
@@ -288,6 +306,8 @@ T1–T8 are the source/test edits, grouped by file and concern so they can be do
 - `:601`'s bare collapsing label click is replaced with `await treeRow("Section 1").click(); await expandRow("Section 1");`; the `:586-588` comment is corrected.
 - `:774` and `:786` each have a raw `rowChevron(...).click()` collapse inserted before the label click; the `:770-772`/`:778-779`/`:783-784` prose is rewritten to the symmetric-toggle contract.
 - The `treeRow` JSDoc and the `:21-26`/`:477`/`:542`/`:587` prose describe the symmetric toggle.
+- The `expandRow` JSDoc is **refreshed, not left as-is**: the `S5` token is dropped, the "continues to click the chevron / remains valid for all callers" clause is gone, and it describes the idempotent expand-only-when-collapsed / no-op-when-open behavior matching T5's body.
+- No `S5`/`4f3ed90` (or `S7`/"entry A/B") reference survives in any comment this task wrote. After T6, `grep -nE 'S5|S7|entry [AB]|4f3ed90' specs/editor.spec.js` returns EMPTY for this task's regions (with T4 owning `:664` and `:1185`, the whole-file grep is EMPTY after T4+T6).
 - The safe sites (`:547`, `:804`, `:1222`) are untouched.
 - No source change. Gated by T10: `:580` and `:757` run green.
 
