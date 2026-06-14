@@ -141,6 +141,7 @@ The block is built with [`@wordpress/scripts`](https://developer.wordpress.org/b
 ### Scripts
 
 - `npm run build` — compile `src/` → `build/` (production build).
+- `npm run plugin-zip` — build the block, then package the installable `piano-block.zip` at the repository root (the generated zip is git-ignored).
 - `npm run start` — compile and watch `src/` for changes (development).
 - `npm run env:start` / `npm run env:stop` — start / stop the local `wp-env` WordPress.
 - `npm run test:unit` — run the Jest unit tests (the song validator suite) in pure Node, no WordPress runtime.
