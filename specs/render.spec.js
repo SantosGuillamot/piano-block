@@ -988,6 +988,118 @@ test.describe("Piano block — note annotations rendered on a real page", () => 
 	});
 });
 
+// A song carrying arpeggio: "up" on a chord note — the minimum fixture
+// that exercises the arpeggio render path. One right-hand chord, directional up.
+const ARPEGGIO_UP_SONG = JSON.stringify({
+	sections: [
+		{
+			measures: [
+				{
+					rightHand: [
+						{
+							type: "note",
+							duration: "quarter",
+							arpeggio: "up",
+							pitches: [
+								{ step: "C", octave: 4 },
+								{ step: "E", octave: 4 },
+								{ step: "G", octave: 4 },
+							],
+						},
+					],
+				},
+			],
+		},
+	],
+});
+
+// A song carrying arpeggio: "nondirectional" on a chord note — exercises the
+// nondirectional path that omits the arrowhead.
+const ARPEGGIO_NONDIRECTIONAL_SONG = JSON.stringify({
+	sections: [
+		{
+			measures: [
+				{
+					rightHand: [
+						{
+							type: "note",
+							duration: "quarter",
+							arpeggio: "nondirectional",
+							pitches: [
+								{ step: "C", octave: 4 },
+								{ step: "E", octave: 4 },
+								{ step: "G", octave: 4 },
+							],
+						},
+					],
+				},
+			],
+		},
+	],
+});
+
+test.describe("Piano block — arpeggio direction rendered on a real page", () => {
+	test.beforeAll(async ({ requestUtils }) => {
+		await requestUtils.activatePlugin("piano-block");
+	});
+
+	test.beforeEach(async ({ requestUtils }) => {
+		await requestUtils.deleteAllPosts();
+	});
+
+	test.afterAll(async ({ requestUtils }) => {
+		await requestUtils.deleteAllPosts();
+	});
+
+	test("arpeggio: up renders [data-arpeggio=\"up\"] with an arrowhead", async ({
+		admin,
+		editor,
+		page,
+	}) => {
+		const postId = await publishPostWithSong(
+			{ admin, editor },
+			ARPEGGIO_UP_SONG,
+		);
+
+		await page.goto(`/?p=${postId}`);
+
+		const svg = blockSvg(page);
+		await expect(svg).toBeVisible();
+
+		// The arpeggio wrapper carries data-arpeggio="up" (renderArpeggio stamps
+		// `{ "data-arpeggio": arp.direction }` on the outer <g>).
+		await expect(svg.locator('[data-arpeggio="up"]')).toHaveCount(1);
+
+		// A directional arpeggio also carries [data-arpeggio-arrow] inside the
+		// wrapper (renderArpeggio appends the arrowhead group only for up/down).
+		await expect(svg.locator("[data-arpeggio-arrow]")).toHaveCount(1);
+	});
+
+	test("arpeggio: nondirectional renders [data-arpeggio=\"nondirectional\"] with no arrowhead", async ({
+		admin,
+		editor,
+		page,
+	}) => {
+		const postId = await publishPostWithSong(
+			{ admin, editor },
+			ARPEGGIO_NONDIRECTIONAL_SONG,
+		);
+
+		await page.goto(`/?p=${postId}`);
+
+		const svg = blockSvg(page);
+		await expect(svg).toBeVisible();
+
+		// The arpeggio wrapper carries data-arpeggio="nondirectional".
+		await expect(
+			svg.locator('[data-arpeggio="nondirectional"]'),
+		).toHaveCount(1);
+
+		// Nondirectional arpeggios have NO arrowhead — only the wiggle path.
+		await expect(svg.locator("[data-arpeggio-arrow]")).toHaveCount(0);
+	});
+});
+
 test.describe("Piano block — hostile free text in a note renders inert", () => {
 	test.beforeAll(async ({ requestUtils }) => {
 		await requestUtils.activatePlugin("piano-block");

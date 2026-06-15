@@ -10,7 +10,7 @@
  * e2e; these are the cheap structural invariants the emit layer must hold regardless.
  */
 import { buildLayoutModel } from "../layout.js";
-import { renderInto, renderSvg } from "../svg.js";
+import { renderInto, renderSvg, wigglePathD } from "../svg.js";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
@@ -1396,6 +1396,53 @@ describe("renderSvg — measure-number absence", () => {
 	});
 });
 
+// ── wigglePathD pure helper ────────────────────────────────────────────────────────
+
+describe("wigglePathD", () => {
+	it("returns a string starting at (x, bottomY) with an M command", () => {
+		const d = wigglePathD(5, 0, 20, 1, 4);
+		expect(typeof d).toBe("string");
+		expect(d.trimStart()).toMatch(/^M 5 20/);
+	});
+
+	it("derives bump count n = max(1, round(height / (period/2)))", () => {
+		// height = 16, period = 4, period/2 = 2 → n = round(16/2) = 8
+		const d = wigglePathD(5, 0, 16, 1, 4);
+		const qCount = (d.match(/\bQ\b/g) ?? []).length;
+		expect(qCount).toBe(8);
+	});
+
+	it("clamps to n = 1 when topY === bottomY (height 0)", () => {
+		// height = 0 → max(1, round(0/2)) = 1
+		const d = wigglePathD(5, 10, 10, 1, 4);
+		expect(d).not.toContain("NaN");
+		expect(d).not.toContain("Infinity");
+		const qCount = (d.match(/\bQ\b/g) ?? []).length;
+		expect(qCount).toBe(1);
+	});
+
+	it("path reaches topY as the last anchor point", () => {
+		const d = wigglePathD(5, 2, 18, 1, 4);
+		// The final Q segment ends at topY (the last number in the string)
+		const numbers = d.match(/-?[\d.]+/g).map(Number);
+		expect(numbers[numbers.length - 1]).toBeCloseTo(2, 6);
+	});
+
+	it("a taller span yields more Q segments than a short span", () => {
+		const tall = wigglePathD(5, 0, 40, 1, 4);
+		const short = wigglePathD(5, 10, 20, 1, 4);
+		const tallQs = (tall.match(/\bQ\b/g) ?? []).length;
+		const shortQs = (short.match(/\bQ\b/g) ?? []).length;
+		expect(tallQs).toBeGreaterThan(shortQs);
+	});
+
+	it("is pure: same arguments always produce the same output", () => {
+		const a = wigglePathD(3, 1, 25, 2, 6);
+		const b = wigglePathD(3, 1, 25, 2, 6);
+		expect(a).toBe(b);
+	});
+});
+
 describe("renderSvg — duration-ordered spacing reaches the SVG (issue #21)", () => {
 	// Four eighths + two quarters, single-pitch (single-pitch ⇒ cx === note.x,
 	// so the chord back-head skew never enters the gap comparison). This is the
@@ -1685,5 +1732,223 @@ describe("renderSvg — note-name <text> emit (Task 4)", () => {
 		);
 		expect(rhName).not.toBeNull();
 		expect(lhName).not.toBeNull();
+	});
+});
+
+// ── Arpeggio wavy line + arrowhead ────────────────────────────────────────────────
+//
+// These assert the emitted arpeggio DOM directly: a nested `<g data-arpeggio>`
+// inside the note group, holding a `<path data-arpeggio-wiggle>` plus (for
+// directional arpeggios) a `<g data-arpeggio-arrow>` with exactly two `<line>`s.
+
+describe("renderSvg — arpeggio wavy line and arrowhead", () => {
+	// A one-note right-hand song with the given arpeggio direction.
+	const songWithArpeggio = (arpeggio) => ({
+		metadata: {},
+		sections: [
+			{
+				measures: [
+					{
+						rightHand: [
+							{
+								type: "note",
+								duration: "quarter",
+								arpeggio,
+								pitches: [
+									{ step: "C", octave: 5 },
+									{ step: "E", octave: 5 },
+								],
+							},
+						],
+					},
+				],
+			},
+		],
+	});
+	// A one-note rest song with arpeggio set (should produce no [data-arpeggio]).
+	const songWithRestArpeggio = () => ({
+		metadata: {},
+		sections: [
+			{
+				measures: [
+					{
+						rightHand: [
+							{
+								type: "rest",
+								duration: "quarter",
+								arpeggio: "up",
+							},
+						],
+					},
+				],
+			},
+		],
+	});
+
+	it("up arpeggio emits [data-arpeggio=\"up\"] inside the note group", () => {
+		const svg = renderSvg(buildLayoutModel(songWithArpeggio("up"), 120));
+		const g = svg.querySelector('[data-arpeggio="up"]');
+		expect(g).not.toBeNull();
+		expect(g.tagName.toLowerCase()).toBe("g");
+		// Nested inside the note group, which carries data-kind="note".
+		expect(g.closest('[data-kind="note"]')).not.toBeNull();
+	});
+
+	it("down arpeggio emits [data-arpeggio=\"down\"] inside the note group", () => {
+		const svg = renderSvg(buildLayoutModel(songWithArpeggio("down"), 120));
+		const g = svg.querySelector('[data-arpeggio="down"]');
+		expect(g).not.toBeNull();
+		expect(g.closest('[data-kind="note"]')).not.toBeNull();
+	});
+
+	it("nondirectional arpeggio emits [data-arpeggio=\"nondirectional\"] inside the note group", () => {
+		const svg = renderSvg(
+			buildLayoutModel(songWithArpeggio("nondirectional"), 120),
+		);
+		const g = svg.querySelector('[data-arpeggio="nondirectional"]');
+		expect(g).not.toBeNull();
+		expect(g.closest('[data-kind="note"]')).not.toBeNull();
+	});
+
+	it("the wiggle is always a <path data-arpeggio-wiggle> regardless of direction", () => {
+		for (const dir of ["up", "down", "nondirectional"]) {
+			const svg = renderSvg(buildLayoutModel(songWithArpeggio(dir), 120));
+			const wiggle = svg.querySelector(
+				`[data-arpeggio="${dir}"] [data-arpeggio-wiggle]`,
+			);
+			expect(wiggle).not.toBeNull();
+			expect(wiggle.tagName.toLowerCase()).toBe("path");
+		}
+	});
+
+	it("up arpeggio has an arrowhead group near topY (smaller Y)", () => {
+		const model = buildLayoutModel(songWithArpeggio("up"), 120);
+		const svg = renderSvg(model);
+		const g = svg.querySelector('[data-arpeggio="up"]');
+		const arrow = g.querySelector("[data-arpeggio-arrow]");
+		expect(arrow).not.toBeNull();
+		expect(arrow.tagName.toLowerCase()).toBe("g");
+		// The arrow group contains exactly two <line> strokes.
+		const lines = arrow.querySelectorAll("line");
+		expect(lines).toHaveLength(2);
+		// Both lines should share a Y near the top of the wiggle (small Y = near topY).
+		// The note's arpeggio record has topY; extract the layout model to get it.
+		const layoutNote = model.systems[0].measures[0].right.notes[0];
+		const { topY } = layoutNote.arpeggio;
+		for (const l of lines) {
+			// At least one endpoint of each line must be close to topY.
+			const ys = [l.getAttribute("y1"), l.getAttribute("y2")].map(Number);
+			expect(ys.some((y) => Math.abs(y - topY) < 1)).toBe(true);
+		}
+	});
+
+	it("down arpeggio has an arrowhead group near bottomY (larger Y)", () => {
+		const model = buildLayoutModel(songWithArpeggio("down"), 120);
+		const svg = renderSvg(model);
+		const g = svg.querySelector('[data-arpeggio="down"]');
+		const arrow = g.querySelector("[data-arpeggio-arrow]");
+		expect(arrow).not.toBeNull();
+		expect(arrow.tagName.toLowerCase()).toBe("g");
+		const lines = arrow.querySelectorAll("line");
+		expect(lines).toHaveLength(2);
+		const layoutNote = model.systems[0].measures[0].right.notes[0];
+		const { bottomY } = layoutNote.arpeggio;
+		for (const l of lines) {
+			const ys = [l.getAttribute("y1"), l.getAttribute("y2")].map(Number);
+			expect(ys.some((y) => Math.abs(y - bottomY) < 1)).toBe(true);
+		}
+	});
+
+	it("nondirectional arpeggio has no [data-arpeggio-arrow] child", () => {
+		const svg = renderSvg(
+			buildLayoutModel(songWithArpeggio("nondirectional"), 120),
+		);
+		const g = svg.querySelector('[data-arpeggio="nondirectional"]');
+		expect(g.querySelector("[data-arpeggio-arrow]")).toBeNull();
+	});
+
+	it("a rest with arpeggio set produces no [data-arpeggio] node anywhere", () => {
+		const svg = renderSvg(buildLayoutModel(songWithRestArpeggio(), 120));
+		expect(svg.querySelector("[data-arpeggio]")).toBeNull();
+	});
+});
+
+// ── Combined markings: arpeggio + tie + dots + dynamic ──────────────────────────
+//
+// Proves that the arpeggio renders alongside other per-event markings — each in its
+// own region — and that the arpeggio's X sits to the left of the leftmost accidental
+// (the easy-to-forget independence case). The chord carries an explicit sharp so the
+// left-of-accidentals claim is non-vacuous.
+
+describe("renderSvg — arpeggio coexists with tie, dots, and dynamic", () => {
+	// Two-measure song: the first measure's chord carries all four markings plus an
+	// accidental (F#5); the second measure's note receives the tie stop so the tie
+	// span resolves to a rendered path.
+	const COMBINED_SONG = {
+		metadata: {},
+		sections: [
+			{
+				measures: [
+					{
+						rightHand: [
+							{
+								type: "note",
+								duration: "quarter",
+								dots: 1,
+								dynamic: "mf",
+								arpeggio: "up",
+								tie: "start",
+								pitches: [
+									{ step: "C", octave: 5 },
+									{ step: "F", octave: 5, alter: 1 },
+								],
+							},
+						],
+					},
+					{
+						barlineEnd: "final",
+						rightHand: [
+							{
+								type: "note",
+								duration: "quarter",
+								tie: "stop",
+								pitches: [{ step: "C", octave: 5 }],
+							},
+						],
+					},
+				],
+			},
+		],
+	};
+
+	it("renders [data-arpeggio], tie path, [data-dot], and dynamic text all present together", () => {
+		const model = buildLayoutModel(COMBINED_SONG, 400);
+		const svg = renderSvg(model);
+
+		// Arpeggio wavy line group present.
+		expect(svg.querySelector("[data-arpeggio]")).not.toBeNull();
+		// Tie resolves to a <path data-span="tie">.
+		expect(svg.querySelector('path[data-span="tie"]')).not.toBeNull();
+		// Augmentation dot(s) present.
+		expect(svg.querySelector("[data-dot]")).not.toBeNull();
+		// Dynamic text present.
+		const dynamics = [...svg.querySelectorAll('[data-text="dynamic"]')].map(
+			(n) => n.textContent,
+		);
+		expect(dynamics).toContain("mf");
+	});
+
+	it("arpeggio dx exceeds the leftmost accidental dx so the wiggle sits left of the sharp", () => {
+		// The chord has F#5 which draws a sharp accidental. The layout must place the
+		// arpeggio further left than that accidental: arp.dx > max(acc.dx).
+		const model = buildLayoutModel(COMBINED_SONG, 400);
+		const layoutNote = model.systems[0].measures[0].right.notes[0];
+
+		// Guard: the accidental must actually be present for this claim to be testable.
+		expect(layoutNote.accidentals.length).toBeGreaterThan(0);
+		expect(layoutNote.arpeggio).toBeDefined();
+
+		const maxAccDx = Math.max(...layoutNote.accidentals.map((a) => a.dx));
+		expect(layoutNote.arpeggio.dx).toBeGreaterThan(maxAccDx);
 	});
 });

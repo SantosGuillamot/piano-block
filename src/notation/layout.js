@@ -26,6 +26,8 @@ import {
 	ACCIDENTAL_GAP,
 	ACCIDENTAL_LEAD_EXTRA,
 	ADV_K,
+	ARPEGGIO_FIXED_GAP,
+	ARPEGGIO_GAP,
 	BARLINE_POST_PAD,
 	BARLINE_THICK,
 	BARLINE_THIN,
@@ -1567,6 +1569,9 @@ function layoutHand(
 		const group = groupOf.get(idx);
 		const beamed = !!group && group.isBeam;
 
+		const topStep = Math.max(...headInputs.map((h) => h.sFromBottom));
+		const bottomStep = Math.min(...headInputs.map((h) => h.sFromBottom));
+
 		notes.push({
 			eventIndex: idx,
 			x,
@@ -1583,8 +1588,18 @@ function layoutHand(
 			accidentals,
 			ledgers,
 			dotSpecs,
-			topStep: Math.max(...headInputs.map((h) => h.sFromBottom)),
-			bottomStep: Math.min(...headInputs.map((h) => h.sFromBottom)),
+			topStep,
+			bottomStep,
+			...(event.arpeggio && {
+				arpeggio: {
+					dx: accidentals.length
+						? Math.max(...accidentals.map((a) => a.dx)) + ARPEGGIO_GAP
+						: ARPEGGIO_FIXED_GAP,
+					topY: staffStepToY(topStep),
+					bottomY: staffStepToY(bottomStep),
+					direction: event.arpeggio,
+				},
+			}),
 		});
 
 		collectEventTexts(event, x, texts);

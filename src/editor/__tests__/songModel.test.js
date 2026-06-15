@@ -16,6 +16,7 @@ import validateSong from "../../song/validate.js";
 import {
 	ALTER_MAX,
 	ALTER_MIN,
+	ARPEGGIO,
 	BARLINES,
 	BEAT_TYPES,
 	BEATS_MIN,
@@ -121,8 +122,15 @@ describe("option-list vocabularies mirror the schema enums", () => {
 		);
 	});
 
+	it("ARPEGGIO mirrors the event arpeggio enum", () => {
+		expect(values(ARPEGGIO)).toEqual(
+			songSchema.$defs.event.properties.arpeggio.enum,
+		);
+	});
+
 	it("every option carries a non-empty label and a member value", () => {
 		const lists = [
+			ARPEGGIO,
 			DURATIONS,
 			BEAT_TYPES,
 			CLEFS,

@@ -61,6 +61,13 @@ export const DYNAMICS = [
 	{ label: "sfz", value: "sfz" },
 ];
 
+/** Event `arpeggio`: the roll direction, ordered up → down → nondirectional. */
+export const ARPEGGIO = [
+	{ label: __("Up", "piano-block"), value: "up" },
+	{ label: __("Down", "piano-block"), value: "down" },
+	{ label: __("Nondirectional", "piano-block"), value: "nondirectional" },
+];
+
 /** Measure `barlineStart` / `barlineEnd`. */
 export const BARLINES = [
 	{ label: __("Regular", "piano-block"), value: "regular" },

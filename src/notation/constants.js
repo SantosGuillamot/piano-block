@@ -276,6 +276,41 @@ export const HAIRPIN_DYNAMIC_GAP = 0.6;
  */
 export const DYNAMIC_ADVANCE_EM = 0.6;
 
+// ── Arpeggio (rolled-chord wavy line) ─────────────────────────────────────────
+
+/**
+ * Horizontal half-swing of the wiggle, in sp. Controls how far left and right
+ * the wavy line deviates from its center axis on each half-cycle.
+ */
+export const ARPEGGIO_AMPLITUDE = 0.3;
+
+/**
+ * Vertical wavelength / height of one full bump of the wavy line, in sp.
+ * Determines how tightly packed the waves appear along the chord's vertical span.
+ */
+export const ARPEGGIO_PERIOD = 0.8;
+
+/**
+ * Extra gap (sp) placed outside the leftmost accidental when the chord has
+ * accidentals. Must clear the accidental glyph's half-width so the wavy line
+ * never overlaps the accidental symbol — in the spirit of `ACCIDENTAL_GAP`
+ * (>= 0.6 sp).
+ */
+export const ARPEGGIO_GAP = 0.7;
+
+/**
+ * Fixed left gap (sp) when there are no accidentals. Must clear the ledger
+ * line's half-width (`LEDGER_WIDTH / 2 = 1`) plus the wiggle's own swing
+ * (`ARPEGGIO_AMPLITUDE`), so ~1.4 sp minimum. Always `> 1`.
+ */
+export const ARPEGGIO_FIXED_GAP = 1.4;
+
+/**
+ * Length / size of the arrowhead strokes at the tip of a directional arpeggio,
+ * in sp.
+ */
+export const ARPEGGIO_ARROW_SIZE = 0.4;
+
 // ── Duration tables ────────────────────────────────────────────────────────────
 
 /**

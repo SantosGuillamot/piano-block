@@ -208,6 +208,7 @@ event := {
   dots?,          // integer 0..2  (un-dotted | single dot | double dot)
   pitches?,       // array of pitch objects — required & non-empty for a note; omitted for a rest
   dynamic?,       // enum: pp | p | mp | mf | f | ff | sf | sfz
+  arpeggio?,      // enum: up | down | nondirectional — rolled-chord wavy line
   annotations?,         // array of per-event annotation objects (see "Notes (annotations)") — { text, placement }
   tie?,           // enum: start | stop
   slur?,          // enum: start | stop
@@ -221,6 +222,7 @@ event := {
 - **`dots`** — an integer **0..2**: `0`/absent for un-dotted, `1` for a single dot, `2` for a double dot.
 - **`pitches`** — an array of pitch objects. This is **the one conditional in the format**: a `note` **must** carry a non-empty `pitches` array; a `rest` omits it. A **chord** is simply several pitches in one event; a single note is a one-element `pitches`.
 - **`dynamic`** — one of `pp | p | mp | mf | f | ff | sf | sfz`.
+- **`arpeggio`** — an optional per-chord rolled-chord marking, one of `up | down | nondirectional`. It marks the chord on this event to be rolled (its notes sounded bottom-to-top or top-to-bottom rather than struck together), drawn as a wavy line beside the chord. There is **no "off" value**: **absence means the chord is not arpeggiated**. See [Arpeggios (rolled chords)](#arpeggios-rolled-chords) for the full reference.
 - **`annotations`** — an optional array of **per-event annotations**: free-text annotations attached to this event, each `{ "text": …, "placement": "above" | "below" }`. They render in the same horizontal column as this event, on the staff of the hand whose array this event lives in. See [Notes (annotations)](#annotations) for the full field reference; per-event annotations are the per-event half of the `annotations` capability. Both a note event and a rest event may carry `annotations`. Absent, or `annotations: []`, means the event has no annotations.
 - **`tie`** and **`slur`** — event-level `start | stop` markers.
 - **`crescendo`** and **`decrescendo`** — event-level `start | stop` markers for a gradual-dynamic span (a crescendo grows louder, a decrescendo grows softer). You put `"start"` on the note where the span begins and `"stop"` on the note where it ends. **The direction is intrinsic to which field you use:** a crescendo and a decrescendo are two distinct markings, and the direction is never inferred from the surrounding `dynamic` values — to write a decrescendo you mark `decrescendo`, regardless of whether any point dynamics happen to fall around it.
@@ -355,6 +357,43 @@ This is what the gradual-dynamic span renders today. Be aware of these limits so
 
 For where the rendered wedge appears in the published sheet music, see [What the front end shows](../README.md#4-what-the-front-end-shows) in the README.
 
+## Arpeggios (rolled chords)
+
+An **arpeggio** is a *rolled chord* — instead of striking the chord's notes together, you sound them one after another, from the bottom up or the top down. The per-event [`arpeggio`](#events) field marks the chord on that event as rolled and chooses the roll's direction. It is an **optional per-chord marking**: a single value on one note event, not a span across notes (the way `crescendo`/`decrescendo` are), and **absence means the chord is not arpeggiated** — there is no "off" value.
+
+An arpeggio is **independent of every other marking** on its event. A chord may carry an `arpeggio` together with a `dynamic`, a `tie` or `slur`, augmentation `dots`, a `crescendo`/`decrescendo`, and `annotations`, all at once; the arpeggio neither suppresses nor is suppressed by any of them.
+
+**The three values and what they draw:**
+
+- **`up`** — the chord rolls **bottom-to-top** (lowest note first). The wavy line carries an **arrowhead at its top** end.
+- **`down`** — the chord rolls **top-to-bottom** (highest note first). The wavy line carries an **arrowhead at its bottom** end.
+- **`nondirectional`** — a **plain wavy line with no arrowhead**: a rolled chord whose direction is left unspecified.
+
+The roll direction is intrinsic to the value you choose; it is never inferred from anything else on the event.
+
+**Rendered form and placement.** The arpeggio draws as a **vertical wavy line to the left of the chord's noteheads**, running its **full vertical extent — from the lowest notehead up to the highest**. It is placed **outside any accidentals** (clear to the left of them, never crossing an accidental glyph) and clear of the stem, so the wavy line sits in its own column at the left edge of the chord. A directional value adds the arrowhead at the corresponding end (top for `up`, bottom for `down`); `nondirectional` adds none.
+
+**Single-pitch chords.** An `arpeggio` on a one-note event is **accepted, not an error**. With only one notehead there is no vertical span to roll across, so the wavy line is drawn **short** (a minimal wiggle beside that single notehead). Any directional value still adds its arrowhead.
+
+**Tall chords.** The wavy line **always spans the full height of the chord**, from its lowest to its highest notehead. A chord stretched across many staff steps simply gets a taller wavy line; there is no cap on how far it extends.
+
+**Rests.** An `arpeggio` may be **set on a rest event and is accepted**, but a rest has no chord to roll, so it has **no rendered effect** — nothing is drawn for it. The value is still stored and round-trips; it simply does not draw.
+
+**Notation only — no sound.** Like every marking in this format, an arpeggio is visual notation; it has **no effect on how the song sounds**. There is no audio engine in the block, and the marking carries no playback behavior — it only draws the wavy line.
+
+**Stored, round-trips, and validates.** An `arpeggio` is stored verbatim in the `song` JSON and survives raw-JSON editing unchanged. Validation accepts the three values `"up"`, `"down"`, and `"nondirectional"`; an out-of-vocabulary value such as `"sideways"` is flagged informationally only and, like all raw-JSON validation, **never blocks saving** (see [Additive growth](#additive-growth-no-version-field) for the closed-enum rule and the never-blocking stance).
+
+```json
+{ "type": "note", "duration": "quarter", "arpeggio": "up", "dynamic": "mf",
+  "pitches": [
+    { "step": "C", "octave": 4 },
+    { "step": "E", "octave": 4 },
+    { "step": "G", "octave": 4 }
+  ] }
+```
+
+That event is a rolled C-major chord sounded bottom-to-top (arrowhead at the top), carrying a separate `mf` dynamic alongside the arpeggio to show the two markings are independent.
+
 ## Pitches
 
 A **pitch** is a single sounding note name with its octave and optional accidental:
@@ -428,14 +467,14 @@ The format **has no `version` field**. It starts minimal and grows by adding **o
 Three consequences you can observe as an author:
 
 - **Unknown fields are ignored.** A misspelled *optional* field — for example `dynmic` instead of `dynamic`, or `cresendo` instead of `crescendo` — is silently dropped from meaning, not flagged as an error. The value you typed is still stored, but it carries no meaning. (Double-check your spelling of optional fields; a typo will not warn you.) This is why an older song that uses no gradual dynamics stays valid and unchanged as new optional fields like `crescendo` and `decrescendo` are added: the song simply omits them.
-- **A misspelled enumerated value *is* an error.** The closed vocabularies — durations, clefs, dynamics, barlines, `tie`/`slur`, `crescendo`/`decrescendo`, event `type`, `beatType` — are checked strictly. A value like `"quaver"` for a duration, `"treble-clef"` for a clef, `"mezzo"` for a dynamic, or anything other than `"start"` or `"stop"` for `crescendo` or `decrescendo` is a conformance error.
+- **A misspelled enumerated value *is* an error.** The closed vocabularies — durations, clefs, dynamics, `arpeggio`, barlines, `tie`/`slur`, `crescendo`/`decrescendo`, event `type`, `beatType` — are checked strictly. A value like `"quaver"` for a duration, `"treble-clef"` for a clef, `"mezzo"` for a dynamic, `"sideways"` for `arpeggio`, or anything other than `"start"` or `"stop"` for `crescendo` or `decrescendo` is a conformance error.
 - **Span pairing is not checked.** The start/stop markers that open and close a span — `tie`, `slur`, `crescendo`, and `decrescendo` — are validated only as individual `start | stop` values; their *pairing* is not. A lone `"start"` with no matching `"stop"` (or the reverse) is **not** a conformance error: the song still validates. Pairing is resolved best-effort at render time, so a dangling marker is simply drawn as far as it can be, never rejected.
 
 ## Annotated example song
 
 The following is a **complete, copy-pasteable example** — valid song JSON (no comments) you can paste straight into the block's song field and adapt.
 
-It exercises a broad spread of elements: notes and rests in both hands, a three-pitch chord, a dotted duration, a per-note accidental, mixed English and Spanish note names, per-hand clef / default accidentals / octave shift, a Section 2 mid-song tempo / time-signature / clef / accidental change, dynamics, free-text annotations (a per-event chord symbol above and a fingering below, plus a standalone `"rit."` on a measure), a tie, a crescendo span and a separate decrescendo span that meet on a shared messa-di-voce hinge note (carrying both `crescendo: "stop"` and `decrescendo: "start"`), repeat and final barlines, and title/composer metadata.
+It exercises a broad spread of elements: notes and rests in both hands, a three-pitch chord that is also arpeggiated (`"arpeggio": "up"`), a dotted duration, a per-note accidental, mixed English and Spanish note names, per-hand clef / default accidentals / octave shift, a Section 2 mid-song tempo / time-signature / clef / accidental change, dynamics, free-text annotations (a per-event chord symbol above and a fingering below, plus a standalone `"rit."` on a measure), a tie, a crescendo span and a separate decrescendo span that meet on a shared messa-di-voce hinge note (carrying both `crescendo: "stop"` and `decrescendo: "start"`), repeat and final barlines, and title/composer metadata.
 
 ```json
 {
@@ -461,6 +500,7 @@ It exercises a broad spread of elements: notes and rests in both hands, a three-
               "duration": "half",
               "dots": 1,
               "dynamic": "mf",
+              "arpeggio": "up",
               "annotations": [
                 { "text": "C", "placement": "above" },
                 { "text": "1", "placement": "below" }
