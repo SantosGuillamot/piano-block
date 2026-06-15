@@ -182,6 +182,24 @@ export const DYNAMIC_SIZE = 2.8;
 /** Note-annotation text size (free author text placed around the staves). */
 export const NOTE_SIZE = 2.8;
 
+/**
+ * Font size, in sp, for the per-head note-name labels emitted to the RIGHT of
+ * each notehead when `head.name` is present (i.e. when the consumer passes
+ * `showNoteNames: true` to `buildLayoutModel`). Kept smaller than `NOTE_SIZE`
+ * so names stay visually subordinate to the notation itself; 1.8 sp ≈ 45% of
+ * a staff space — readable but unobtrusive.
+ */
+export const NOTE_NAME_SIZE = 1.8;
+
+/**
+ * Small horizontal gap, in sp, between the right edge of a notehead (or the
+ * rightmost augmentation dot) and the start of the per-head note-name label.
+ * Sized consistently with `DOT_OFFSET` so the name begins at the same visual
+ * clearance the first dot uses when stepping away from the notehead. A thin
+ * gap keeps the label visually attached to its head without overlapping it.
+ */
+export const NAME_GAP = 0.3;
+
 /** Tempo marking text size ("[note-glyph] = [bpm]"). */
 export const TEMPO_SIZE = 2.8;
 

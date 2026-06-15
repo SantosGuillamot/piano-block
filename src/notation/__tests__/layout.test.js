@@ -285,7 +285,14 @@ describe("dotPositions", () => {
 describe("stackChord", () => {
 	it("places a plain triad all on the stem's normal side", () => {
 		// C-E-G (no seconds) stem-up → all to the right.
-		const heads = stackChord([0, 2, 4], "up");
+		const heads = stackChord(
+			[
+				{ sFromBottom: 0, step: "C" },
+				{ sFromBottom: 2, step: "E" },
+				{ sFromBottom: 4, step: "G" },
+			],
+			"up",
+		);
 		expect(heads.map((h) => h.sFromBottom)).toEqual([0, 2, 4]);
 		expect(heads.every((h) => h.side === "right")).toBe(true);
 		expect(heads.every((h) => !h.displaced)).toBe(true);
@@ -293,7 +300,13 @@ describe("stackChord", () => {
 
 	it("displaces the upper note of a diatonic second to the opposite side", () => {
 		// C-D (a second) stem-up: C on the right, D displaced to the left.
-		const heads = stackChord([0, 1], "up");
+		const heads = stackChord(
+			[
+				{ sFromBottom: 0, step: "C" },
+				{ sFromBottom: 1, step: "D" },
+			],
+			"up",
+		);
 		expect(heads[0]).toMatchObject({ sFromBottom: 0, side: "right" });
 		expect(heads[1]).toMatchObject({
 			sFromBottom: 1,
@@ -303,14 +316,27 @@ describe("stackChord", () => {
 	});
 
 	it("flips only the middle note of a tight cluster (C-D-E)", () => {
-		const heads = stackChord([0, 1, 2], "up");
+		const heads = stackChord(
+			[
+				{ sFromBottom: 0, step: "C" },
+				{ sFromBottom: 1, step: "D" },
+				{ sFromBottom: 2, step: "E" },
+			],
+			"up",
+		);
 		expect(heads[0].side).toBe("right");
 		expect(heads[1].side).toBe("left"); // middle flips
 		expect(heads[2].side).toBe("right"); // outer stays normal
 	});
 
 	it("uses the opposite normal side for a stem-down chord", () => {
-		const heads = stackChord([0, 1], "down");
+		const heads = stackChord(
+			[
+				{ sFromBottom: 0, step: "C" },
+				{ sFromBottom: 1, step: "D" },
+			],
+			"down",
+		);
 		expect(heads[0].side).toBe("left"); // normal side for stem-down
 		expect(heads[1].side).toBe("right"); // displaced
 	});
@@ -4454,6 +4480,209 @@ describe("duration-ordered horizontal spacing (issue #21)", () => {
 		expect(notes[1].x - notes[0].x).toBeLessThan(
 			notes[notes.length - 1].x - notes[notes.length - 2].x,
 		);
+	});
+});
+
+// ── showNoteNames flag — per-head name resolution ───────────────────────────────
+
+/**
+ * A minimal single-measure song covering both English and Spanish spellings.
+ * RH: C5, E5, G5 (English); LH: do3, sol3 (Spanish).
+ */
+const NOTE_NAMES_SONG = {
+	metadata: {},
+	sections: [
+		{
+			measures: [
+				{
+					rightHand: [
+						{
+							type: "note",
+							duration: "quarter",
+							pitches: [
+								{ step: "C", octave: 5 },
+								{ step: "E", octave: 5 },
+								{ step: "G", octave: 5 },
+							],
+						},
+					],
+					leftHand: [
+						{
+							type: "note",
+							duration: "quarter",
+							pitches: [
+								{ step: "do", octave: 3 },
+								{ step: "sol", octave: 3 },
+							],
+						},
+					],
+				},
+			],
+		},
+	],
+};
+
+/**
+ * Collect every head object across all systems → measures → notes.
+ *
+ * @param {object} model The layout model returned by buildLayoutModel.
+ * @param {"right"|"left"} hand Which hand's notes to collect.
+ * @return {object[]} All head objects in document order.
+ */
+function collectHeads(model, hand) {
+	const out = [];
+	for (const sys of model.systems) {
+		for (const m of sys.measures) {
+			for (const note of m[hand].notes) {
+				out.push(...note.heads);
+			}
+		}
+	}
+	return out;
+}
+
+describe("buildLayoutModel — showNoteNames flag (Task 3)", () => {
+	it("omits the name key entirely when showNoteNames is absent (default off)", () => {
+		const model = buildLayoutModel(NOTE_NAMES_SONG, 200);
+		const heads = collectHeads(model, "right");
+		expect(heads.length).toBeGreaterThan(0);
+		for (const h of heads) {
+			expect(Object.hasOwn(h, "name")).toBe(false);
+		}
+	});
+
+	it("omits the name key entirely when showNoteNames is explicitly false", () => {
+		const model = buildLayoutModel(NOTE_NAMES_SONG, 200, {
+			showNoteNames: false,
+			system: "english",
+		});
+		const heads = collectHeads(model, "right");
+		expect(heads.length).toBeGreaterThan(0);
+		for (const h of heads) {
+			expect(Object.hasOwn(h, "name")).toBe(false);
+		}
+	});
+
+	it("produces a byte-identical model (default vs. explicit false)", () => {
+		const defaults = buildLayoutModel(NOTE_NAMES_SONG, 200);
+		const explicit = buildLayoutModel(NOTE_NAMES_SONG, 200, {
+			showNoteNames: false,
+		});
+		expect(JSON.stringify(defaults)).toBe(JSON.stringify(explicit));
+	});
+
+	it("attaches head.name for every notehead when showNoteNames is true", () => {
+		const model = buildLayoutModel(NOTE_NAMES_SONG, 200, {
+			showNoteNames: true,
+			system: "english",
+		});
+		const rhHeads = collectHeads(model, "right");
+		const lhHeads = collectHeads(model, "left");
+		expect(rhHeads.length).toBeGreaterThan(0);
+		expect(lhHeads.length).toBeGreaterThan(0);
+		for (const h of [...rhHeads, ...lhHeads]) {
+			expect(Object.hasOwn(h, "name")).toBe(true);
+			expect(typeof h.name).toBe("string");
+		}
+	});
+
+	it("resolves English names correctly: C→C, E→E, G→G", () => {
+		const model = buildLayoutModel(NOTE_NAMES_SONG, 200, {
+			showNoteNames: true,
+			system: "english",
+		});
+		const rhHeads = collectHeads(model, "right");
+		// RH chord: C5, E5, G5 stacked bottom-to-top.
+		const names = rhHeads.map((h) => h.name).sort();
+		expect(names).toEqual(["C", "E", "G"].sort());
+	});
+
+	it("resolves Spanish names correctly: C→do, E→mi, G→sol", () => {
+		const model = buildLayoutModel(NOTE_NAMES_SONG, 200, {
+			showNoteNames: true,
+			system: "spanish",
+		});
+		const rhHeads = collectHeads(model, "right");
+		const names = rhHeads.map((h) => h.name).sort();
+		expect(names).toEqual(["do", "mi", "sol"].sort());
+	});
+
+	it("resolves Spanish-step pitches (do, sol) correctly via the requested system", () => {
+		const model = buildLayoutModel(NOTE_NAMES_SONG, 200, {
+			showNoteNames: true,
+			system: "english",
+		});
+		const lhHeads = collectHeads(model, "left");
+		// LH: do3 (=C), sol3 (=G) — even though stored as Spanish, resolved to English.
+		const names = lhHeads.map((h) => h.name).sort();
+		expect(names).toEqual(["C", "G"].sort());
+	});
+
+	it("names are bare: no octave number, no accidental symbol", () => {
+		const song = {
+			metadata: {},
+			sections: [
+				{
+					measures: [
+						{
+							rightHand: [
+								{
+									type: "note",
+									duration: "quarter",
+									pitches: [{ step: "F", octave: 5, alter: 1 }],
+								},
+							],
+							leftHand: [],
+						},
+					],
+				},
+			],
+		};
+		const model = buildLayoutModel(song, 200, {
+			showNoteNames: true,
+			system: "english",
+		});
+		const heads = collectHeads(model, "right");
+		expect(heads).toHaveLength(1);
+		// Name is bare letter — no "#" and no octave digit.
+		expect(heads[0].name).toBe("F");
+		expect(heads[0].name).not.toMatch(/[#b0-9]/);
+	});
+
+	it("does not change systemHeight when showNoteNames is toggled on", () => {
+		const off = buildLayoutModel(NOTE_NAMES_SONG, 200);
+		const on = buildLayoutModel(NOTE_NAMES_SONG, 200, {
+			showNoteNames: true,
+			system: "english",
+		});
+		expect(on.systems).toHaveLength(off.systems.length);
+		for (let i = 0; i < off.systems.length; i++) {
+			expect(on.systems[i].height).toBe(off.systems[i].height);
+		}
+	});
+
+	it("does not change any notehead Y (sFromBottom) when showNoteNames is on", () => {
+		const off = buildLayoutModel(NOTE_NAMES_SONG, 200);
+		const on = buildLayoutModel(NOTE_NAMES_SONG, 200, {
+			showNoteNames: true,
+			system: "english",
+		});
+		const headsOff = collectHeads(off, "right");
+		const headsOn = collectHeads(on, "right");
+		expect(headsOn.length).toBe(headsOff.length);
+		for (let i = 0; i < headsOff.length; i++) {
+			expect(headsOn[i].sFromBottom).toBe(headsOff[i].sFromBottom);
+			expect(headsOn[i].y).toBe(headsOff[i].y);
+		}
+	});
+
+	it("works through the full COMPREHENSIVE_SONG without throwing", () => {
+		expect(() =>
+			buildLayoutModel(COMPREHENSIVE_SONG, 200, {
+				showNoteNames: true,
+				system: "english",
+			}),
+		).not.toThrow();
 	});
 });
 

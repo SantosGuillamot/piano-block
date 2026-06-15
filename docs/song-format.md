@@ -58,7 +58,7 @@ Optional. It records the **note-name system the song is written in** — `"spani
 
 - **Optional and additive.** Absent is valid — it is one of the format's optional fields (see [Additive growth](#additive-growth-no-version-field)). An older song that omits it stays conformant.
 - **What it means.** It is used by the **visual editor** to display note names in the chosen system and to **convert** every note name when you switch systems. The README's [Note names](../README.md#2-build-the-song-in-the-visual-editor) describes that selector. The C↔do equivalence itself is the [note-name systems](#note-name-systems-english-and-spanish-and-case) table; this field just names which side the song is on.
-- **Front end does not consume it yet.** The published front end **ignores `language`** — a page renders a song's notes exactly as before regardless of this field, and storing or changing it changes **nothing** about the rendered notation. Consuming it on the front end is future work.
+- **Front end uses it for the note-name display.** When a viewer turns on the optional note names on the published page, the front end uses `language` to choose which note-name system those names are shown in — `"spanish"` shows `do re mi…`, `"english"` shows `C D E…`. When `language` is **absent**, the system is **inferred from the note spellings** the song already uses (Spanish if it uses any `do re mi…` spelling, otherwise English) — the same resolution the editor uses. The names are off by default, so this field changes nothing about the score until the viewer reveals them; see [What the front end shows](../README.md#4-what-the-front-end-shows) in the README for that control.
 - **Stored, round-trips, and validates.** It is stored verbatim in the `song` JSON and survives raw-JSON editing unchanged. Validation accepts the two values `"spanish"` and `"english"`; an out-of-vocabulary value is flagged informationally only and, like all raw-JSON validation, **never blocks saving** (see [Additive growth](#additive-growth-no-version-field) for the closed-enum rule and the never-blocking stance).
 
 ## `defaults` and `sections` — the constant-context model
@@ -435,6 +435,8 @@ Whatever you type is **stored verbatim** — the format never rewrites your text
 
 A name outside the two vocabularies — for example `"H"` or `"doh"` — is a conformance error.
 
+These two systems are also what the published page's **optional note-name display** shows: when a viewer turns names on, each note is labelled with its bare step in the song's system (the [`language`](#language) field, or inference when it is absent). See [What the front end shows](../README.md#4-what-the-front-end-shows) in the README for that control.
+
 ## Barlines and repeats
 
 Barlines delimit **measures**, so they live on the `measure` object as `barlineStart` and `barlineEnd`, each a closed enum:
@@ -460,7 +462,7 @@ So a pitch's sounding result is its note name plus its effective alteration, pla
 
 ## Additive growth (no `version` field)
 
-The format **has no `version` field**. It starts minimal and grows by adding **optional** fields to existing objects. A song you write today stays valid as the format grows, because new fields are optional and older songs simply omit them. The song-level [`language`](#language) field and the section/measure [`name`](#name) label are the latest such additive options — a song that omits either is still conformant, and the front end reads neither.
+The format **has no `version` field**. It starts minimal and grows by adding **optional** fields to existing objects. A song you write today stays valid as the format grows, because new fields are optional and older songs simply omit them. The song-level [`language`](#language) field and the section/measure [`name`](#name) label are the latest such additive options — a song that omits either is still conformant. They differ only in front-end use: the front end now reads [`language`](#language) to pick the note-name system for its optional on-page name display, while [`name`](#name) stays an editor-only label the front end never reads.
 
 Three consequences you can observe as an author:
 

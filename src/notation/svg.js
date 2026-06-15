@@ -35,6 +35,8 @@ import {
 	DOT_RADIUS,
 	DYNAMIC_SIZE,
 	LEDGER_WIDTH,
+	NAME_GAP,
+	NOTE_NAME_SIZE,
 	NOTE_SIZE,
 	NOTEHEAD_RX,
 	OTTAVA_SIZE,
@@ -770,6 +772,47 @@ function renderNote(note, handKey) {
 			node.setAttribute("data-dot", "");
 			g.appendChild(node);
 		}
+	}
+
+	// Note-name labels: one inert <text> per head, emitted only when head.name is
+	// present (set by the layout layer when showNoteNames is true). No flag is read
+	// here — the presence of head.name is the only signal (AC10: when head.name is
+	// absent the loop body never executes, so the SVG is byte-identical to today).
+	//
+	// Placement (rightward, past dots):
+	//   x = note.x + NOTEHEAD_RX + NAME_GAP
+	//       + (displaced ? 2×NOTEHEAD_RX : 0)   // clear the back-note bump
+	//       + (note.dots > 0 ? maxDotDx : 0)    // clear augmentation dots
+	//   y ≈ head.y + NOTE_NAME_SIZE × 0.35       // small baseline nudge to centre
+	//
+	// The chord-wide max dot dx is used so ALL names in a chord clear the dots
+	// regardless of which notehead the dot actually sits on.
+	const maxDotDx =
+		note.dots > 0 && (note.dotSpecs?.length ?? 0) > 0
+			? Math.max(...(note.dotSpecs ?? []).map((d) => d.dx))
+			: 0;
+
+	for (const head of note.heads ?? []) {
+		if (!head.name) {
+			continue;
+		}
+		const baseX =
+			note.x +
+			NOTEHEAD_RX +
+			NAME_GAP +
+			(head.displaced ? 2 * NOTEHEAD_RX : 0) +
+			(note.dots > 0 ? maxDotDx : 0);
+		const nameY = head.y + NOTE_NAME_SIZE * 0.35;
+		const nameNode = el("text", {
+			x: baseX,
+			y: nameY,
+			fill: INK,
+			"font-size": NOTE_NAME_SIZE,
+			"text-anchor": "start",
+			"data-note-name": "",
+		});
+		setText(nameNode, head.name);
+		g.appendChild(nameNode);
 	}
 
 	return g;
