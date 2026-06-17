@@ -10,13 +10,11 @@
 ## Remaining transcription uncertainty
 
 - Measures 1-4 and 28-31 contain dense chords and accidentals that are difficult to resolve fully from the rendered pages; the JSON uses the best-supported visual reading.
+- The final right-hand half-note chord in measure 3 carries the visible rolled-chord marking; no arrowhead or directional cue is visible, so the event uses `"arpeggio": "nondirectional"`.
 - Measures 32-35 and 43-53 contain compact high-register `8va` passages with close chord voicings; the transcription is complete but should be musically reviewed for exact voicing and rhythm.
 - Measures with multi-voice left-hand accompaniment are rhythmically approximate because independent simultaneous durations cannot be represented in one hand stream.
 
 ## Verification results
 
-- Direct JSON parse check passed.
-- Focused fixture test passed: `npm run test:unit -- --runTestsByPath src/song/__tests__/laVieEnRose.test.js`.
-- Full unit suite passed: `npm run test:unit` reported 24 passing test suites and 735 passing tests.
-- Diff/status verification found no needed source, schema, validator, editor, renderer, documentation, fixture, or test changes for this task.
-- Repository status before this handoff note showed only untracked `.pi-loop.json.lock`; this task intentionally modifies only this pipeline handoff note.
+- Focused fixture test passed: `npm run test:unit -- --runTestsByPath src/song/__tests__/laVieEnRose.test.js`. This includes JSON parsing and `validateSong` conformance for `songs/la-vie-en-rose.json`.
+- Tracked diff verification found only the La Vie en Rose fixture and pipeline notes changed for the measure 3 arpeggio fix.

@@ -349,6 +349,7 @@
 						{
 							"type": "note",
 							"duration": "half",
+							"arpeggio": "nondirectional",
 							"pitches": [
 								{
 									"step": "do",
