@@ -588,6 +588,10 @@
 							"pitches": [
 								{
 									"step": "do",
+									"octave": 2
+								},
+								{
+									"step": "do",
 									"octave": 3
 								}
 							]
@@ -721,6 +725,10 @@
 							"duration": "quarter",
 							"tie": "stop",
 							"pitches": [
+								{
+									"step": "do",
+									"octave": 2
+								},
 								{
 									"step": "do",
 									"octave": 3
