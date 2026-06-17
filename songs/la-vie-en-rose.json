@@ -1,0 +1,7025 @@
+{
+	"metadata": {
+		"title": "La Vie en Rose"
+	},
+	"language": "spanish",
+	"defaults": {
+		"tempo": {
+			"bpm": 72,
+			"beatUnit": "quarter"
+		},
+		"timeSignature": {
+			"beats": 4,
+			"beatType": 4
+		},
+		"rightHand": {
+			"clef": "treble"
+		},
+		"leftHand": {
+			"clef": "bass"
+		}
+	},
+	"sections": [
+		{
+			"measures": [
+				{
+					"rightHand": [
+						{
+							"type": "rest",
+							"duration": "quarter"
+						},
+						{
+							"type": "rest",
+							"duration": "quarter"
+						},
+						{
+							"type": "rest",
+							"duration": "quarter"
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 4
+								},
+								{
+									"step": "si",
+									"octave": 4,
+									"alter": -1
+								},
+								{
+									"step": "fa",
+									"octave": 5
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 5
+								}
+							]
+						}
+					],
+					"leftHand": [
+						{
+							"type": "rest",
+							"duration": "quarter"
+						},
+						{
+							"type": "rest",
+							"duration": "quarter"
+						},
+						{
+							"type": "rest",
+							"duration": "quarter"
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "fa",
+									"octave": 3
+								},
+								{
+									"step": "la",
+									"octave": 3
+								}
+							]
+						}
+					]
+				},
+				{
+					"rightHand": [
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 4
+								},
+								{
+									"step": "si",
+									"octave": 4,
+									"alter": 0
+								},
+								{
+									"step": "re",
+									"octave": 5
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 4
+								},
+								{
+									"step": "si",
+									"octave": 4,
+									"alter": -1
+								},
+								{
+									"step": "fa",
+									"octave": 5
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 4
+								},
+								{
+									"step": "si",
+									"octave": 4,
+									"alter": -1
+								},
+								{
+									"step": "mi",
+									"octave": 5
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 4
+								},
+								{
+									"step": "si",
+									"octave": 4,
+									"alter": -1
+								},
+								{
+									"step": "re",
+									"octave": 5
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "fa",
+									"octave": 4
+								},
+								{
+									"step": "la",
+									"octave": 4
+								},
+								{
+									"step": "do",
+									"octave": 5
+								}
+							]
+						}
+					],
+					"leftHand": [
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 3
+								},
+								{
+									"step": "mi",
+									"octave": 3
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 3
+								},
+								{
+									"step": "fa",
+									"octave": 3,
+									"alter": 1
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 3
+								},
+								{
+									"step": "fa",
+									"octave": 3,
+									"alter": 0
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 3
+								},
+								{
+									"step": "sol",
+									"octave": 3
+								},
+								{
+									"step": "do",
+									"octave": 4
+								}
+							]
+						}
+					]
+				},
+				{
+					"rightHand": [
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 4
+								},
+								{
+									"step": "do",
+									"octave": 5
+								},
+								{
+									"step": "mi",
+									"octave": 5
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 4
+								},
+								{
+									"step": "do",
+									"octave": 5
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "fa",
+									"octave": 4
+								},
+								{
+									"step": "si",
+									"octave": 4,
+									"alter": -1
+								},
+								{
+									"step": "re",
+									"octave": 5
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 4
+								},
+								{
+									"step": "la",
+									"octave": 4
+								},
+								{
+									"step": "do",
+									"octave": 5
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "re",
+									"octave": 4
+								},
+								{
+									"step": "sol",
+									"octave": 4
+								},
+								{
+									"step": "si",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "half",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 4
+								},
+								{
+									"step": "mi",
+									"octave": 4
+								},
+								{
+									"step": "sol",
+									"octave": 4
+								},
+								{
+									"step": "do",
+									"octave": 5
+								}
+							]
+						}
+					],
+					"leftHand": [
+						{
+							"type": "note",
+							"duration": "half",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 2
+								},
+								{
+									"step": "do",
+									"octave": 3
+								},
+								{
+									"step": "mi",
+									"octave": 3
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "half",
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 1
+								},
+								{
+									"step": "sol",
+									"octave": 2
+								}
+							]
+						}
+					]
+				},
+				{
+					"rightHand": [
+						{
+							"type": "rest",
+							"duration": "half"
+						},
+						{
+							"type": "rest",
+							"duration": "eighth"
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 4,
+									"alter": -1
+								},
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "fa",
+									"octave": 4
+								}
+							]
+						}
+					],
+					"leftHand": [
+						{
+							"type": "rest",
+							"duration": "half"
+						},
+						{
+							"type": "rest",
+							"duration": "quarter"
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 2
+								},
+								{
+									"step": "do",
+									"octave": 3
+								}
+							]
+						}
+					]
+				},
+				{
+					"rightHand": [
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "re",
+									"octave": 4
+								},
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "fa",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "la",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "si",
+									"octave": 4,
+									"alter": -1
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 5
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "re",
+									"octave": 5
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 5,
+									"alter": -1
+								}
+							]
+						}
+					],
+					"leftHand": [
+						{
+							"type": "note",
+							"duration": "half",
+							"tie": "start",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 2
+								},
+								{
+									"step": "do",
+									"octave": 3
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"tie": "stop",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 3
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 2
+								},
+								{
+									"step": "do",
+									"octave": 3
+								}
+							]
+						}
+					]
+				},
+				{
+					"rightHand": [
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 4
+								},
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "fa",
+									"octave": 4,
+									"alter": 1
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "la",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "si",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 5
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "re",
+									"octave": 5
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 5
+								},
+								{
+									"step": "mi",
+									"octave": 5
+								}
+							]
+						}
+					],
+					"leftHand": [
+						{
+							"type": "note",
+							"duration": "half",
+							"tie": "start",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 2
+								},
+								{
+									"step": "do",
+									"octave": 3
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"tie": "stop",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 3
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 2
+								},
+								{
+									"step": "do",
+									"octave": 3
+								}
+							]
+						}
+					]
+				},
+				{
+					"rightHand": [
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 4
+								},
+								{
+									"step": "sol",
+									"octave": 4
+								},
+								{
+									"step": "do",
+									"octave": 5
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 4
+								},
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "re",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "fa",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						}
+					],
+					"leftHand": [
+						{
+							"type": "note",
+							"duration": "half",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 3
+								},
+								{
+									"step": "mi",
+									"octave": 3
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "half",
+							"pitches": [
+								{
+									"step": "si",
+									"octave": 2,
+									"alter": -1
+								},
+								{
+									"step": "re",
+									"octave": 3
+								}
+							]
+						}
+					]
+				},
+				{
+					"rightHand": [
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 4,
+									"alter": 1
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "re",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "fa",
+									"octave": 4,
+									"alter": 1
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "la",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"tie": "start",
+							"pitches": [
+								{
+									"step": "si",
+									"octave": 4,
+									"alter": 0
+								},
+								{
+									"step": "re",
+									"octave": 5
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "half",
+							"tie": "stop",
+							"pitches": [
+								{
+									"step": "si",
+									"octave": 4
+								},
+								{
+									"step": "re",
+									"octave": 5
+								}
+							]
+						}
+					],
+					"leftHand": [
+						{
+							"type": "note",
+							"duration": "whole",
+							"pitches": [
+								{
+									"step": "fa",
+									"octave": 2
+								},
+								{
+									"step": "fa",
+									"octave": 3
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "half",
+							"tie": "start",
+							"pitches": [
+								{
+									"step": "re",
+									"octave": 2
+								},
+								{
+									"step": "re",
+									"octave": 3
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "half",
+							"tie": "stop",
+							"pitches": [
+								{
+									"step": "re",
+									"octave": 2
+								},
+								{
+									"step": "re",
+									"octave": 3
+								}
+							]
+						}
+					]
+				},
+				{
+					"rightHand": [
+						{
+							"type": "note",
+							"duration": "quarter",
+							"dots": 1,
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 4
+								},
+								{
+									"step": "mi",
+									"octave": 4
+								},
+								{
+									"step": "sol",
+									"octave": 4
+								},
+								{
+									"step": "do",
+									"octave": 5
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 4
+								},
+								{
+									"step": "sol",
+									"octave": 4
+								},
+								{
+									"step": "do",
+									"octave": 5
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "fa",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "la",
+									"octave": 4
+								},
+								{
+									"step": "do",
+									"octave": 5
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "si",
+									"octave": 4
+								},
+								{
+									"step": "re",
+									"octave": 5
+								}
+							]
+						}
+					],
+					"leftHand": [
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 2
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 2
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 3
+								}
+							]
+						},
+						{
+							"type": "rest",
+							"duration": "eighth"
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 3
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 3
+								}
+							]
+						}
+					]
+				},
+				{
+					"rightHand": [
+						{
+							"type": "note",
+							"duration": "quarter",
+							"dots": 1,
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 4
+								},
+								{
+									"step": "mi",
+									"octave": 4
+								},
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 4
+								},
+								{
+									"step": "sol",
+									"octave": 4
+								},
+								{
+									"step": "do",
+									"octave": 5
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "fa",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "re",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 4
+								},
+								{
+									"step": "mi",
+									"octave": 4
+								}
+							]
+						}
+					],
+					"leftHand": [
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 2
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 2
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 3
+								}
+							]
+						},
+						{
+							"type": "rest",
+							"duration": "eighth"
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 3
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 3
+								}
+							]
+						}
+					]
+				},
+				{
+					"rightHand": [
+						{
+							"type": "note",
+							"duration": "quarter",
+							"dots": 1,
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 4
+								},
+								{
+									"step": "mi",
+									"octave": 4
+								},
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 4
+								},
+								{
+									"step": "sol",
+									"octave": 4
+								},
+								{
+									"step": "do",
+									"octave": 5
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "fa",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "re",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 4
+								},
+								{
+									"step": "mi",
+									"octave": 4
+								}
+							]
+						}
+					],
+					"leftHand": [
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 2
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 2
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 3
+								}
+							]
+						},
+						{
+							"type": "rest",
+							"duration": "eighth"
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 3
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 3
+								}
+							]
+						}
+					]
+				},
+				{
+					"rightHand": [
+						{
+							"type": "note",
+							"duration": "quarter",
+							"dots": 1,
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 4
+								},
+								{
+									"step": "mi",
+									"octave": 4
+								},
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 4
+								},
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "fa",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "la",
+									"octave": 4
+								},
+								{
+									"step": "do",
+									"octave": 5
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "si",
+									"octave": 4
+								},
+								{
+									"step": "re",
+									"octave": 5
+								}
+							]
+						}
+					],
+					"leftHand": [
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 2
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 2
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 3
+								}
+							]
+						},
+						{
+							"type": "rest",
+							"duration": "eighth"
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 3
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 3
+								}
+							]
+						}
+					]
+				},
+				{
+					"rightHand": [
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 4
+								},
+								{
+									"step": "mi",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 3
+								},
+								{
+									"step": "do",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 4
+								},
+								{
+									"step": "fa",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 4,
+									"alter": -1
+								}
+							]
+						}
+					],
+					"leftHand": [
+						{
+							"type": "note",
+							"duration": "half",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 2
+								},
+								{
+									"step": "do",
+									"octave": 3
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "half",
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 2
+								},
+								{
+									"step": "sol",
+									"octave": 3
+								}
+							]
+						}
+					]
+				},
+				{
+					"rightHand": [
+						{
+							"type": "note",
+							"duration": "quarter",
+							"dots": 1,
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 4
+								},
+								{
+									"step": "mi",
+									"octave": 4
+								},
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 4
+								},
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "fa",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "re",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 4
+								},
+								{
+									"step": "mi",
+									"octave": 4
+								}
+							]
+						}
+					],
+					"leftHand": [
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 2
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 2
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 3
+								}
+							]
+						},
+						{
+							"type": "rest",
+							"duration": "eighth"
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 3
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 3
+								}
+							]
+						}
+					]
+				},
+				{
+					"rightHand": [
+						{
+							"type": "note",
+							"duration": "quarter",
+							"dots": 1,
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 4
+								},
+								{
+									"step": "mi",
+									"octave": 4
+								},
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 4
+								},
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "fa",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "re",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 4
+								},
+								{
+									"step": "mi",
+									"octave": 4
+								}
+							]
+						}
+					],
+					"leftHand": [
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 2
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 2
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 3
+								}
+							]
+						},
+						{
+							"type": "rest",
+							"duration": "eighth"
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 3
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 3
+								}
+							]
+						}
+					]
+				},
+				{
+					"rightHand": [
+						{
+							"type": "note",
+							"duration": "quarter",
+							"dots": 1,
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 4
+								},
+								{
+									"step": "mi",
+									"octave": 4
+								},
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 4
+								},
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 4,
+									"alter": 1
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "re",
+									"octave": 4,
+									"alter": 1
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 4
+								},
+								{
+									"step": "do",
+									"octave": 5
+								}
+							]
+						}
+					],
+					"leftHand": [
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 2
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 2
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 3
+								}
+							]
+						},
+						{
+							"type": "rest",
+							"duration": "eighth"
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 3
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 3
+								}
+							]
+						}
+					]
+				},
+				{
+					"rightHand": [
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 4
+								},
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 4,
+									"alter": 1
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "re",
+									"octave": 4,
+									"alter": 0
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 4
+								}
+							]
+						}
+					],
+					"leftHand": [
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 2
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 3,
+									"alter": 1
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "re",
+									"octave": 3,
+									"alter": 0
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 3
+								}
+							]
+						}
+					]
+				},
+				{
+					"rightHand": [
+						{
+							"type": "note",
+							"duration": "quarter",
+							"dots": 1,
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 4
+								},
+								{
+									"step": "mi",
+									"octave": 4
+								},
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 4
+								},
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "fa",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "re",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 4
+								},
+								{
+									"step": "mi",
+									"octave": 4
+								}
+							]
+						}
+					],
+					"leftHand": [
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 2
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 2
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 3
+								}
+							]
+						},
+						{
+							"type": "rest",
+							"duration": "eighth"
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 3
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 3
+								}
+							]
+						}
+					]
+				},
+				{
+					"rightHand": [
+						{
+							"type": "note",
+							"duration": "quarter",
+							"dots": 1,
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 4
+								},
+								{
+									"step": "mi",
+									"octave": 4
+								},
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 4
+								},
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "fa",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "re",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 4
+								},
+								{
+									"step": "mi",
+									"octave": 4
+								}
+							]
+						}
+					],
+					"leftHand": [
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 2
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 2
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 3
+								}
+							]
+						},
+						{
+							"type": "rest",
+							"duration": "eighth"
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 3
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 3
+								}
+							]
+						}
+					]
+				},
+				{
+					"rightHand": [
+						{
+							"type": "note",
+							"duration": "quarter",
+							"dots": 1,
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 4
+								},
+								{
+									"step": "mi",
+									"octave": 4
+								},
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 4
+								},
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "fa",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 4,
+									"alter": -1
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "re",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 4
+								},
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						}
+					],
+					"leftHand": [
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 2
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 2
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 3
+								}
+							]
+						},
+						{
+							"type": "rest",
+							"duration": "eighth"
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 3,
+									"alter": -1
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "fa",
+									"octave": 3
+								}
+							]
+						}
+					]
+				},
+				{
+					"rightHand": [
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 4
+								},
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "re",
+									"octave": 4
+								},
+								{
+									"step": "fa",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 4
+								},
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "fa",
+									"octave": 4
+								},
+								{
+									"step": "la",
+									"octave": 4
+								}
+							]
+						}
+					],
+					"leftHand": [
+						{
+							"type": "note",
+							"duration": "whole",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 2,
+									"alter": -1
+								},
+								{
+									"step": "sol",
+									"octave": 2
+								},
+								{
+									"step": "do",
+									"octave": 3
+								}
+							]
+						}
+					]
+				},
+				{
+					"rightHand": [
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "si",
+									"octave": 4,
+									"alter": -1
+								},
+								{
+									"step": "re",
+									"octave": 5
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 5
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "re",
+									"octave": 5
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 5
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 5
+								},
+								{
+									"step": "mi",
+									"octave": 5
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "re",
+									"octave": 5
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "si",
+									"octave": 4
+								},
+								{
+									"step": "re",
+									"octave": 5
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 5
+								}
+							]
+						}
+					],
+					"leftHand": [
+						{
+							"type": "note",
+							"duration": "half",
+							"pitches": [
+								{
+									"step": "fa",
+									"octave": 2
+								},
+								{
+									"step": "la",
+									"octave": 2,
+									"alter": -1
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "half",
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 2
+								},
+								{
+									"step": "do",
+									"octave": 3
+								}
+							]
+						}
+					]
+				},
+				{
+					"rightHand": [
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "si",
+									"octave": 4,
+									"alter": 0
+								},
+								{
+									"step": "re",
+									"octave": 5
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 5
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "re",
+									"octave": 5
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 5
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 4
+								},
+								{
+									"step": "do",
+									"octave": 5
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 4
+								},
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						}
+					],
+					"leftHand": [
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 2
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 3
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "half",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 2
+								},
+								{
+									"step": "do",
+									"octave": 3
+								}
+							]
+						}
+					]
+				},
+				{
+					"rightHand": [
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 4,
+									"alter": 1
+								},
+								{
+									"step": "mi",
+									"octave": 4
+								},
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 5
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 5
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 4
+								},
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 5
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 4
+								}
+							]
+						}
+					],
+					"leftHand": [
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "si",
+									"octave": 1,
+									"alter": -1
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 3,
+									"alter": 1
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 2
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 3
+								}
+							]
+						}
+					]
+				},
+				{
+					"rightHand": [
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 4
+								},
+								{
+									"step": "mi",
+									"octave": 4
+								},
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "re",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 4
+								},
+								{
+									"step": "mi",
+									"octave": 4
+								},
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "si",
+									"octave": 4,
+									"alter": -1
+								},
+								{
+									"step": "re",
+									"octave": 5
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 4
+								},
+								{
+									"step": "mi",
+									"octave": 4
+								},
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						}
+					],
+					"leftHand": [
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 2
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 3,
+									"alter": 0
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 3
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 3
+								}
+							]
+						}
+					]
+				},
+				{
+					"rightHand": [
+						{
+							"type": "note",
+							"duration": "quarter",
+							"dots": 1,
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 4
+								},
+								{
+									"step": "mi",
+									"octave": 4
+								},
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 4
+								},
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "fa",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "re",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 4
+								},
+								{
+									"step": "mi",
+									"octave": 4
+								}
+							]
+						}
+					],
+					"leftHand": [
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 2
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 2
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 3
+								}
+							]
+						},
+						{
+							"type": "rest",
+							"duration": "eighth"
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 3
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 3
+								}
+							]
+						}
+					]
+				},
+				{
+					"rightHand": [
+						{
+							"type": "note",
+							"duration": "quarter",
+							"dots": 1,
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 4
+								},
+								{
+									"step": "mi",
+									"octave": 4
+								},
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 4
+								},
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "fa",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "re",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 4
+								},
+								{
+									"step": "mi",
+									"octave": 4
+								}
+							]
+						}
+					],
+					"leftHand": [
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 2
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 2
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 3
+								}
+							]
+						},
+						{
+							"type": "rest",
+							"duration": "eighth"
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 3
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 3
+								}
+							]
+						}
+					]
+				},
+				{
+					"rightHand": [
+						{
+							"type": "note",
+							"duration": "quarter",
+							"dots": 1,
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 4
+								},
+								{
+									"step": "mi",
+									"octave": 4
+								},
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 4
+								},
+								{
+									"step": "mi",
+									"octave": 4
+								},
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 4
+								}
+							]
+						}
+					],
+					"leftHand": [
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 2
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 2
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 3
+								}
+							]
+						},
+						{
+							"type": "rest",
+							"duration": "eighth"
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 3
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 3
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 3
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 3
+								}
+							]
+						}
+					]
+				},
+				{
+					"rightHand": [
+						{
+							"type": "note",
+							"duration": "whole",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 4
+								},
+								{
+									"step": "mi",
+									"octave": 4
+								},
+								{
+									"step": "sol",
+									"octave": 4
+								},
+								{
+									"step": "do",
+									"octave": 5
+								}
+							]
+						}
+					],
+					"leftHand": [
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 2
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 2
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 3
+								}
+							]
+						},
+						{
+							"type": "rest",
+							"duration": "eighth"
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 3
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 3
+								}
+							]
+						}
+					]
+				},
+				{
+					"rightHand": [
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "si",
+									"octave": 3,
+									"alter": -1
+								},
+								{
+									"step": "re",
+									"octave": 4
+								},
+								{
+									"step": "fa",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 4,
+									"alter": -1
+								},
+								{
+									"step": "sol",
+									"octave": 4
+								},
+								{
+									"step": "si",
+									"octave": 4,
+									"alter": -1
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 4,
+									"alter": 0
+								},
+								{
+									"step": "sol",
+									"octave": 4
+								},
+								{
+									"step": "do",
+									"octave": 5
+								}
+							]
+						},
+						{
+							"type": "rest",
+							"duration": "quarter"
+						},
+						{
+							"type": "rest",
+							"duration": "eighth"
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "sixteenth",
+							"pitches": [
+								{
+									"step": "re",
+									"octave": 4,
+									"alter": -1
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "sixteenth",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 4
+								}
+							]
+						}
+					],
+					"leftHand": [
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "si",
+									"octave": 1,
+									"alter": -1
+								},
+								{
+									"step": "si",
+									"octave": 2,
+									"alter": -1
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "fa",
+									"octave": 2
+								},
+								{
+									"step": "fa",
+									"octave": 3
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 2
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "re",
+									"octave": 2
+								}
+							]
+						},
+						{
+							"type": "rest",
+							"duration": "eighth"
+						},
+						{
+							"type": "rest",
+							"duration": "eighth"
+						}
+					]
+				},
+				{
+					"rightHand": [
+						{
+							"type": "rest",
+							"duration": "eighth"
+						},
+						{
+							"type": "note",
+							"duration": "sixteenth",
+							"pitches": [
+								{
+									"step": "fa",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "sixteenth",
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "sixteenth",
+							"pitches": [
+								{
+									"step": "la",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "sixteenth",
+							"pitches": [
+								{
+									"step": "si",
+									"octave": 4,
+									"alter": -1
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "sixteenth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 5
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "sixteenth",
+							"pitches": [
+								{
+									"step": "re",
+									"octave": 5
+								}
+							]
+						},
+						{
+							"type": "rest",
+							"duration": "eighth"
+						},
+						{
+							"type": "note",
+							"duration": "sixteenth",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 5
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "sixteenth",
+							"pitches": [
+								{
+									"step": "fa",
+									"octave": 5
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"dots": 1,
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 5
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"dots": 1,
+							"pitches": [
+								{
+									"step": "la",
+									"octave": 5
+								}
+							]
+						}
+					],
+					"leftHand": [
+						{
+							"type": "rest",
+							"duration": "whole"
+						}
+					]
+				}
+			]
+		},
+		{
+			"rightHand": {
+				"octaveShift": 1
+			},
+			"measures": [
+				{
+					"rightHand": [
+						{
+							"type": "note",
+							"duration": "quarter",
+							"dots": 1,
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 4
+								},
+								{
+									"step": "mi",
+									"octave": 4
+								},
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "la",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "si",
+									"octave": 4,
+									"alter": -1
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 5
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "re",
+									"octave": 5
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 5
+								}
+							]
+						}
+					],
+					"leftHand": [
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 2
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 2
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 3
+								}
+							]
+						},
+						{
+							"type": "rest",
+							"duration": "eighth"
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 3
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 3
+								}
+							]
+						}
+					]
+				},
+				{
+					"rightHand": [
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 5
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "re",
+									"octave": 5
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 5
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"dots": 1,
+							"pitches": [
+								{
+									"step": "fa",
+									"octave": 5
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 5
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "re",
+									"octave": 5
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 5
+								}
+							]
+						}
+					],
+					"leftHand": [
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 2
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 2
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 3
+								}
+							]
+						},
+						{
+							"type": "rest",
+							"duration": "eighth"
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 3
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 3
+								}
+							]
+						}
+					]
+				},
+				{
+					"rightHand": [
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "re",
+									"octave": 5
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 5
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "fa",
+									"octave": 5
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"dots": 1,
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 5
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "fa",
+									"octave": 5
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 5
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "re",
+									"octave": 5
+								}
+							]
+						}
+					],
+					"leftHand": [
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 2
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 2
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 3
+								}
+							]
+						},
+						{
+							"type": "rest",
+							"duration": "eighth"
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 3
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 3
+								}
+							]
+						}
+					]
+				},
+				{
+					"rightHand": [
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 5
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "si",
+									"octave": 4,
+									"alter": -1
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "la",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"dots": 1,
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "rest",
+							"duration": "eighth"
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "fa",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 4,
+									"alter": -1
+								}
+							]
+						}
+					],
+					"leftHand": [
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 1
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "re",
+									"octave": 2
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 2
+								}
+							]
+						},
+						{
+							"type": "rest",
+							"duration": "eighth"
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "si",
+									"octave": 2
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 2
+								}
+							]
+						}
+					]
+				}
+			]
+		},
+		{
+			"measures": [
+				{
+					"rightHand": [
+						{
+							"type": "note",
+							"duration": "quarter",
+							"dots": 1,
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 4
+								},
+								{
+									"step": "mi",
+									"octave": 4
+								},
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 4
+								},
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "fa",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "re",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 4
+								},
+								{
+									"step": "mi",
+									"octave": 4
+								}
+							]
+						}
+					],
+					"leftHand": [
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 2
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 2
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 3
+								}
+							]
+						},
+						{
+							"type": "rest",
+							"duration": "eighth"
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 3
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 3
+								}
+							]
+						}
+					]
+				},
+				{
+					"rightHand": [
+						{
+							"type": "note",
+							"duration": "quarter",
+							"dots": 1,
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 4
+								},
+								{
+									"step": "mi",
+									"octave": 4
+								},
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 4
+								},
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "fa",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "re",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 4
+								},
+								{
+									"step": "mi",
+									"octave": 4
+								}
+							]
+						}
+					],
+					"leftHand": [
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 2
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 2
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 3
+								}
+							]
+						},
+						{
+							"type": "rest",
+							"duration": "eighth"
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 3
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 3
+								}
+							]
+						}
+					]
+				},
+				{
+					"rightHand": [
+						{
+							"type": "note",
+							"duration": "quarter",
+							"dots": 1,
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 4
+								},
+								{
+									"step": "mi",
+									"octave": 4
+								},
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 4
+								},
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 4,
+									"alter": 1
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "re",
+									"octave": 4,
+									"alter": 1
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 4
+								},
+								{
+									"step": "do",
+									"octave": 5
+								}
+							]
+						}
+					],
+					"leftHand": [
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 2
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 2
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 3
+								}
+							]
+						},
+						{
+							"type": "rest",
+							"duration": "eighth"
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 3
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 3
+								}
+							]
+						}
+					]
+				},
+				{
+					"rightHand": [
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 4,
+									"alter": 1
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "re",
+									"octave": 4,
+									"alter": 0
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 4
+								}
+							]
+						}
+					],
+					"leftHand": [
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 2
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 3,
+									"alter": 1
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "re",
+									"octave": 3,
+									"alter": 0
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 3
+								}
+							]
+						}
+					]
+				},
+				{
+					"rightHand": [
+						{
+							"type": "note",
+							"duration": "quarter",
+							"dots": 1,
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 4
+								},
+								{
+									"step": "mi",
+									"octave": 4
+								},
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 4
+								},
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "fa",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "re",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 4
+								},
+								{
+									"step": "mi",
+									"octave": 4
+								}
+							]
+						}
+					],
+					"leftHand": [
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 2
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 2
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 3
+								}
+							]
+						},
+						{
+							"type": "rest",
+							"duration": "eighth"
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 3
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 3
+								}
+							]
+						}
+					]
+				},
+				{
+					"rightHand": [
+						{
+							"type": "note",
+							"duration": "quarter",
+							"dots": 1,
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 4
+								},
+								{
+									"step": "mi",
+									"octave": 4
+								},
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 4
+								},
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "fa",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "re",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 4
+								},
+								{
+									"step": "mi",
+									"octave": 4
+								}
+							]
+						}
+					],
+					"leftHand": [
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 2
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 2
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 3
+								}
+							]
+						},
+						{
+							"type": "rest",
+							"duration": "eighth"
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 3
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 3
+								}
+							]
+						}
+					]
+				},
+				{
+					"rightHand": [
+						{
+							"type": "note",
+							"duration": "quarter",
+							"dots": 1,
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 4
+								},
+								{
+									"step": "mi",
+									"octave": 4
+								},
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 4
+								},
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "fa",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 4,
+									"alter": -1
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "re",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 4
+								},
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						}
+					],
+					"leftHand": [
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 2
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 2
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 3
+								}
+							]
+						},
+						{
+							"type": "rest",
+							"duration": "eighth"
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 3
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 3
+								}
+							]
+						}
+					]
+				}
+			]
+		},
+		{
+			"rightHand": {
+				"octaveShift": 1
+			},
+			"measures": [
+				{
+					"rightHand": [
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 4,
+									"alter": -1
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "fa",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 4
+								},
+								{
+									"step": "mi",
+									"octave": 4
+								},
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 4
+								},
+								{
+									"step": "fa",
+									"octave": 4
+								},
+								{
+									"step": "la",
+									"octave": 4
+								}
+							]
+						}
+					],
+					"leftHand": [
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "fa",
+									"octave": 2
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "si",
+									"octave": 2,
+									"alter": -1
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 3,
+									"alter": -1
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "half",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 3
+								},
+								{
+									"step": "mi",
+									"octave": 3
+								},
+								{
+									"step": "sol",
+									"octave": 3
+								}
+							]
+						}
+					]
+				},
+				{
+					"rightHand": [
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 4,
+									"alter": 1
+								},
+								{
+									"step": "mi",
+									"octave": 4
+								},
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 5
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 5
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 4
+								},
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 5
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 4
+								}
+							]
+						}
+					],
+					"leftHand": [
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "si",
+									"octave": 1,
+									"alter": -1
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "re",
+									"octave": 3,
+									"alter": -1
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 2
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 3
+								}
+							]
+						}
+					]
+				},
+				{
+					"rightHand": [
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 4
+								},
+								{
+									"step": "mi",
+									"octave": 4
+								},
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "re",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 4
+								},
+								{
+									"step": "mi",
+									"octave": 4
+								},
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "fa",
+									"octave": 4
+								},
+								{
+									"step": "la",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 4
+								},
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						}
+					],
+					"leftHand": [
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 2
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "fa",
+									"octave": 3
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "half",
+							"pitches": [
+								{
+									"step": "re",
+									"octave": 2
+								},
+								{
+									"step": "re",
+									"octave": 3
+								}
+							]
+						}
+					]
+				},
+				{
+					"rightHand": [
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 4,
+									"alter": 1
+								},
+								{
+									"step": "mi",
+									"octave": 4
+								},
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 5
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 5
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 4
+								},
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 5
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 4
+								}
+							]
+						}
+					],
+					"leftHand": [
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "si",
+									"octave": 1,
+									"alter": -1
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 3,
+									"alter": 1
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 2
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 3
+								}
+							]
+						}
+					]
+				},
+				{
+					"rightHand": [
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 4
+								},
+								{
+									"step": "mi",
+									"octave": 4
+								},
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "re",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 4
+								},
+								{
+									"step": "sol",
+									"octave": 4
+								},
+								{
+									"step": "si",
+									"octave": 4,
+									"alter": -1
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "fa",
+									"octave": 4
+								},
+								{
+									"step": "la",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 4
+								},
+								{
+									"step": "mi",
+									"octave": 4
+								},
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						}
+					],
+					"leftHand": [
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 2
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 3,
+									"alter": 0
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 3
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 3
+								}
+							]
+						}
+					]
+				},
+				{
+					"rightHand": [
+						{
+							"type": "note",
+							"duration": "quarter",
+							"dots": 1,
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 4
+								},
+								{
+									"step": "mi",
+									"octave": 4
+								},
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 4
+								},
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "fa",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "re",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 4
+								},
+								{
+									"step": "mi",
+									"octave": 4
+								}
+							]
+						}
+					],
+					"leftHand": [
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 2
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 2
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 3
+								}
+							]
+						},
+						{
+							"type": "rest",
+							"duration": "eighth"
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 3
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 3
+								}
+							]
+						}
+					]
+				},
+				{
+					"rightHand": [
+						{
+							"type": "note",
+							"duration": "quarter",
+							"dots": 1,
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 4
+								},
+								{
+									"step": "mi",
+									"octave": 4
+								},
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 4
+								},
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "fa",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "re",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 4
+								},
+								{
+									"step": "mi",
+									"octave": 4
+								}
+							]
+						}
+					],
+					"leftHand": [
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 2
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 2
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 3
+								}
+							]
+						},
+						{
+							"type": "rest",
+							"duration": "eighth"
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 3
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 3
+								}
+							]
+						}
+					]
+				},
+				{
+					"rightHand": [
+						{
+							"type": "note",
+							"duration": "quarter",
+							"dots": 1,
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 4
+								},
+								{
+									"step": "mi",
+									"octave": 4
+								},
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 4
+								},
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "fa",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 5
+								},
+								{
+									"step": "mi",
+									"octave": 5
+								},
+								{
+									"step": "sol",
+									"octave": 5
+								}
+							]
+						}
+					],
+					"leftHand": [
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 2
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 2
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 3
+								}
+							]
+						},
+						{
+							"type": "rest",
+							"duration": "eighth"
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 3
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 3
+								}
+							]
+						}
+					]
+				},
+				{
+					"rightHand": [
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 4
+								},
+								{
+									"step": "mi",
+									"octave": 4
+								},
+								{
+									"step": "sol",
+									"octave": 4
+								},
+								{
+									"step": "do",
+									"octave": 5
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "half",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 4
+								},
+								{
+									"step": "mi",
+									"octave": 4
+								},
+								{
+									"step": "sol",
+									"octave": 4
+								},
+								{
+									"step": "do",
+									"octave": 5
+								}
+							]
+						}
+					],
+					"leftHand": [
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 2
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 2
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 3
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 3
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 3
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "mi",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "eighth",
+							"pitches": [
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						}
+					]
+				},
+				{
+					"rightHand": [
+						{
+							"type": "note",
+							"duration": "quarter",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 4
+								},
+								{
+									"step": "mi",
+									"octave": 4
+								},
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "note",
+							"duration": "quarter",
+							"dots": 1,
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 4
+								},
+								{
+									"step": "mi",
+									"octave": 4
+								},
+								{
+									"step": "sol",
+									"octave": 4
+								}
+							]
+						},
+						{
+							"type": "rest",
+							"duration": "eighth"
+						},
+						{
+							"type": "note",
+							"duration": "whole",
+							"tie": "start",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 4
+								},
+								{
+									"step": "mi",
+									"octave": 4
+								},
+								{
+									"step": "sol",
+									"octave": 4
+								},
+								{
+									"step": "do",
+									"octave": 5
+								}
+							]
+						}
+					],
+					"leftHand": [
+						{
+							"type": "rest",
+							"duration": "quarter"
+						},
+						{
+							"type": "rest",
+							"duration": "quarter"
+						},
+						{
+							"type": "rest",
+							"duration": "eighth"
+						},
+						{
+							"type": "note",
+							"duration": "whole",
+							"tie": "start",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 1
+								},
+								{
+									"step": "do",
+									"octave": 2
+								}
+							]
+						}
+					]
+				},
+				{
+					"barlineEnd": "final",
+					"rightHand": [
+						{
+							"type": "note",
+							"duration": "whole",
+							"tie": "stop",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 4
+								},
+								{
+									"step": "mi",
+									"octave": 4
+								},
+								{
+									"step": "sol",
+									"octave": 4
+								},
+								{
+									"step": "do",
+									"octave": 5
+								}
+							]
+						}
+					],
+					"leftHand": [
+						{
+							"type": "note",
+							"duration": "whole",
+							"tie": "stop",
+							"pitches": [
+								{
+									"step": "do",
+									"octave": 1
+								},
+								{
+									"step": "do",
+									"octave": 2
+								}
+							]
+						}
+					]
+				}
+			]
+		}
+	]
+}
